@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img"><title>Koin Infois sederhana (ukuran kecil)</title>
+  <defs><linearGradient id="rim" x1="0.15" y1="0" x2="0.85" y2="1"><stop offset="0" stop-color="#FFE9A0"/><stop offset=".45" stop-color="#F7B500"/><stop offset="1" stop-color="#B97A00"/></linearGradient>
+<linearGradient id="disc" x1="0.85" y1="1" x2="0.15" y2="0"><stop offset="0" stop-color="#F0A800"/><stop offset=".55" stop-color="#FFCB2E"/><stop offset="1" stop-color="#FFE27A"/></linearGradient>
+<linearGradient id="emb" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#C98900"/><stop offset="1" stop-color="#9C6300"/></linearGradient></defs>
+  <circle cx="128" cy="128" r="116" fill="#A56600"/>
+  <circle cx="128" cy="122" r="116" fill="url(#rim)"/>
+  <circle cx="128" cy="122" r="100" fill="url(#disc)"/>
+  <circle cx="128" cy="122" r="100" fill="none" stroke="#A56600" stroke-width="2" opacity=".6"/>
+  <rect x="76" y="70" width="104" height="104" rx="20.22" fill="url(#emb)"/>
+  <rect x="87.56" y="81.56" width="23.11" height="23.11" rx="4.33" fill="#FFF1BF"/>
+  <rect x="87.56" y="110.44" width="23.11" height="23.11" rx="4.33" fill="#FFF1BF"/>
+  <rect x="116.44" y="110.44" width="23.11" height="23.11" rx="4.33" fill="#FFF1BF"/>
+  <rect x="116.44" y="139.33" width="23.11" height="23.11" rx="4.33" fill="#FFF1BF"/>
+  <rect x="145.33" y="139.33" width="23.11" height="23.11" rx="4.33" fill="#FFF1BF"/>
+  <path d="M46 80 A92 92 0 0 1 86 40" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" opacity=".5"/>
+</svg>
