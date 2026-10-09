@@ -9,7 +9,9 @@ import '../../state/workspace.dart';
 import '../widgets/common.dart';
 import 'ai_home_screen.dart';
 import 'akun_screen.dart';
+import 'catatan_screen.dart';
 import 'kasir_screen.dart';
+import 'laporan_screen.dart';
 
 class _Tab {
   const _Tab(this.key, this.label, this.icon, this.selectedIcon, this.builder);
@@ -37,10 +39,8 @@ class _HomeShellState extends ConsumerState<HomeShell> {
   List<_Tab> _tabs(Menus menus) => [
         if (menus.pos) _Tab('kasir', 'Kasir', Icons.point_of_sale_outlined, Icons.point_of_sale, () => const KasirScreen()),
         if (menus.ai) _Tab('ai', 'Tim AI', Icons.auto_awesome_outlined, Icons.auto_awesome, () => const AiHomeScreen()),
-        if (menus.reports)
-          _Tab('laporan', 'Laporan', Icons.insights_outlined, Icons.insights, () => const ComingSoon(title: 'Laporan', message: 'Ringkasan omzet, barang terlaris, dan laporan per kasir segera hadir.')),
-        if (menus.records)
-          _Tab('catatan', 'Catatan', Icons.receipt_long_outlined, Icons.receipt_long, () => const ComingSoon(title: 'Catatan', message: 'Daftar penjualan, pembayaran, stok, dan piutang segera hadir. Riwayat nota kasir ada di menu Kasir.')),
+        if (menus.reports) _Tab('laporan', 'Laporan', Icons.insights_outlined, Icons.insights, () => const LaporanScreen()),
+        if (menus.records) _Tab('catatan', 'Catatan', Icons.receipt_long_outlined, Icons.receipt_long, () => const CatatanScreen()),
         _Tab('akun', 'Akun', Icons.person_outline, Icons.person, () => const AkunScreen()),
       ];
 
@@ -72,7 +72,8 @@ class _HomeShellState extends ConsumerState<HomeShell> {
             content: const Text('Versi aplikasi ini sudah lama. Perbarui aplikasi Infois supaya data tetap tersimpan dengan benar.'),
             actions: [TextButton(onPressed: () => setState(() => _updateDismissed = true), child: const Text('Nanti'))],
           ),
-        Expanded(child: IndexedStack(index: index, children: [for (final tab in tabs) tab.builder()])),
+        // Laporan & Catatan baru memanggil server saat tab-nya pertama dibuka.
+        Expanded(child: IndexedStack(index: index, children: [for (final (i, tab) in tabs.indexed) LazyTab(key: ValueKey(tab.key), active: i == index, builder: tab.builder)])),
       ]),
       bottomNavigationBar: tabs.length < 2
           ? null

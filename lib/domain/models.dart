@@ -410,7 +410,7 @@ class Menus {
 }
 
 class TenantSummary {
-  const TenantSummary({required this.id, required this.name, this.slug, this.role, this.roleLabel, this.active = true, this.menus = const Menus()});
+  const TenantSummary({required this.id, required this.name, this.slug, this.role, this.roleLabel, this.active = true, this.menus = const Menus(), this.permissions});
 
   factory TenantSummary.fromJson(Map<String, dynamic> json) => TenantSummary(
         id: _i(json['id'])!,
@@ -420,6 +420,7 @@ class TenantSummary {
         roleLabel: json['role_label']?.toString(),
         active: json['active'] == null || _b(json['active']),
         menus: Menus.fromJson(json['menus'] == null ? null : Map<String, dynamic>.from(json['menus'] as Map)),
+        permissions: json['permissions'] is List ? [for (final item in json['permissions'] as List) item.toString()] : null,
       );
 
   final int id;
@@ -430,7 +431,15 @@ class TenantSummary {
   final bool active;
   final Menus menus;
 
-  Map<String, dynamic> toJson() => {'id': id, 'slug': slug, 'name': name, 'role': role, 'role_label': roleLabel, 'active': active, 'menus': menus.toJson()};
+  /// Daftar permission web (`ViewAny:Invoice`, `view-reports`, …) dari
+  /// login / `GET /me`; null bila sesi lama belum menyimpannya.
+  final List<String>? permissions;
+
+  /// Punya permission web tertentu. Bila daftar belum tersimpan, pakai
+  /// [fallback] (menu yang sudah dipetakan server).
+  bool can(String permission, {bool fallback = false}) => permissions == null ? fallback : permissions!.contains(permission);
+
+  Map<String, dynamic> toJson() => {'id': id, 'slug': slug, 'name': name, 'role': role, 'role_label': roleLabel, 'active': active, 'menus': menus.toJson(), 'permissions': permissions};
 }
 
 class SessionUser {

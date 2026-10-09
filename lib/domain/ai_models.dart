@@ -75,11 +75,38 @@ class AiLimits {
   String get maxUploadLabel => maxUploadKb >= 1024 ? '${(maxUploadKb / 1024).round()} MB' : '$maxUploadKb KB';
 }
 
+/// Kanal Tim AI yang dibuka paket perusahaan (web selalu terbuka). Bila HP
+/// terkunci (trial atau paket tanpa aplikasi HP), [message] dan [unlockPlan]
+/// menjelaskan paket yang membukanya.
+class AiChannels {
+  const AiChannels({this.web = true, this.telegram = true, this.mobile = true, this.unlockPlan, this.message});
+
+  /// Server lama tanpa `channels` → semua kanal dianggap terbuka.
+  factory AiChannels.fromJson(Map<String, dynamic> json) => json.isEmpty
+      ? const AiChannels()
+      : AiChannels(
+          web: json['web'] == null || _b(json['web']),
+          telegram: _b(json['telegram']),
+          mobile: _b(json['mobile']),
+          unlockPlan: json['unlock_plan']?.toString(),
+          message: json['message']?.toString(),
+        );
+
+  final bool web;
+  final bool telegram;
+  final bool mobile;
+  final String? unlockPlan;
+  final String? message;
+}
+
 /// Jawaban GET /ai/overview.
 class AiOverview {
   const AiOverview({
     this.enabled = true,
+    this.reason,
+    this.channels = const AiChannels(),
     this.fastMode = false,
+    this.hasBusinessContext = false,
     this.teams = const [],
     this.coins = const AiCoins(),
     this.suggestions = const [],
@@ -89,7 +116,10 @@ class AiOverview {
 
   factory AiOverview.fromJson(Map<String, dynamic> json) => AiOverview(
         enabled: json['enabled'] == null || _b(json['enabled']),
+        reason: json['reason']?.toString(),
+        channels: AiChannels.fromJson(_map(json['channels'])),
         fastMode: _b(json['fast_mode']),
+        hasBusinessContext: _b(json['has_business_context']),
         teams: [for (final team in _maps(json['teams'])) AiTeam.fromJson(team)],
         coins: AiCoins.fromJson(_map(json['coins'])),
         suggestions: [for (final item in (json['suggestions'] as List? ?? const [])) item.toString()],
@@ -98,12 +128,22 @@ class AiOverview {
       );
 
   final bool enabled;
+
+  /// Alasan [enabled] false: `ai_tidak_tersedia` | `kanal_tidak_termasuk_paket`.
+  final String? reason;
+  final AiChannels channels;
   final bool fastMode;
+
+  /// Pemilik sudah mengisi "Tentang usaha Anda" (konteks untuk Tim AI).
+  final bool hasBusinessContext;
   final List<AiTeam> teams;
   final AiCoins coins;
   final List<String> suggestions;
   final int pendingProposals;
   final AiLimits limits;
+
+  /// Tim AI lewat HP belum termasuk paket: tampilkan penjelasan, bukan chat.
+  bool get channelLocked => !channels.mobile || reason == 'kanal_tidak_termasuk_paket';
 
   AiTeam? team(String key) {
     for (final team in teams) {

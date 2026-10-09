@@ -120,3 +120,28 @@ class AmountRow extends StatelessWidget {
     );
   }
 }
+
+/// Isi tab yang baru dibangun saat pertama kali dipilih dan tetap hidup
+/// setelahnya (IndexedStack malas): tab Laporan/Catatan tidak memanggil
+/// server sebelum dibuka.
+class LazyTab extends StatefulWidget {
+  const LazyTab({super.key, required this.active, required this.builder});
+
+  final bool active;
+  final Widget Function() builder;
+
+  @override
+  State<LazyTab> createState() => _LazyTabState();
+}
+
+class _LazyTabState extends State<LazyTab> {
+  Widget? _child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.active) {
+      _child ??= widget.builder();
+    }
+    return _child ?? const SizedBox.shrink();
+  }
+}

@@ -122,6 +122,24 @@ class _AiHomeScreenState extends ConsumerState<AiHomeScreen> {
     if (data == null) {
       return const Center(child: CircularProgressIndicator());
     }
+    if (data.channelLocked) {
+      // Trial atau paket tanpa aplikasi HP: jelaskan paketnya, jangan tampilkan chat.
+      return RefreshIndicator(
+        onRefresh: _refresh,
+        child: ListView(padding: const EdgeInsets.fromLTRB(16, 12, 16, 24), children: [
+          EmptyState(
+            key: const Key('ai-channel-locked'),
+            icon: Icons.lock_outline,
+            title: 'Tim AI lewat HP belum termasuk paket',
+            message: data.channels.message ??
+                'Tersedia di paket berbayar${data.channels.unlockPlan == null ? '' : ' mulai paket ${data.channels.unlockPlan}'}. Sementara ini, Tim AI tetap bisa dipakai lewat web.',
+            action: data.channels.unlockPlan == null
+                ? null
+                : Text('Pilih paket ${data.channels.unlockPlan} di menu Langganan (web) untuk membuka Tim AI di HP.', textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: mutedText(context))),
+          ),
+        ]),
+      );
+    }
 
     final items = conversations.valueOrNull?.items ?? const <AiConversation>[];
     return Scaffold(

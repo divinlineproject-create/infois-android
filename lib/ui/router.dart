@@ -3,11 +3,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../state/session.dart';
+import '../domain/record_models.dart';
+import '../state/records_state.dart';
 import 'screens/ai_chat_screen.dart';
+import 'screens/catatan_screen.dart';
 import 'screens/history_screen.dart';
 import 'screens/home_shell.dart';
 import 'screens/login_screen.dart';
 import 'screens/pay_screen.dart';
+import 'screens/record_detail_screens.dart';
+import 'screens/report_screens.dart';
 import 'screens/settings_screens.dart';
 import 'screens/shift_screens.dart';
 import 'screens/tenant_picker_screen.dart';
@@ -66,6 +71,33 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/printer', builder: (_, __) => const PrinterSettingsScreen()),
       GoRoute(path: '/sync', builder: (_, __) => const SyncStatusScreen()),
       GoRoute(path: '/tutup-kasir', builder: (_, __) => const ShiftCloseScreen()),
+      // Laporan (periode dipilih di tab Laporan, ikut ke semua rincian).
+      GoRoute(path: '/laporan/ringkasan', builder: (_, __) => const SalesSummaryScreen()),
+      GoRoute(path: '/laporan/peringkat/:kind', builder: (_, state) => RankedReportScreen(kind: state.pathParameters['kind'] ?? 'by-product')),
+      GoRoute(path: '/laporan/per-jam', builder: (_, __) => const HourlyReportScreen()),
+      GoRoute(path: '/laporan/umur/:kind', builder: (_, state) => AgingReportScreen(kind: state.pathParameters['kind'] ?? 'receivables')),
+      GoRoute(path: '/laporan/laba-rugi', builder: (_, __) => const ProfitLossScreen()),
+      GoRoute(path: '/laporan/arus-kas', builder: (_, __) => const CashFlowScreen()),
+      GoRoute(path: '/laporan/shift', builder: (_, __) => const ShiftsScreen()),
+      GoRoute(path: '/laporan/shift/:id', builder: (_, state) => ShiftDetailScreen(id: int.tryParse(state.pathParameters['id'] ?? '') ?? 0)),
+      // Catatan: rincian dokumen dan bagian sebagai layar sendiri.
+      GoRoute(
+        path: '/catatan/bagian/:section',
+        builder: (_, state) => RecordSectionScreen(
+          section: RecordSection.values.firstWhere((section) => section.name == state.pathParameters['section'], orElse: () => RecordSection.sales),
+          initialParams: state.uri.queryParameters,
+        ),
+      ),
+      GoRoute(path: '/catatan/penjualan/:id', builder: (_, state) => SaleDetailScreen(id: int.tryParse(state.pathParameters['id'] ?? '') ?? 0)),
+      GoRoute(path: '/catatan/pembayaran/:kind/:id', builder: (_, state) => PaymentDetailScreen(kind: state.pathParameters['kind'] ?? 'in', id: int.tryParse(state.pathParameters['id'] ?? '') ?? 0)),
+      GoRoute(path: '/catatan/pembelian/:id', builder: (_, state) => PurchaseDetailScreen(id: int.tryParse(state.pathParameters['id'] ?? '') ?? 0)),
+      GoRoute(path: '/catatan/pelanggan/:id', builder: (_, state) => CustomerDetailScreen(id: int.tryParse(state.pathParameters['id'] ?? '') ?? 0)),
+      GoRoute(path: '/catatan/pemasok/:id', builder: (_, state) => SupplierDetailScreen(id: int.tryParse(state.pathParameters['id'] ?? '') ?? 0)),
+      GoRoute(path: '/catatan/stok/:id', builder: (_, state) => StockItemScreen(productId: int.tryParse(state.pathParameters['id'] ?? '') ?? 0, item: state.extra is StockLevel ? state.extra as StockLevel : null)),
+      GoRoute(
+        path: '/catatan/lampiran',
+        builder: (_, state) => AttachmentScreen(attachment: state.extra is RecordAttachment ? state.extra as RecordAttachment : const RecordAttachment(index: 0, name: 'Lampiran')),
+      ),
     ],
   );
 });

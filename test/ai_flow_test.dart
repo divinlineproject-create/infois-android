@@ -144,6 +144,25 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
+  testWidgets('trial / paket tanpa HP: tab Tim AI menjelaskan paket yang membukanya, tanpa chat', (tester) async {
+    final server = FakeServer(aiHandler(
+      overview: {
+        'enabled': false,
+        'reason': 'kanal_tidak_termasuk_paket',
+        'channels': {'web': true, 'telegram': false, 'mobile': false, 'unlock_plan': 'Starter', 'message': 'Tim AI lewat aplikasi HP belum termasuk paket trial. Tersedia di paket berbayar mulai paket Starter. Sementara ini, Tim AI tetap bisa dipakai lewat web.'},
+      },
+    ));
+    await pumpApp(tester, server: server);
+    await openAiTab(tester);
+
+    expect(find.byKey(const Key('ai-channel-locked')), findsOneWidget);
+    expect(find.text('Tim AI lewat HP belum termasuk paket'), findsOneWidget);
+    expect(find.textContaining('mulai paket Starter'), findsWidgets);
+    expect(find.byKey(const Key('new-conversation')), findsNothing, reason: 'Tidak ada tombol percakapan baru.');
+    expect(find.text('Tim yang bekerja untuk Anda'), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets('offline: tab Tim AI menjelaskan butuh internet', (tester) async {
     await pumpApp(tester, server: offlineServer());
     await openAiTab(tester);
@@ -170,7 +189,7 @@ void main() {
 /// Server palsu: ping + sinkron minimal, dan semua endpoint Tim AI
 /// (API.md › 6). [onRun] dipanggil setiap GET /ai/runs/7; polling pertama
 /// masih berjalan, berikutnya selesai.
-Map<String, dynamic>? Function(RequestOptions options, Map<String, dynamic>? body) aiHandler({int Function()? onRun, Map<String, dynamic>? menus}) {
+Map<String, dynamic>? Function(RequestOptions options, Map<String, dynamic>? body) aiHandler({int Function()? onRun, Map<String, dynamic>? menus, Map<String, dynamic>? overview}) {
   var polls = 0;
   return (options, body) {
     final path = options.path;
@@ -204,6 +223,9 @@ Map<String, dynamic>? Function(RequestOptions options, Map<String, dynamic>? bod
       case 'ai/overview':
         return {
           'enabled': true,
+          'reason': null,
+          'channels': {'web': true, 'telegram': true, 'mobile': true, 'unlock_plan': null, 'message': null},
+          ...?overview,
           'fast_mode': false,
           'teams': [
             {'key': 'sales', 'name': 'Tim Penjualan', 'role': 'Kasir, pesanan, pengiriman, dan data pelanggan', 'tone': 'sky', 'icon': 'shopping-bag', 'example': 'Kopi susu 3, roti bakar 2, bayar tunai', 'locked': false, 'unlock_plan': null},

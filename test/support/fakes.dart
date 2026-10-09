@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart' show printCapabilities;
+import 'package:flutter/services.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:infois/data/api_client.dart';
 import 'package:infois/data/local_db.dart';
 import 'package:infois/domain/models.dart';
@@ -40,6 +42,27 @@ class FakeServer implements HttpClientAdapter {
 
   @override
   void close({bool force = false}) {}
+}
+
+/// Server palsu yang bisa menahan request tertentu sampai [Completer]-nya
+/// diselesaikan tes (meniru jawaban server yang lambat).
+class GatedServer extends FakeServer {
+  GatedServer(super.handler);
+
+  final List<(bool Function(RequestOptions options), Completer<void>)> _gates = [];
+
+  /// Tahan request yang cocok sampai [gate] selesai.
+  void hold(bool Function(RequestOptions options) matches, Completer<void> gate) => _gates.add((matches, gate));
+
+  @override
+  Future<ResponseBody> fetch(RequestOptions options, Stream<Uint8List>? requestStream, Future<void>? cancelFuture) async {
+    for (final (matches, gate) in _gates) {
+      if (matches(options)) {
+        await gate.future;
+      }
+    }
+    return super.fetch(options, requestStream, cancelFuture);
+  }
 }
 
 ApiClient fakeApi(FakeServer server, {int tenantId = 1}) {
@@ -127,4 +150,17 @@ Future<void> preloadEscPosProfile() async {
   final root = config.absolute.uri.resolve(rootUri);
   final file = File.fromUri(root.resolve('${package['packageUri']}resources/capabilities.json'));
   printCapabilities = Map.from(jsonDecode(file.readAsStringSync()) as Map);
+}
+
+/// Papan klip palsu: tanpa ini `Clipboard.setData` tidak pernah selesai di
+/// tes widget (tidak ada plugin). Mengembalikan daftar teks yang disalin.
+List<String> mockClipboard() {
+  final copied = <String>[];
+  TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+    if (call.method == 'Clipboard.setData') {
+      copied.add((call.arguments as Map)['text'].toString());
+    }
+    return null;
+  });
+  return copied;
 }

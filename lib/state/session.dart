@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -111,16 +113,25 @@ class SessionController extends AsyncNotifier<SessionState> {
   }
 
   /// Perbarui menu satu perusahaan dari hasil sinkron.
+  ///
+  /// Bila menunya berubah (peran diubah di web) atau sesi lama belum punya
+  /// daftar permission, `GET /me` dipanggil di belakang supaya hak lihat di
+  /// tab Catatan ikut berubah tanpa harus keluar-masuk.
   Future<void> updateMenus(int tenantId, Menus menus) async {
     final current = _current;
+    final previous = current.tenants.where((tenant) => tenant.id == tenantId).firstOrNull;
+    final changed = previous != null && (previous.permissions == null || jsonEncode(previous.menus.toJson()) != jsonEncode(menus.toJson()));
     final tenants = [
       for (final tenant in current.tenants)
         tenant.id == tenantId
-            ? TenantSummary(id: tenant.id, slug: tenant.slug, name: tenant.name, role: tenant.role, roleLabel: tenant.roleLabel, active: tenant.active, menus: menus)
+            ? TenantSummary(id: tenant.id, slug: tenant.slug, name: tenant.name, role: tenant.role, roleLabel: tenant.roleLabel, active: tenant.active, menus: menus, permissions: tenant.permissions)
             : tenant,
     ];
     await _storage.setSession(current.user, tenants);
     state = AsyncData(current.copyWith(tenants: tenants));
+    if (changed) {
+      unawaited(refreshMe().catchError((Object _) {}));
+    }
   }
 
   Future<void> selectTenant(int? tenantId) async {
