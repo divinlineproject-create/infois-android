@@ -59,6 +59,10 @@ class SyncEngine {
   /// grosir yang dihapus) pasti ikut.
   static const Duration fullPullEvery = Duration(hours: 24);
 
+  /// Satu kiriman berisi sampai 50 penjualan; tiap penjualan dibukukan
+  /// (stok, HPP, jurnal) sehingga server bisa butuh > 1 detik per nota.
+  static const Duration pushTimeout = Duration(minutes: 3);
+
   Future<PingResult> ping() async {
     try {
       final data = await api.get('ping', timeout: AppConfig.pingTimeout);
@@ -84,7 +88,7 @@ class SyncEngine {
 
       final List<Map<String, dynamic>> results;
       try {
-        final response = await api.post('sync/push', data: {'items': [for (final item in items) item.toPush()]});
+        final response = await api.post('sync/push', data: {'items': [for (final item in items) item.toPush()]}, timeout: pushTimeout);
         results = [for (final result in (response['results'] as List? ?? const [])) Map<String, dynamic>.from(result as Map)];
       } on ApiException catch (error) {
         await outbox.markAttemptFailed(items, error.message);
@@ -178,6 +182,7 @@ class SyncEngine {
     await local.setJson(MetaKeys.warehouses, data['warehouses']);
     await local.setJson(MetaKeys.user, data['user']);
     await local.setMeta(MetaKeys.numberBlocks, jsonEncode(data['number_blocks'] ?? const []));
+    await _seedLastNumber(data['number_blocks']);
 
     final receipt = Map<String, dynamic>.from(data['receipt'] as Map);
     await local.setJson(MetaKeys.receipt, receipt);
@@ -200,6 +205,27 @@ class SyncEngine {
       await local.setMeta(MetaKeys.lastFullPull, DateTime.now().toIso8601String());
     }
     await local.setMeta(MetaKeys.lastSyncAt, DateTime.now().toIso8601String());
+  }
+
+  /// Nomor terakhir yang sudah dipakai menurut server (`last_used` tiap jatah).
+  /// Setelah aplikasi dipasang ulang / keluar-masuk, penghitung di HP mulai
+  /// dari nol padahal nomor 1..N sudah terpakai: tanpa ini struk dicetak
+  /// dengan nomor lama lalu diganti server saat sinkron.
+  Future<void> _seedLastNumber(Object? rawBlocks) async {
+    if (rawBlocks is! List) {
+      return;
+    }
+    var serverLast = 0;
+    for (final block in rawBlocks) {
+      if (block is Map) {
+        final used = NumberBlock.fromJson(Map<String, dynamic>.from(block)).lastUsed ?? 0;
+        serverLast = used > serverLast ? used : serverLast;
+      }
+    }
+    final localLast = int.tryParse(await local.getMeta(MetaKeys.lastNumberSeq) ?? '') ?? 0;
+    if (serverLast > localLast) {
+      await local.setMeta(MetaKeys.lastNumberSeq, serverLast.toString());
+    }
   }
 
   Future<void> _refreshLogo(ReceiptConfig receipt) async {
@@ -245,9 +271,14 @@ class SyncEngine {
     await local.setMeta(MetaKeys.numberBlocks, jsonEncode([for (final item in merged) item.toJson()]));
   }
 
-  /// Satu siklus sinkron lengkap.
-  Future<PushSummary> run({bool forceFull = false}) async {
+  /// Satu siklus sinkron lengkap. [afterPush] dipanggil setelah outbox
+  /// terkirim, sebelum tarik data: kesempatan memperbarui jumlah tertunda
+  /// yang dikirim di header X-Outbox-Count request berikutnya.
+  Future<PushSummary> run({bool forceFull = false, Future<void> Function()? afterPush}) async {
     final summary = await pushAll();
+    if (afterPush != null) {
+      await afterPush();
+    }
     if (summary.failed) {
       return summary;
     }

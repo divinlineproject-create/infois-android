@@ -144,7 +144,7 @@ class _LineTile extends ConsumerWidget {
               Text(line.description, style: const TextStyle(fontWeight: FontWeight.w600)),
               Text(
                 '${qty(line.quantity)} ${line.unit} × ${rupiah(line.unitPrice)}${Money.isPositive(discount) ? ' · diskon ${percentLabel(discount)}%' : ''}',
-                style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+                style: TextStyle(fontSize: 13, color: mutedText(context)),
               ),
               Text(rupiah(amounts.lineTotal), style: const TextStyle(fontWeight: FontWeight.w600, color: Brand.green)),
             ]),

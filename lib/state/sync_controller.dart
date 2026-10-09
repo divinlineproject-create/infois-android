@@ -130,7 +130,9 @@ class SyncController extends Notifier<SyncState> {
     }
     state = state.copyWith(connection: ConnectionStatus.online, syncing: true, mustUpdate: ping.mustUpdate, clearMessage: true);
     try {
-      final summary = await workspace.engine.run(forceFull: forceFull);
+      // Setelah outbox terkirim, header X-Outbox-Count langsung 0 (bukan
+      // nilai lama) untuk request tarik data di siklus yang sama.
+      final summary = await workspace.engine.run(forceFull: forceFull, afterPush: refreshPending);
       final menus = await workspace.local.getJson(MetaKeys.menus);
       if (menus != null) {
         await ref.read(sessionProvider.notifier).updateMenus(workspace.tenant.id, Menus.fromJson(menus));
@@ -156,6 +158,11 @@ class SyncController extends Notifier<SyncState> {
       } else {
         _scheduleRetry(workspace);
       }
+    } catch (error) {
+      // Galat tak terduga (data server tidak sesuai, database lokal): jangan
+      // biarkan status "Menyinkron" menggantung tanpa pesan.
+      state = state.copyWith(syncing: false, message: 'Sinkron gagal: $error');
+      _scheduleRetry(workspace);
     } finally {
       ref.read(dataVersionProvider.notifier).state++;
       await refreshPending();

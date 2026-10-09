@@ -116,7 +116,12 @@ class _ShiftCloseScreenState extends ConsumerState<ShiftCloseScreen> {
   Future<void> _load() async {
     final shift = await ref.read(openShiftProvider.future);
     final service = await ref.read(posServiceProvider.future);
+    if (!mounted) {
+      return;
+    }
     if (shift == null || service == null) {
+      showMessage(context, 'Tidak ada kasir yang sedang dibuka.', error: true);
+      context.pop();
       return;
     }
     final summary = await service.shiftSummary(shift);
@@ -135,6 +140,10 @@ class _ShiftCloseScreenState extends ConsumerState<ShiftCloseScreen> {
     final shift = await ref.read(openShiftProvider.future);
     final service = await ref.read(posServiceProvider.future);
     if (shift == null || service == null) {
+      if (mounted) {
+        setState(() => _busy = false);
+        showMessage(context, 'Kasir sudah ditutup di layar lain.', error: true);
+      }
       return;
     }
     final report = await service.closeShift(shift, counted);

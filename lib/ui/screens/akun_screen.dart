@@ -115,7 +115,7 @@ class AkunScreen extends ConsumerWidget {
         label: const Text('Keluar', style: TextStyle(color: Brand.danger)),
       ),
       const SizedBox(height: 16),
-      Center(child: Text('Infois ${AppConfig.version} · Kasir ${master?.deviceCode ?? '-'}', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+      Center(child: Text('Infois ${AppConfig.version} · Kasir ${master?.deviceCode ?? '-'}', style: TextStyle(fontSize: 12, color: mutedText(context)))),
     ]);
   }
 }

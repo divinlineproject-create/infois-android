@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../state/session.dart';
+import 'screens/ai_chat_screen.dart';
 import 'screens/history_screen.dart';
 import 'screens/home_shell.dart';
 import 'screens/login_screen.dart';
@@ -58,6 +59,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         },
       ),
       GoRoute(path: '/riwayat', builder: (_, __) => const HistoryScreen()),
+      GoRoute(
+        path: '/ai/percakapan',
+        builder: (_, state) => AiChatScreen(conversationId: int.tryParse(state.uri.queryParameters['id'] ?? ''), initialText: state.extra is String ? state.extra as String : null),
+      ),
       GoRoute(path: '/printer', builder: (_, __) => const PrinterSettingsScreen()),
       GoRoute(path: '/sync', builder: (_, __) => const SyncStatusScreen()),
       GoRoute(path: '/tutup-kasir', builder: (_, __) => const ShiftCloseScreen()),

@@ -27,7 +27,7 @@ void main() {
     await preloadEscPosProfile();
   });
 
-  Future<(LocalDb, FakePrinter)> pumpApp(WidgetTester tester, {List<TenantSummary>? tenants, int? tenantId = 1, bool loggedIn = true, Map<String, dynamic>? menus}) async {
+  Future<(LocalDb, FakePrinter)> pumpApp(WidgetTester tester, {List<TenantSummary>? tenants, int? tenantId = 1, bool loggedIn = true, Map<String, dynamic>? menus, bool seed = true, FakeServer? server}) async {
     final allTenants = tenants ?? const [TenantSummary(id: 1, name: 'Warung Tes', roleLabel: 'Kasir', menus: Menus(pos: true, shift: true, printer: true, addCustomer: true))];
     SharedPreferences.setMockInitialValues({
       if (loggedIn)
@@ -44,7 +44,9 @@ void main() {
     final storage = await AppStorage.load();
     final local = await tester.runAsync(() async {
       final db = await memoryDb();
-      await seedMaster(db, menus: menus);
+      if (seed) {
+        await seedMaster(db, menus: menus);
+      }
       return db;
     });
     final printer = FakePrinter();
@@ -53,7 +55,7 @@ void main() {
       overrides: [
         storageProvider.overrideWithValue(storage),
         localDbOpenerProvider.overrideWithValue((_) async => local!),
-        apiFactoryProvider.overrideWithValue((_, __, ___, ____) => fakeApi(offlineServer())),
+        apiFactoryProvider.overrideWithValue((_, __, ___, ____) => fakeApi(server ?? offlineServer())),
         connectivityStreamProvider.overrideWithValue(const Stream.empty()),
         printerTransportProvider.overrideWithValue(printer),
       ],
@@ -156,6 +158,40 @@ void main() {
     expect(find.widgetWithText(NavigationDestination, 'Kasir'), findsNothing);
     expect(find.widgetWithText(NavigationDestination, 'Tim AI'), findsNothing);
     expect(find.widgetWithText(NavigationDestination, 'Akun'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('katalog kosong + server menolak: alasan tampil, bukan "Mengunduh…" selamanya', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2340);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    final server = FakeServer((options, body) => switch (options.path) {
+          'ping' => {'ok': true, 'min_app_version': '1.0.0'},
+          _ => {'_status': 403, 'message': 'Langganan perusahaan ini sedang tidak aktif. Kelola paket lewat website Infois.', 'code': 'langganan_tidak_aktif'},
+        });
+    await pumpApp(tester, seed: false, server: server);
+
+    expect(find.text('Data barang belum bisa diunduh'), findsOneWidget);
+    expect(find.textContaining('Langganan perusahaan ini sedang tidak aktif'), findsOneWidget);
+    expect(find.text('Mengunduh data barang…'), findsNothing);
+    expect(find.text('Coba lagi'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('katalog kosong + jawaban server rusak: sinkron berhenti dengan pesan, bukan menggantung', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2340);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    final server = FakeServer((options, body) => switch (options.path) {
+          'ping' => {'ok': true, 'min_app_version': '1.0.0'},
+          'sync/pull' => {'cursor': 'x', 'products': 'bukan-map'},
+          _ => {'results': []},
+        });
+    await pumpApp(tester, seed: false, server: server);
+
+    expect(find.text('Data barang belum bisa diunduh'), findsOneWidget);
+    expect(find.textContaining('Sinkron gagal'), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
     await tester.pumpWidget(const SizedBox());
   });
 

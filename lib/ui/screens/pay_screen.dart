@@ -95,6 +95,8 @@ class _PayScreenState extends ConsumerState<PayScreen> {
       }
     } on CheckoutException catch (error) {
       setState(() => _error = error.message);
+    } catch (error) {
+      setState(() => _error = 'Penjualan belum tersimpan: $error');
     } finally {
       if (mounted) {
         setState(() => _busy = false);
@@ -125,7 +127,7 @@ class _PayScreenState extends ConsumerState<PayScreen> {
               const Text('Total belanja'),
               const SizedBox(height: 4),
               Text(rupiah(total), key: const Key('pay-total'), style: const TextStyle(fontSize: 34, fontWeight: FontWeight.w700, color: Brand.green)),
-              Text('${cart.itemCount} barang · ${cart.customer?.name ?? 'Pelanggan umum'}', style: TextStyle(color: Colors.grey.shade700)),
+              Text('${cart.itemCount} barang · ${cart.customer?.name ?? 'Pelanggan umum'}', style: TextStyle(color: mutedText(context))),
             ]),
           ),
         ),
@@ -161,7 +163,7 @@ class _PayScreenState extends ConsumerState<PayScreen> {
           _MoneyField(controller: _cash, label: 'Jumlah uang (kosong = uang pas)', onChanged: () => setState(() {})),
           if (change != null) ...[
             const SizedBox(height: 16),
-            Text('Kembalian', style: TextStyle(color: Colors.grey.shade700)),
+            Text('Kembalian', style: TextStyle(color: mutedText(context))),
             Text(rupiah(change), key: const Key('pay-change'), style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w700)),
           ],
         ],
@@ -198,7 +200,7 @@ class _PayScreenState extends ConsumerState<PayScreen> {
           final printer = ref.watch(printerProvider);
           return Text(
             printer.printer == null ? 'Belum ada printer. Struk bisa dicetak nanti dari riwayat.' : 'Struk dicetak otomatis ke ${printer.printer!.name}.',
-            style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+            style: TextStyle(fontSize: 13, color: mutedText(context)),
           );
         }),
       ]),

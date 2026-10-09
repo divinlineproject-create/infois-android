@@ -12,6 +12,17 @@ class Brand {
   static const danger = Color(0xFFB91C1C);
 }
 
+/// Warna teks sekunder (keterangan kecil) yang tetap terbaca di mode gelap;
+/// `Colors.grey.shade700` hampir hilang di atas kartu gelap.
+Color mutedText(BuildContext context) => Theme.of(context).colorScheme.onSurfaceVariant;
+
+/// Teks peringatan (kuning) yang tetap kontras: amber-700 di mode terang,
+/// amber-300 di mode gelap (amber-700 di atas kartu gelap hanya 3,3:1).
+Color warningText(BuildContext context) => Theme.of(context).brightness == Brightness.dark ? const Color(0xFFFCD34D) : Brand.amber;
+
+/// Teks galat (merah) yang tetap kontras: red-700 terang, red-300 gelap.
+Color dangerText(BuildContext context) => Theme.of(context).brightness == Brightness.dark ? const Color(0xFFFCA5A5) : Brand.danger;
+
 ThemeData buildTheme(Brightness brightness) {
   final dark = brightness == Brightness.dark;
   final scheme = ColorScheme.fromSeed(

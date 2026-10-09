@@ -57,7 +57,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       builder: (context) => AlertDialog(
         title: const Text('Alamat server'),
         content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('Untuk uji coba. Emulator Android: http://10.0.2.2:8000'),
+          const Text('Untuk uji coba. Emulator Android: http://10.0.2.2:8000. HP fisik: pakai alamat IP komputer di Wi-Fi yang sama, mis. http://192.168.1.10:8000.'),
           const SizedBox(height: 12),
           TextField(controller: controller, keyboardType: TextInputType.url, autocorrect: false, decoration: const InputDecoration(hintText: 'https://app.infois.id')),
         ]),

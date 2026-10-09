@@ -209,6 +209,54 @@ void main() {
       expect(item.lastError, contains('Tidak bisa terhubung'));
     });
 
+    test('tarik data: nomor terakhir mengikuti last_used server (pasang ulang aplikasi tidak mengulang nomor)', () async {
+      final server = FakeServer((options, body) {
+        if (options.path != 'sync/pull') {
+          return null;
+        }
+        return {
+          'cursor': '2026-10-07T10:00:00.000000+07:00',
+          'tenant': {'id': 1, 'name': 'Warung Tes'},
+          'receipt': {'company': {'name': 'Warung Tes'}},
+          'device': {'id': 3, 'code': 'K1'},
+          'menus': {'pos': true},
+          'user': {'id': 1, 'name': 'Sari'},
+          'products': {'items': [], 'ids': [1, 2]},
+          'customers': {'items': [], 'ids': [7]},
+          'accounts': {'items': [], 'ids': []},
+          'warehouses': {'items': [], 'ids': []},
+          'number_blocks': [
+            {'id': 1, 'format': 'POS-K1/{SEQ:6}', 'start': 1, 'end': 500, 'last_used': 8},
+          ],
+          'open_shift': null,
+        };
+      });
+      final engine = SyncEngine(api: fakeApi(server), local: local, outbox: outbox);
+
+      await engine.pull();
+      expect(await local.getMeta(MetaKeys.lastNumberSeq), '8');
+      final sale = await pos.checkout(clientUuid: 'after-reinstall', cart: cartOf([(kopi, '1')]), payment: const PaymentInput(mode: PayMode.cash));
+      expect(sale['number'], 'POS-K1/000009');
+
+      // Penghitung lokal yang sudah lebih jauh tidak dimundurkan.
+      await local.setMeta(MetaKeys.lastNumberSeq, '20');
+      await engine.pull();
+      expect(await local.getMeta(MetaKeys.lastNumberSeq), '20');
+    });
+
+    test('kirim outbox memakai batas waktu panjang (50 nota bisa > 60 detik)', () async {
+      await pos.checkout(clientUuid: 'slow-1', cart: cartOf([(kopi, '1')]), payment: const PaymentInput(mode: PayMode.cash));
+      final server = FakeServer((options, body) => {
+            'results': [
+              for (final item in body!['items'] as List) {'client_uuid': item['client_uuid'], 'type': item['type'], 'status': 'ok'},
+            ],
+          });
+      await SyncEngine(api: fakeApi(server), local: local, outbox: outbox).pushAll();
+      final push = server.requests.single;
+      expect(push.path, 'sync/push');
+      expect(push.receiveTimeout, SyncEngine.pushTimeout);
+    });
+
     test('tarik data: barang yang dihapus di server ikut hilang, jatah nomor baru disimpan', () async {
       final server = FakeServer((options, body) {
         switch (options.path) {
@@ -242,7 +290,12 @@ void main() {
       });
       final engine = SyncEngine(api: fakeApi(server), local: local, outbox: outbox);
 
-      await engine.run();
+      // afterPush dipanggil setelah kirim outbox dan sebelum tarik data,
+      // supaya header X-Outbox-Count request berikutnya sudah diperbarui.
+      var requestsWhenPushed = -1;
+      await engine.run(afterPush: () async => requestsWhenPushed = server.requests.length);
+      expect(requestsWhenPushed, 0, reason: 'Outbox kosong: belum ada request saat afterPush.');
+      expect(server.requests.where((request) => request.path == 'sync/pull'), hasLength(1));
 
       final products = await local.products();
       expect(products.map((product) => '${product.name}:${product.price}'), ['Kopi susu:20000.00']);

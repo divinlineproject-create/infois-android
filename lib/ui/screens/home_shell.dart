@@ -7,6 +7,7 @@ import '../../state/session.dart';
 import '../../state/sync_controller.dart';
 import '../../state/workspace.dart';
 import '../widgets/common.dart';
+import 'ai_home_screen.dart';
 import 'akun_screen.dart';
 import 'kasir_screen.dart';
 
@@ -35,8 +36,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
 
   List<_Tab> _tabs(Menus menus) => [
         if (menus.pos) _Tab('kasir', 'Kasir', Icons.point_of_sale_outlined, Icons.point_of_sale, () => const KasirScreen()),
-        if (menus.ai)
-          _Tab('ai', 'Tim AI', Icons.auto_awesome_outlined, Icons.auto_awesome, () => const ComingSoon(title: 'Tim AI', message: 'Chat, voice note, dan foto nota bersama Tim AI segera hadir di aplikasi. Sementara ini pakai lewat website.')),
+        if (menus.ai) _Tab('ai', 'Tim AI', Icons.auto_awesome_outlined, Icons.auto_awesome, () => const AiHomeScreen()),
         if (menus.reports)
           _Tab('laporan', 'Laporan', Icons.insights_outlined, Icons.insights, () => const ComingSoon(title: 'Laporan', message: 'Ringkasan omzet, barang terlaris, dan laporan per kasir segera hadir.')),
         if (menus.records)

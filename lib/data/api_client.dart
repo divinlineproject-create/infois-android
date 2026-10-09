@@ -41,6 +41,7 @@ class ApiClient {
         options.headers['X-Tenant'] = tenantId.toString();
       }
       options.headers['X-App-Version'] = AppConfig.version;
+      options.headers['X-Platform'] = Platform.operatingSystem;
       final pending = outboxCount?.call();
       if (pending != null) {
         options.headers['X-Outbox-Count'] = pending.toString();
@@ -62,9 +63,15 @@ class ApiClient {
   Future<Map<String, dynamic>> get(String path, {Map<String, dynamic>? query, Duration? timeout}) =>
       _send(() => dio.get<dynamic>(path, queryParameters: query, options: timeout == null ? null : Options(receiveTimeout: timeout, sendTimeout: timeout)), timeout: timeout);
 
-  Future<Map<String, dynamic>> post(String path, {Object? data}) => _send(() => dio.post<dynamic>(path, data: data));
+  /// [onSendProgress] (terkirim, total byte) dipakai saat mengunggah lampiran.
+  Future<Map<String, dynamic>> post(String path, {Object? data, Duration? timeout, void Function(int, int)? onSendProgress}) => _send(
+        () => dio.post<dynamic>(path, data: data, onSendProgress: onSendProgress, options: timeout == null ? null : Options(receiveTimeout: timeout, sendTimeout: timeout)),
+        timeout: timeout,
+      );
 
   Future<Map<String, dynamic>> patch(String path, {Object? data}) => _send(() => dio.patch<dynamic>(path, data: data));
+
+  Future<Map<String, dynamic>> delete(String path) => _send(() => dio.delete<dynamic>(path));
 
   Future<List<int>> bytes(String url) async {
     try {
@@ -111,7 +118,9 @@ class ApiClient {
         message = data['message'] as String;
       }
     }
-    if (response.statusCode == 429) {
+    // Pembatas laju Laravel menjawab "Too Many Attempts." tanpa `code`;
+    // 429 dengan `code` (mis. sedang_diproses di Tim AI) sudah berbahasa Indonesia.
+    if (response.statusCode == 429 && code == null) {
       message = 'Terlalu banyak percobaan. Tunggu sebentar lalu coba lagi.';
     }
     return ApiException(message, code: code, status: response.statusCode);

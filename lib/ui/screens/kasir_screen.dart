@@ -69,10 +69,14 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
     final inclusive = data?.tenant.pricesIncludeTax ?? false;
 
     if (data != null && !data.hasData) {
+      final offline = sync.connection == ConnectionStatus.offline;
+      final failed = !sync.syncing && sync.message != null;
       return EmptyState(
-        icon: sync.connection == ConnectionStatus.offline ? Icons.cloud_off_outlined : Icons.downloading_outlined,
-        title: sync.connection == ConnectionStatus.offline ? 'Belum ada data barang' : 'Mengunduh data barang…',
-        message: sync.connection == ConnectionStatus.offline ? 'Sambungkan internet sekali untuk mengunduh katalog. Setelah itu kasir bisa dipakai offline.' : null,
+        icon: offline ? Icons.cloud_off_outlined : (failed ? Icons.error_outline : Icons.downloading_outlined),
+        title: offline ? 'Belum ada data barang' : (failed ? 'Data barang belum bisa diunduh' : 'Mengunduh data barang…'),
+        message: offline
+            ? 'Sambungkan internet sekali untuk mengunduh katalog. Setelah itu kasir bisa dipakai offline.'
+            : (failed ? sync.message : null),
         action: sync.syncing ? const CircularProgressIndicator() : OutlinedButton(onPressed: () => ref.read(syncProvider.notifier).syncNow(), child: const Text('Coba lagi')),
       );
     }
@@ -169,9 +173,9 @@ class _ProductCard extends StatelessWidget {
             const Spacer(),
             Text(rupiah(product.price), style: const TextStyle(fontWeight: FontWeight.w700, color: Brand.green, fontSize: 15)),
             if (stockLabel != null)
-              Text(stockLabel, style: TextStyle(fontSize: 12, color: empty ? Brand.amber : Colors.grey.shade600)),
+              Text(stockLabel, style: TextStyle(fontSize: 12, color: empty ? Brand.amber : mutedText(context))),
             if (product.units.isNotEmpty || product.tiers.isNotEmpty)
-              Text(product.tiers.isNotEmpty ? 'Ada harga grosir' : 'Tekan lama: pilih satuan', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+              Text(product.tiers.isNotEmpty ? 'Ada harga grosir' : 'Tekan lama: pilih satuan', style: TextStyle(fontSize: 11, color: mutedText(context))),
           ]),
         ),
       ),

@@ -50,11 +50,21 @@ dependencies:
   flutter_svg: 2.2.2
   image: 4.10.1
   permission_handler: 11.4.0
+  # Tim AI: foto nota (kamera/galeri), file PDF/Excel, voice note (rekam + putar).
+  image_picker: 1.2.1
+  file_picker: 8.3.7
+  record: 6.2.1
+  just_audio: 0.10.5
+  # Dipatok: audio_session 0.2.x butuh Kotlin Gradle plugin 2.x (proyek masih 1.8.22).
+  audio_session: 0.1.25
+  path_provider: 2.1.5
   flutter_localizations:
     sdk: flutter
 
 dev_dependencies:
   flutter_test:
+    sdk: flutter
+  integration_test:
     sdk: flutter
 
   # The "flutter_lints" package below contains a set of recommended lints to
