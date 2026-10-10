@@ -1,5 +1,3 @@
-import 'package:flutter/foundation.dart' show kReleaseMode;
-
 /// Konfigurasi aplikasi.
 class AppConfig {
   AppConfig._();
@@ -9,11 +7,15 @@ class AppConfig {
   /// Versi aplikasi (samakan dengan pubspec.yaml); dikirim di header X-App-Version.
   static const String version = '1.0.0';
 
-  /// Server bawaan: rilis → produksi; debug → emulator Android (localhost
-  /// komputer = 10.0.2.2). HP fisik saat uji coba harus mengganti alamat ini
-  /// di layar Masuk › Server (mis. http://192.168.1.10:8000).
+  /// Alamat server produksi.
   static const String productionServerUrl = 'https://dashboard.infois.ai';
-  static const String defaultServerUrl = String.fromEnvironment('INFOIS_SERVER', defaultValue: kReleaseMode ? productionServerUrl : 'http://10.0.2.2:8000');
+
+  /// Server aplikasi, PERMANEN sejak build (semua mode, termasuk debug).
+  /// Tidak bisa diganti dari aplikasi: pindah server = rilis baru di Play
+  /// Store. Pengembang menguji ke server lain dengan
+  /// `--dart-define=INFOIS_SERVER=http://127.0.0.1:8099` (emulator Android:
+  /// `http://10.0.2.2:8000`).
+  static const String serverUrl = String.fromEnvironment('INFOIS_SERVER', defaultValue: productionServerUrl);
 
   /// Batas waktu cek internet ke /ping.
   static const Duration pingTimeout = Duration(seconds: 5);

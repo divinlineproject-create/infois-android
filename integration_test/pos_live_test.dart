@@ -1,13 +1,15 @@
 // Uji ujung-ke-ujung di HP sungguhan terhadap server Infois yang hidup.
 // Jalankan: flutter test integration_test/pos_live_test.dart -d <device> \
-//   --dart-define=INFOIS_LIVE=http://127.0.0.1:8099 \
+//   --dart-define=INFOIS_SERVER=http://127.0.0.1:8099 \
 //   --dart-define=INFOIS_LIVE_EMAIL=... --dart-define=INFOIS_LIVE_PASSWORD=...
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:infois/core/config.dart';
 import 'package:infois/main.dart' as app;
 import 'package:integration_test/integration_test.dart';
 
-const server = String.fromEnvironment('INFOIS_LIVE');
+// Server tetap sejak build (tidak ada pilihan server di layar Masuk).
+const server = String.fromEnvironment('INFOIS_SERVER');
 const email = String.fromEnvironment('INFOIS_LIVE_EMAIL');
 const password = String.fromEnvironment('INFOIS_LIVE_PASSWORD');
 const company = String.fromEnvironment('INFOIS_LIVE_COMPANY', defaultValue: 'Kopi Senja');
@@ -63,13 +65,9 @@ void main() {
         expect(await waitFor(tester, find.byKey(const Key('login-email')), seconds: 20), isTrue, reason: 'layar masuk tidak muncul');
       }
     }
-    // Alamat server
-    await tester.tap(find.textContaining('Server:'));
-    await settle(tester);
-    await tester.enterText(find.byType(TextField).last, server);
-    await tester.tap(find.text('Simpan'));
-    await settle(tester);
-    expect(find.textContaining(server), findsOneWidget, reason: 'alamat server tidak tersimpan');
+    // Alamat server: dari --dart-define, tidak bisa diganti di layar Masuk.
+    expect(AppConfig.serverUrl, server, reason: 'jalankan dengan --dart-define=INFOIS_SERVER=<alamat server uji>');
+    expect(find.textContaining('Server:'), findsNothing);
 
     await tester.enterText(find.byKey(const Key('login-email')), email);
     await tester.enterText(find.byKey(const Key('login-password')), password);

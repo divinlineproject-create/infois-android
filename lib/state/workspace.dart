@@ -89,6 +89,9 @@ final workspaceProvider = FutureProvider<Workspace?>((ref) async {
     }
   });
 
+  // Data server lama yang belum terpindah tidak boleh terbuka atas nama login
+  // ini (nomor user/perusahaan bisa sama di server lain).
+  await storage.ensureServerMigrated();
   final local = await opener(LocalDb.fileName(user.id, tenant.id));
   if (replaced) {
     // Sesi berubah lagi selama database dibuka: workspace ini tidak dipakai.

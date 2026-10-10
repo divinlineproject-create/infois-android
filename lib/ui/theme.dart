@@ -26,6 +26,36 @@ Color warningText(BuildContext context) => Theme.of(context).brightness == Brigh
 /// Teks galat (merah) yang tetap kontras: red-700 terang, red-300 gelap.
 Color dangerText(BuildContext context) => Theme.of(context).brightness == Brightness.dark ? const Color(0xFFFCA5A5) : Brand.danger;
 
+/// Warna khusus Tim AI (gaya aplikasi chat: kotak tulis melayang, bubble
+/// pengguna lembut, jawaban tanpa bubble). Terang dan gelap.
+class AiColors {
+  AiColors._();
+
+  static bool _dark(BuildContext context) => Theme.of(context).brightness == Brightness.dark;
+
+  /// Latar layar percakapan (sedikit lebih hangat dari kartu).
+  static Color canvas(BuildContext context) => _dark(context) ? const Color(0xFF0B110D) : const Color(0xFFF6F8F6);
+
+  /// Isi kotak tulis pesan.
+  static Color composerFill(BuildContext context) => _dark(context) ? Theme.of(context).colorScheme.surfaceContainerHigh : Colors.white;
+
+  /// Garis tepi halus (kotak tulis, kartu usulan, kartu file).
+  static Color border(BuildContext context) => _dark(context) ? const Color(0xFF2A3830) : const Color(0xFFDCE5DF);
+
+  /// Bubble pesan pengguna.
+  static Color userBubble(BuildContext context) => _dark(context) ? Theme.of(context).colorScheme.surfaceContainerHighest : const Color(0xFFE5EEE8);
+
+  /// Kartu usulan / file di dalam jawaban.
+  static Color card(BuildContext context) => _dark(context) ? const Color(0xFF141D17) : Colors.white;
+
+  /// Latar kode & kepala tabel di jawaban.
+  static Color codeFill(BuildContext context) => _dark(context) ? const Color(0xFF1C2821) : const Color(0xFFEFF3F0);
+
+  /// Bayangan lembut kotak tulis (mode gelap tanpa bayangan).
+  static List<BoxShadow> composerShadow(BuildContext context) =>
+      _dark(context) ? const [] : [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 18, offset: const Offset(0, 4))];
+}
+
 ThemeData buildTheme(Brightness brightness) {
   final dark = brightness == Brightness.dark;
   final scheme = ColorScheme.fromSeed(

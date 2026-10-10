@@ -54,26 +54,39 @@ class _HomeShellState extends ConsumerState<HomeShell> {
     final tabs = _tabs(menus);
     final index = tabs.indexWhere((tab) => tab.key == _selected).clamp(0, tabs.length - 1);
 
+    // Tab Tim AI punya bilah atas sendiri (Riwayat · judul · Percakapan baru)
+    // seperti aplikasi chat; status sinkron pindah ke laci Riwayat.
+    final aiTab = tabs[index].key == 'ai';
     return Scaffold(
-      appBar: AppBar(
-        titleSpacing: 16,
-        title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(tenant?.name ?? 'Infois', overflow: TextOverflow.ellipsis),
-          if (master?.deviceCode != null)
-            Text('Kasir ${master!.deviceCode} · ${session?.user?.name ?? ''}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w400)),
-        ]),
-        actions: [
-          Padding(padding: const EdgeInsets.only(right: 12), child: SyncStatusBadge(onTap: () => context.push('/sync'))),
-        ],
-      ),
+      appBar: aiTab
+          ? null
+          : AppBar(
+              titleSpacing: 16,
+              title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(tenant?.name ?? 'Infois', overflow: TextOverflow.ellipsis),
+                if (master?.deviceCode != null)
+                  Text('Kasir ${master!.deviceCode} · ${session?.user?.name ?? ''}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w400)),
+              ]),
+              actions: [
+                Padding(padding: const EdgeInsets.only(right: 12), child: SyncStatusBadge(onTap: () => context.push('/sync'))),
+              ],
+            ),
       body: Column(children: [
         if (sync.mustUpdate && !_updateDismissed)
           MaterialBanner(
+            // Tanpa bilah aplikasi (tab Tim AI) spanduk tidak boleh di bawah status bar.
+            padding: aiTab ? EdgeInsetsDirectional.only(start: 16, top: 24 + MediaQuery.paddingOf(context).top) : null,
             content: const Text('Versi aplikasi ini sudah lama. Perbarui aplikasi Infois supaya data tetap tersimpan dengan benar.'),
             actions: [TextButton(onPressed: () => setState(() => _updateDismissed = true), child: const Text('Nanti'))],
           ),
         // Laporan & Catatan baru memanggil server saat tab-nya pertama dibuka.
-        Expanded(child: IndexedStack(index: index, children: [for (final (i, tab) in tabs.indexed) LazyTab(key: ValueKey(tab.key), active: i == index, builder: tab.builder)])),
+        Expanded(child: MediaQuery(
+          // Spanduk sudah memakai ruang status bar. Keyboard sudah dikurangi
+          // Scaffold ini dari tinggi isi tab: Scaffold di dalam tab (Tim AI,
+          // Laporan, Catatan) tidak boleh menguranginya sekali lagi.
+          data: MediaQuery.of(context).removePadding(removeTop: aiTab && sync.mustUpdate && !_updateDismissed).removeViewInsets(removeBottom: true),
+          child: IndexedStack(index: index, children: [for (final (i, tab) in tabs.indexed) LazyTab(key: ValueKey(tab.key), active: i == index, builder: tab.builder)]),
+        )),
       ]),
       bottomNavigationBar: tabs.length < 2
           ? null

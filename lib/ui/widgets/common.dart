@@ -4,6 +4,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../core/format.dart';
 import '../../data/api_client.dart';
+import '../../data/app_storage.dart' show ServerMigrationPending;
 import '../../data/local_db.dart';
 import '../../services/pos_service.dart';
 import '../../state/sync_controller.dart';
@@ -125,6 +126,9 @@ String plainError(Object? error, {String fallback = 'Terjadi kendala. Coba lagi.
     return error.message;
   }
   if (error is LocalDbClosedException) {
+    return error.message;
+  }
+  if (error is ServerMigrationPending) {
     return error.message;
   }
   debugPrint('Galat: $error');

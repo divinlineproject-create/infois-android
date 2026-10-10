@@ -10,6 +10,7 @@ Semua endpoint ada di bawah **`/api/v1`**, berformat JSON, pesan galat dalam Bah
 
 | Hal | Aturan |
 |---|---|
+| Server | **Tetap sejak build**, tidak bisa diganti dari aplikasi (layar Masuk tidak punya pilihan server): `AppConfig.serverUrl` = `--dart-define=INFOIS_SERVER=…`, default `https://dashboard.infois.ai` untuk semua mode build. Pindah server = rilis baru di Play Store. Uji coba: `flutter run --dart-define=INFOIS_SERVER=http://127.0.0.1:8099` (emulator Android: `http://10.0.2.2:8000`). Saat dibuka, aplikasi menghapus alamat server ketikan versi lama; bila login/data di HP milik server lain, login dihapus (pengguna masuk lagi) dan database lokal dipindah utuh ke `databases/server_lama/…` tanpa pernah disinkron ke server ini. |
 | Autentikasi | Token Sanctum per **user + HP**: `Authorization: Bearer <token>`. Token terikat ke `device_uid` (ID pemasangan aplikasi). |
 | Perusahaan | Dikirim per request: header **`X-Tenant: <id atau slug>`**. Wajib untuk semua endpoint bertanda 🏢. |
 | Pengecekan 🏢 | user anggota perusahaan → perusahaan boleh memakai aplikasi HP (paket berbayar aktif yang termasuk aplikasi HP, lihat §3) → HP belum dicabut → konteks tenant + team permission diaktifkan. |

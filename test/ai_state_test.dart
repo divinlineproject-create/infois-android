@@ -43,6 +43,17 @@ ProviderContainer container(FakeServer server) => ProviderContainer(overrides: [
       aiPollIntervalProvider.overrideWithValue(const Duration(milliseconds: 50)),
     ]);
 
+/// Tunggu sampai [condition] benar (maks. [timeout]), dicek tiap 5 ms.
+Future<void> waitFor(bool Function() condition, {Duration timeout = const Duration(seconds: 5)}) async {
+  final deadline = DateTime.now().add(timeout);
+  while (!condition()) {
+    if (DateTime.now().isAfter(deadline)) {
+      fail('Kondisi tidak terpenuhi dalam ${timeout.inSeconds} detik.');
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 5));
+  }
+}
+
 int polls(FakeServer server) => server.requests.where((request) => request.path == 'ai/runs/7').length;
 
 void main() {
@@ -54,7 +65,7 @@ void main() {
     addTearDown(subscription.close);
 
     await scope.read(aiChatProvider(0).notifier).send('kopi susu 2');
-    await Future<void>.delayed(const Duration(milliseconds: 120));
+    await waitFor(() => scope.read(aiChatProvider(0)).pollError != null);
 
     final state = scope.read(aiChatProvider(0));
     expect(state.phase, AiChatPhase.idle, reason: 'Kotak tulis harus aktif lagi.');
@@ -106,13 +117,15 @@ void main() {
     final subscription = scope.listen(aiChatProvider(0), (_, __) {});
 
     await scope.read(aiChatProvider(0).notifier).send('kopi susu 2');
-    await Future<void>.delayed(const Duration(milliseconds: 10));
+    // Tunggu keadaan yang diharapkan (bukan jeda tetap): stabil walau mesin tes sibuk.
+    await waitFor(() => polls(server) >= 1);
     expect(polls(server), 1, reason: 'Status dicek segera setelah terkirim.');
 
     // Request kedua ditahan; layar ditutup selagi menunggu jawabannya.
     server.gate = Completer<void>();
-    await Future<void>.delayed(const Duration(milliseconds: 80));
+    await waitFor(() => server.held == 1);
     expect(server.held, 1, reason: 'Polling kedua sedang menunggu jawaban.');
+    expect(polls(server), 1);
     subscription.close();
     await Future<void>.delayed(const Duration(milliseconds: 10));
     server.gate!.complete();

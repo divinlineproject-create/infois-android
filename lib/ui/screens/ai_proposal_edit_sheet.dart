@@ -189,10 +189,23 @@ class _ProposalEditSheetState extends State<_ProposalEditSheet> {
       builder: (context, scroll) => Form(
         key: _form,
         child: ListView(controller: scroll, padding: const EdgeInsets.fromLTRB(20, 0, 20, 24), children: [
-          Text('Ubah usulan', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
-          const SizedBox(height: 4),
-          Text(proposal.title, style: TextStyle(fontSize: 13, color: mutedText(context))),
-          const SizedBox(height: 16),
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
+              child: Icon(Icons.edit_outlined, size: 20, color: Theme.of(context).colorScheme.primary),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Ubah usulan', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
+                const SizedBox(height: 2),
+                Text(proposal.title, style: TextStyle(fontSize: 13, color: mutedText(context))),
+              ]),
+            ),
+          ]),
+          const SizedBox(height: 20),
           if (has('contact')) ...[
             TextFormField(key: const Key('edit-contact'), controller: _text['contact'], validator: _requiredContact, decoration: InputDecoration(labelText: proposal.type == 'purchase' ? 'Pemasok' : 'Pelanggan')),
             const SizedBox(height: 12),
@@ -217,7 +230,8 @@ class _ProposalEditSheetState extends State<_ProposalEditSheet> {
             Text(isProducts ? 'Barang' : 'Rincian', style: const TextStyle(fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
             for (var i = 0; i < _items.length; i++) ...[
-              Card(
+              Container(
+                decoration: BoxDecoration(color: AiColors.card(context), borderRadius: BorderRadius.circular(16), border: Border.all(color: AiColors.border(context))),
                 child: Padding(
                   padding: const EdgeInsets.all(12),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -310,9 +324,15 @@ class _ProposalEditSheetState extends State<_ProposalEditSheet> {
             const SizedBox(height: 12),
           ],
           const SizedBox(height: 8),
-          FilledButton.icon(key: const Key('edit-save'), onPressed: _save, icon: const Icon(Icons.check), label: const Text('Simpan & setujui')),
+          FilledButton.icon(
+            key: const Key('edit-save'),
+            style: FilledButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26))),
+            onPressed: _save,
+            icon: const Icon(Icons.check_rounded),
+            label: const Text('Simpan & setujui'),
+          ),
           const SizedBox(height: 8),
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Batal')),
+          TextButton(style: TextButton.styleFrom(minimumSize: const Size(0, 48)), onPressed: () => Navigator.pop(context), child: const Text('Batal')),
         ]),
       ),
     );

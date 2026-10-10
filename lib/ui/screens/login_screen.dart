@@ -1,8 +1,6 @@
-import 'package:flutter/foundation.dart' show kReleaseMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/config.dart';
 import '../../data/api_client.dart';
 import '../../services/file_downloads.dart';
 import '../../state/session.dart';
@@ -118,38 +116,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
-  Future<void> _editServer() async {
-    final current = ref.read(sessionProvider).valueOrNull?.serverUrl ?? '';
-    final controller = TextEditingController(text: current);
-    final result = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Alamat server'),
-        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('Biarkan seperti ini, kecuali diminta mengganti oleh tim Infois.'),
-          if (!kReleaseMode)
-            const Padding(
-              padding: EdgeInsets.only(top: 6),
-              child: Text('Uji coba: emulator Android http://10.0.2.2:8000; HP fisik pakai alamat IP komputer di Wi-Fi yang sama, mis. http://192.168.1.10:8000.', style: TextStyle(fontSize: 12)),
-            ),
-          const SizedBox(height: 12),
-          TextField(controller: controller, keyboardType: TextInputType.url, autocorrect: false, decoration: const InputDecoration(hintText: AppConfig.productionServerUrl)),
-        ]),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Batal')),
-          FilledButton(onPressed: () => Navigator.pop(context, controller.text), child: const Text('Simpan')),
-        ],
-      ),
-    );
-    if (result != null && result.trim().isNotEmpty) {
-      await ref.read(sessionProvider.notifier).setServerUrl(result);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final session = ref.watch(sessionProvider).valueOrNull;
-    final server = session?.serverUrl ?? '';
     final notice = _notice ?? session?.notice;
     return Scaffold(
       body: SafeArea(
@@ -221,12 +190,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   ),
                   const SizedBox(height: 12),
                   const Text('Belum punya akun? Daftarkan usaha lewat website Infois.', textAlign: TextAlign.center, style: TextStyle(fontSize: 13)),
-                  const SizedBox(height: 24),
-                  TextButton.icon(
-                    onPressed: _editServer,
-                    icon: const Icon(Icons.dns_outlined, size: 18),
-                    label: Text('Server: $server', overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)),
-                  ),
                 ]),
               ),
             ),

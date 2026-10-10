@@ -45,7 +45,8 @@ Future<BackgroundSyncResult> runBackgroundSync({
   final token = await storage.token();
   final session = storage.session();
   final tenantId = storage.tenantId;
-  if (token == null || session == null || tenantId == null) {
+  // Data server lama belum terpindah: jangan buka / kirim apa pun.
+  if (token == null || session == null || tenantId == null || storage.serverMigrationPending) {
     return BackgroundSyncResult.skippedNoSession;
   }
   if (await storage.foregroundActive()) {

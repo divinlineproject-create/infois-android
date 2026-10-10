@@ -95,9 +95,11 @@ String tenantWebPath(String? slug, [String page = '']) => slug == null || slug.t
 String billingPath(String? slug) => tenantWebPath(slug, '/langganan');
 
 class SessionState {
-  const SessionState({required this.serverUrl, this.token, this.user, this.tenants = const [], this.tenantId, this.notice});
+  const SessionState({this.token, this.user, this.tenants = const [], this.tenantId, this.notice});
 
-  final String serverUrl;
+  /// Server aplikasi: tetap sejak build ([AppConfig.serverUrl]), tidak bisa
+  /// diganti dari aplikasi.
+  String get serverUrl => AppConfig.serverUrl;
   final String? token;
   final SessionUser? user;
   final List<TenantSummary> tenants;
@@ -121,8 +123,7 @@ class SessionState {
   /// Alamat web Infois (tanpa `/` di akhir) + [path], mis. `/app/{slug}/langganan`.
   String webUrl(String path) => '${serverUrl.trim().replaceAll(RegExp(r'/+$'), '')}$path';
 
-  SessionState copyWith({String? serverUrl, String? token, SessionUser? user, List<TenantSummary>? tenants, int? tenantId, bool clearTenant = false, AccessNotice? notice, bool clearNotice = false}) => SessionState(
-        serverUrl: serverUrl ?? this.serverUrl,
+  SessionState copyWith({String? token, SessionUser? user, List<TenantSummary>? tenants, int? tenantId, bool clearTenant = false, AccessNotice? notice, bool clearNotice = false}) => SessionState(
         token: token ?? this.token,
         user: user ?? this.user,
         tenants: tenants ?? this.tenants,
@@ -141,7 +142,6 @@ class SessionController extends AsyncNotifier<SessionState> {
     final token = await storage.token();
     final saved = storage.session();
     return SessionState(
-      serverUrl: storage.serverUrl,
       token: token,
       user: token == null ? null : saved?.user,
       tenants: token == null ? const [] : (saved?.tenants ?? const []),
@@ -149,14 +149,9 @@ class SessionController extends AsyncNotifier<SessionState> {
     );
   }
 
-  SessionState get _current => state.valueOrNull ?? SessionState(serverUrl: _storage.serverUrl);
+  SessionState get _current => state.valueOrNull ?? const SessionState();
 
   ApiClient _api({String? token}) => ref.read(apiFactoryProvider)(_current.serverUrl, token, null, () => null);
-
-  Future<void> setServerUrl(String url) async {
-    await _storage.setServerUrl(url);
-    state = AsyncData(_current.copyWith(serverUrl: _storage.serverUrl));
-  }
 
   Future<void> login({required String email, required String password, required String deviceName}) async {
     final response = await _api().post('auth/login', data: {
@@ -174,7 +169,7 @@ class SessionController extends AsyncNotifier<SessionState> {
     await _storage.setSession(user, tenants);
     final tenantId = tenants.length == 1 ? tenants.first.id : null;
     await _storage.setTenantId(tenantId);
-    state = AsyncData(SessionState(serverUrl: _current.serverUrl, token: token, user: user, tenants: tenants, tenantId: tenantId));
+    state = AsyncData(SessionState(token: token, user: user, tenants: tenants, tenantId: tenantId));
   }
 
   /// Perbarui daftar perusahaan + hak akses (mis. role diubah di web).
@@ -317,7 +312,7 @@ class SessionController extends AsyncNotifier<SessionState> {
     try {
       await _storage.clearSession();
     } finally {
-      state = AsyncData(SessionState(serverUrl: _current.serverUrl, notice: notice));
+      state = AsyncData(SessionState(notice: notice));
     }
   }
 

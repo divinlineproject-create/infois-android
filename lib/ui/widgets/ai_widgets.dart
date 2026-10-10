@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../core/format.dart';
 import '../../data/ai_api.dart';
+import '../../data/api_client.dart';
 import '../../domain/ai_models.dart';
 import '../../services/file_downloads.dart';
 import '../../state/ai_state.dart';
@@ -31,16 +33,16 @@ import 'common.dart';
 
 /// Ikon tim dari nama Heroicon di web.
 IconData teamIcon(String icon) => switch (icon) {
-      'shopping-bag' => Icons.shopping_bag_outlined,
-      'cube' => Icons.inventory_2_outlined,
-      'banknotes' => Icons.payments_outlined,
-      'calculator' => Icons.calculate_outlined,
-      'chart-bar' => Icons.bar_chart_rounded,
-      'shield-check' => Icons.verified_user_outlined,
-      'truck' => Icons.local_shipping_outlined,
-      'users' => Icons.people_outline,
-      _ => Icons.auto_awesome,
-    };
+  'shopping-bag' => Icons.shopping_bag_outlined,
+  'cube' => Icons.inventory_2_outlined,
+  'banknotes' => Icons.payments_outlined,
+  'calculator' => Icons.calculate_outlined,
+  'chart-bar' => Icons.bar_chart_rounded,
+  'shield-check' => Icons.verified_user_outlined,
+  'truck' => Icons.local_shipping_outlined,
+  'users' => Icons.people_outline,
+  _ => Icons.auto_awesome,
+};
 
 /// Avatar bundar tim dengan warna & ikon web; gembok bila belum termasuk paket.
 class TeamAvatar extends StatelessWidget {
@@ -57,25 +59,27 @@ class TeamAvatar extends StatelessWidget {
     return SizedBox(
       width: size,
       height: size,
-      child: Stack(children: [
-        Container(
-          width: size,
-          height: size,
-          decoration: BoxDecoration(color: colors.background, shape: BoxShape.circle),
-          alignment: Alignment.center,
-          child: Icon(teamIcon(icon), size: size * 0.5, color: colors.foreground),
-        ),
-        if (locked)
-          Positioned(
-            right: 0,
-            bottom: 0,
-            child: Container(
-              padding: const EdgeInsets.all(3),
-              decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface, shape: BoxShape.circle),
-              child: Icon(Icons.lock, size: size * 0.3, color: mutedText(context)),
-            ),
+      child: Stack(
+        children: [
+          Container(
+            width: size,
+            height: size,
+            decoration: BoxDecoration(color: colors.background, shape: BoxShape.circle),
+            alignment: Alignment.center,
+            child: Icon(teamIcon(icon), size: size * 0.5, color: colors.foreground),
           ),
-      ]),
+          if (locked)
+            Positioned(
+              right: 0,
+              bottom: 0,
+              child: Container(
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface, shape: BoxShape.circle),
+                child: Icon(Icons.lock, size: size * 0.3, color: mutedText(context)),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
@@ -105,128 +109,129 @@ class _TypingDotsState extends State<TypingDots> with SingleTickerProviderStateM
     return Semantics(
       label: 'Sedang mengerjakan',
       child: AnimatedBuilder(
-      animation: _controller,
-      builder: (context, _) => Row(mainAxisSize: MainAxisSize.min, children: [
-        for (var i = 0; i < 3; i++)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 2),
-            child: Opacity(
-              opacity: 0.3 + 0.7 * (0.5 + 0.5 * (1 - ((_controller.value - i / 3) % 1.0 - 0.5).abs() * 2)),
-              child: Container(width: 7, height: 7, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+        animation: _controller,
+        builder:
+            (context, _) => Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (var i = 0; i < 3; i++)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 2),
+                    child: Opacity(
+                      opacity: 0.3 + 0.7 * (0.5 + 0.5 * (1 - ((_controller.value - i / 3) % 1.0 - 0.5).abs() * 2)),
+                      child: Container(width: 7, height: 7, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+                    ),
+                  ),
+              ],
             ),
-          ),
-      ]),
       ),
     );
   }
 }
 
-/// Markdown sederhana dari pesan asisten: **tebal**, _miring_, `kode`,
-/// daftar `- `, nomor `1. `, judul `#`.
-class MarkdownLite extends StatelessWidget {
-  const MarkdownLite(this.text, {super.key, this.style});
-
-  final String text;
-  final TextStyle? style;
-
-  @override
-  Widget build(BuildContext context) {
-    final base = style ?? Theme.of(context).textTheme.bodyMedium ?? const TextStyle();
-    final lines = text.replaceAll('\r\n', '\n').split('\n');
-    final children = <Widget>[];
-    for (final raw in lines) {
-      final line = raw.trimRight();
-      if (line.trim().isEmpty) {
-        children.add(const SizedBox(height: 6));
-        continue;
-      }
-      final heading = RegExp(r'^(#{1,4})\s+(.*)$').firstMatch(line);
-      if (heading != null) {
-        children.add(Padding(
-          padding: const EdgeInsets.only(top: 4, bottom: 2),
-          child: Text.rich(TextSpan(children: inlineSpans(heading.group(2)!, base.copyWith(fontWeight: FontWeight.w700, fontSize: (base.fontSize ?? 14) + 1)))),
-        ));
-        continue;
-      }
-      final bullet = RegExp(r'^\s*([-*•]|\d+[.)])\s+(.*)$').firstMatch(line);
-      if (bullet != null) {
-        final marker = bullet.group(1)!;
-        children.add(Padding(
-          padding: const EdgeInsets.only(left: 4, top: 1, bottom: 1),
-          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            SizedBox(width: 20, child: Text(RegExp(r'^\d').hasMatch(marker) ? marker : '•', style: base)),
-            Expanded(child: Text.rich(TextSpan(children: inlineSpans(bullet.group(2)!, base)))),
-          ]),
-        ));
-        continue;
-      }
-      children.add(Text.rich(TextSpan(children: inlineSpans(line, base))));
-    }
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: children);
-  }
-
-  /// Pecah satu baris menjadi potongan tebal/miring/kode.
-  static List<InlineSpan> inlineSpans(String text, TextStyle base) {
-    final spans = <InlineSpan>[];
-    final pattern = RegExp(r'(\*\*(.+?)\*\*)|(`(.+?)`)|((?<![\w*])\*(?!\s)(.+?)(?<!\s)\*(?!\w))|((?<!\w)_(?!\s)(.+?)(?<!\s)_(?!\w))');
-    var index = 0;
-    for (final match in pattern.allMatches(text)) {
-      if (match.start > index) {
-        spans.add(TextSpan(text: text.substring(index, match.start), style: base));
-      }
-      if (match.group(2) != null) {
-        spans.add(TextSpan(text: match.group(2), style: base.copyWith(fontWeight: FontWeight.w700)));
-      } else if (match.group(4) != null) {
-        spans.add(TextSpan(text: match.group(4), style: base.copyWith(fontFamily: 'monospace', backgroundColor: (base.color ?? Colors.black).withValues(alpha: 0.08))));
-      } else {
-        spans.add(TextSpan(text: match.group(6) ?? match.group(8), style: base.copyWith(fontStyle: FontStyle.italic)));
-      }
-      index = match.end;
-    }
-    if (index < text.length) {
-      spans.add(TextSpan(text: text.substring(index), style: base));
-    }
-    return spans;
-  }
-}
-
-/// Bilah pemakaian koin bulan ini dalam bahasa sehari-hari (tanpa istilah teknis).
+/// Bilah pemakaian koin bulan ini dalam bahasa sehari-hari (tanpa istilah
+/// teknis). [compact] = versi kecil tanpa kartu (kaki laci Riwayat).
 class CoinUsageBar extends StatelessWidget {
-  const CoinUsageBar(this.coins, {super.key});
+  const CoinUsageBar(this.coins, {super.key, this.compact = false});
 
   final AiCoins coins;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     final color = coins.percent >= 90 ? dangerText(context) : (coins.percent >= 70 ? warningText(context) : Theme.of(context).colorScheme.primary);
     final resets = coins.resetsAt;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            const Expanded(child: Text('Jatah Tim AI bulan ini', style: TextStyle(fontWeight: FontWeight.w600))),
-            Text('${coins.percent}% terpakai', style: TextStyle(fontSize: 13, color: color, fontWeight: FontWeight.w600)),
-          ]),
-          const SizedBox(height: 10),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(6),
-            child: LinearProgressIndicator(key: const Key('coin-usage-bar'), value: coins.percent / 100, minHeight: 8, color: color, backgroundColor: color.withValues(alpha: 0.15), semanticsLabel: 'Jatah Tim AI terpakai', semanticsValue: '${coins.percent}%'),
+    final small = compact ? 12.0 : 13.0;
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          children: [
+            Expanded(child: Text('Jatah Tim AI bulan ini', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w600, fontSize: compact ? 13 : null))),
+            const SizedBox(width: 8),
+            Text('${coins.percent}% terpakai', style: TextStyle(fontSize: small, color: color, fontWeight: FontWeight.w600)),
+          ],
+        ),
+        SizedBox(height: compact ? 8 : 10),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(6),
+          child: LinearProgressIndicator(
+            key: const Key('coin-usage-bar'),
+            value: coins.percent / 100,
+            minHeight: compact ? 5 : 8,
+            color: color,
+            backgroundColor: color.withValues(alpha: 0.15),
+            semanticsLabel: 'Jatah Tim AI terpakai',
+            semanticsValue: '${coins.percent}%',
           ),
-          const SizedBox(height: 10),
-          Wrap(alignment: WrapAlignment.spaceBetween, crossAxisAlignment: WrapCrossAlignment.center, spacing: 12, runSpacing: 4, children: [
-            Row(mainAxisSize: MainAxisSize.min, children: [
-              const Text('Tersisa ', style: TextStyle(fontSize: 13)),
-              CoinAmount(_num(coins.available), size: 16, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-            ]),
+        ),
+        SizedBox(height: compact ? 8 : 10),
+        Wrap(
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 12,
+          runSpacing: 4,
+          children: [
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('Tersisa ', style: TextStyle(fontSize: small)),
+                CoinAmount(_num(coins.available), size: compact ? 14 : 16, style: TextStyle(fontSize: small, fontWeight: FontWeight.w600)),
+              ],
+            ),
             if (resets != null) Text('Diisi lagi ${dateLabel(resets.toLocal())}', style: TextStyle(fontSize: 12, color: mutedText(context))),
-          ]),
-        ]),
-      ),
+          ],
+        ),
+      ],
     );
+    if (compact) {
+      return content;
+    }
+    return Card(child: Padding(padding: const EdgeInsets.fromLTRB(16, 14, 16, 14), child: content));
   }
 
   static num _num(String value) => num.tryParse(value) ?? 0;
+}
+
+/// Deretan avatar tim yang saling menumpuk (layar awal Tim AI). Tim yang
+/// belum termasuk paket tampil redup dengan gembok.
+class TeamAvatarRow extends StatelessWidget {
+  const TeamAvatarRow({super.key, required this.teams, this.size = 30, this.max = 6});
+
+  final List<AiTeam> teams;
+  final double size;
+  final int max;
+
+  @override
+  Widget build(BuildContext context) {
+    final shown = teams.take(max).toList();
+    if (shown.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final step = size * 0.72;
+    final ring = AiColors.canvas(context);
+    return SizedBox(
+      width: step * (shown.length - 1) + size + 4,
+      height: size + 4,
+      child: Stack(
+        children: [
+          for (var i = 0; i < shown.length; i++)
+            Positioned(
+              left: step * i,
+              child: Opacity(
+                opacity: shown[i].locked ? 0.5 : 1,
+                child: Container(
+                  padding: const EdgeInsets.all(2),
+                  decoration: BoxDecoration(color: ring, shape: BoxShape.circle),
+                  child: TeamAvatar(tone: shown[i].tone, icon: shown[i].icon, size: size, locked: shown[i].locked),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 }
 
 /// Gambar lampiran: dari file HP (baru dikirim) atau diunduh dengan token.
@@ -242,11 +247,8 @@ class AttachmentImage extends ConsumerWidget {
     // foto ukuran asli hanya didekode di tampilan layar penuh.
     final cacheWidth = (size * MediaQuery.devicePixelRatioOf(context)).round();
     Widget frame(Widget child) => ClipRRect(borderRadius: BorderRadius.circular(12), child: SizedBox(width: size, height: size, child: child));
-    Widget tappable(Widget thumbnail, ImageProvider full) => Semantics(
-          button: true,
-          label: 'Foto ${attachment.name}, ketuk untuk memperbesar',
-          child: GestureDetector(onTap: () => _open(context, full), child: frame(thumbnail)),
-        );
+    Widget tappable(Widget thumbnail, ImageProvider full) =>
+        Semantics(button: true, label: 'Foto ${attachment.name}, ketuk untuk memperbesar', child: GestureDetector(onTap: () => _open(context, full), child: frame(thumbnail)));
     final localPath = attachment.localPath;
     if (localPath != null) {
       final file = File(localPath);
@@ -269,36 +271,43 @@ class AttachmentImage extends ConsumerWidget {
     final url = attachment.url;
     showDialog<void>(
       context: context,
-      builder: (context) => Dialog.fullscreen(
-        backgroundColor: Colors.black,
-        child: ScaffoldMessenger(
-          child: Scaffold(
+      builder:
+          (context) => Dialog.fullscreen(
             backgroundColor: Colors.black,
-            body: Stack(children: [
-              Positioned.fill(child: InteractiveViewer(child: Center(child: Image(image: image, fit: BoxFit.contain, semanticLabel: 'Foto ${attachment.name}')))),
-              Positioned(
-                top: 8,
-                right: 8,
-                child: SafeArea(
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    // Foto dari server: simpan ke Download (Buka / Bagikan).
-                    if (url != null && attachment.localPath == null)
-                      Consumer(
-                        builder: (context, ref, _) => IconButton(
-                          key: const Key('attachment-image-save'),
-                          tooltip: 'Simpan ke HP',
-                          icon: const Icon(Icons.download_outlined, color: Colors.white),
-                          onPressed: () => downloadAndOffer(context, ref, apiPath: AiApi.relativeApiPath(url), fileName: attachment.name),
+            child: ScaffoldMessenger(
+              child: Scaffold(
+                backgroundColor: Colors.black,
+                body: Stack(
+                  children: [
+                    Positioned.fill(child: InteractiveViewer(child: Center(child: Image(image: image, fit: BoxFit.contain, semanticLabel: 'Foto ${attachment.name}')))),
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: SafeArea(
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Foto dari server: simpan ke Download (Buka / Bagikan).
+                            if (url != null && attachment.localPath == null)
+                              Consumer(
+                                builder:
+                                    (context, ref, _) => IconButton(
+                                      key: const Key('attachment-image-save'),
+                                      tooltip: 'Simpan ke HP',
+                                      icon: const Icon(Icons.download_outlined, color: Colors.white),
+                                      onPressed: () => downloadAndOffer(context, ref, apiPath: AiApi.relativeApiPath(url), fileName: attachment.name),
+                                    ),
+                              ),
+                            IconButton(tooltip: 'Tutup', icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context)),
+                          ],
                         ),
                       ),
-                    IconButton(tooltip: 'Tutup', icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context)),
-                  ]),
+                    ),
+                  ],
                 ),
               ),
-            ]),
+            ),
           ),
-        ),
-      ),
     );
   }
 }
@@ -343,19 +352,190 @@ class AttachmentChip extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(10, 8, 8, 8),
       decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: Theme.of(context).dividerColor)),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(icon, size: 20, color: Theme.of(context).colorScheme.primary),
-        const SizedBox(width: 8),
-        ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 170),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-            Text(attachment.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
-            Text(attachment.kind == 'report' ? 'Laporan dari Tim AI · ${attachment.sizeLabel}' : attachment.sizeLabel, style: TextStyle(fontSize: 11, color: mutedText(context))),
-          ]),
-        ),
-        if (onRemove != null) IconButton(visualDensity: VisualDensity.compact, tooltip: 'Hapus lampiran', icon: const Icon(Icons.close, size: 18), onPressed: onRemove),
-        if (downloadable) Padding(padding: const EdgeInsets.only(left: 6), child: Icon(Icons.download_outlined, size: 18, color: mutedText(context))),
-      ]),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 20, color: Theme.of(context).colorScheme.primary),
+          const SizedBox(width: 8),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 170),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(attachment.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+                Text(attachment.kind == 'report' ? 'Laporan dari Tim AI · ${attachment.sizeLabel}' : attachment.sizeLabel, style: TextStyle(fontSize: 11, color: mutedText(context))),
+              ],
+            ),
+          ),
+          if (onRemove != null) IconButton(visualDensity: VisualDensity.compact, tooltip: 'Hapus lampiran', icon: const Icon(Icons.close, size: 18), onPressed: onRemove),
+          if (downloadable) Padding(padding: const EdgeInsets.only(left: 6), child: Icon(Icons.download_outlined, size: 18, color: mutedText(context))),
+        ],
+      ),
+    );
+  }
+}
+
+/// File dari Tim AI (laporan PDF/Excel, dsb.) sebagai kartu dengan tombol
+/// Buka dan Bagikan. File diunduh sekali dengan token, disimpan di HP (dan
+/// folder Download), lalu dibuka / dibagikan dari salinan itu.
+class AiFileCard extends ConsumerStatefulWidget {
+  const AiFileCard(this.attachment, {super.key});
+
+  final AiAttachment attachment;
+
+  @override
+  ConsumerState<AiFileCard> createState() => _AiFileCardState();
+}
+
+class _AiFileCardState extends ConsumerState<AiFileCard> {
+  SavedFile? _saved;
+  bool _busy = false;
+  double? _progress;
+
+  Future<SavedFile?> _ensure() async {
+    if (_saved != null) {
+      return _saved;
+    }
+    final url = widget.attachment.url;
+    final api = ref.read(aiApiProvider)?.client;
+    if (url == null || api == null) {
+      showMessage(context, 'File belum bisa diunduh. Coba lagi.', error: true);
+      return null;
+    }
+    setState(() {
+      _busy = true;
+      _progress = null;
+    });
+    try {
+      final saved = await ref
+          .read(fileDownloadsProvider)
+          .download(
+            api,
+            AiApi.relativeApiPath(url),
+            widget.attachment.name,
+            onProgress: (value) {
+              if (mounted) {
+                setState(() => _progress = value);
+              }
+            },
+          );
+      if (mounted) {
+        setState(() => _saved = saved);
+      }
+      return saved;
+    } on ApiException catch (error) {
+      if (mounted) {
+        showMessage(context, error.message, error: true);
+      }
+    } catch (_) {
+      if (mounted) {
+        showMessage(context, 'File belum bisa disimpan di HP. Coba lagi.', error: true);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _busy = false);
+      }
+    }
+    return null;
+  }
+
+  Future<void> _open() async {
+    final saved = await _ensure();
+    if (saved == null || !mounted) {
+      return;
+    }
+    if (!await ref.read(fileDownloadsProvider).open(saved) && mounted) {
+      showMessage(context, 'Tidak ada aplikasi di HP yang bisa membuka file ini. Coba Bagikan.');
+    }
+  }
+
+  Future<void> _share() async {
+    final saved = await _ensure();
+    if (saved == null || !mounted) {
+      return;
+    }
+    if (!await ref.read(fileDownloadsProvider).share(saved) && mounted) {
+      showMessage(context, 'File belum bisa dibagikan dari HP ini.');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final file = widget.attachment;
+    final scheme = Theme.of(context).colorScheme;
+    final lower = file.name.toLowerCase();
+    final icon =
+        lower.endsWith('.pdf') || file.kind == 'pdf'
+            ? Icons.picture_as_pdf_outlined
+            : (lower.endsWith('.xlsx') || lower.endsWith('.csv') || file.kind == 'sheet' ? Icons.table_chart_outlined : Icons.description_outlined);
+    final saved = _saved;
+    final subtitle =
+        _busy
+            ? (_progress == null ? 'Mengunduh…' : 'Mengunduh ${(_progress! * 100).round()}%')
+            : saved != null
+            ? (saved.inDownloads ? 'Tersimpan di Download' : 'Tersimpan di HP')
+            : '${file.kind == 'report' ? 'Laporan dari Tim AI' : 'File'} · ${file.sizeLabel}';
+    final buttonShape = RoundedRectangleBorder(borderRadius: BorderRadius.circular(20));
+    return Container(
+      key: Key('ai-file-${file.index}'),
+      constraints: const BoxConstraints(maxWidth: 420),
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+      decoration: BoxDecoration(color: AiColors.card(context), borderRadius: BorderRadius.circular(16), border: Border.all(color: AiColors.border(context))),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(color: scheme.primary.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
+                child:
+                    _busy
+                        ? Padding(padding: const EdgeInsets.all(11), child: CircularProgressIndicator(value: _progress, strokeWidth: 2.5, semanticsLabel: 'Mengunduh'))
+                        : Icon(icon, color: scheme.primary),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(file.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                    const SizedBox(height: 2),
+                    Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: mutedText(context))),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  key: Key('file-open-${file.index}'),
+                  style: OutlinedButton.styleFrom(minimumSize: const Size(0, 40), shape: buttonShape, side: BorderSide(color: AiColors.border(context))),
+                  onPressed: _busy || file.url == null ? null : _open,
+                  icon: const Icon(Icons.open_in_new_rounded, size: 16),
+                  label: const Text('Buka'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: TextButton.icon(
+                  key: Key('file-share-${file.index}'),
+                  style: TextButton.styleFrom(minimumSize: const Size(0, 40), shape: buttonShape),
+                  onPressed: _busy || file.url == null ? null : _share,
+                  icon: const Icon(Icons.share_outlined, size: 16),
+                  label: const Text('Bagikan'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
@@ -440,56 +620,71 @@ class _AudioNotePlayerState extends ConsumerState<AudioNotePlayer> {
     final player = _player;
     final total = Duration(seconds: widget.attachment.seconds ?? 0);
     final transcript = widget.attachment.transcript;
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-      Container(
-        padding: const EdgeInsets.fromLTRB(6, 4, 12, 4),
-        decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(24), border: Border.all(color: Theme.of(context).dividerColor)),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          _loading
-              ? const Padding(padding: EdgeInsets.all(12), child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)))
-              : IconButton(
-                  tooltip: player?.playing ?? false ? 'Jeda' : 'Putar voice note',
-                  icon: Icon(player?.playing ?? false ? Icons.pause_circle_filled : Icons.play_circle_fill, size: 36, color: Theme.of(context).colorScheme.primary),
-                  onPressed: _toggle,
-                ),
-          SizedBox(
-            width: widget.compact ? 90 : 140,
-            child: player == null
-                ? Row(children: [for (var i = 0; i < (widget.compact ? 12 : 18); i++) Expanded(child: Container(margin: const EdgeInsets.symmetric(horizontal: 1), height: 6 + (i * 7) % 14, color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.35)))])
-                : StreamBuilder<Duration>(
-                    stream: player.positionStream,
-                    builder: (context, snapshot) {
-                      final position = snapshot.data ?? Duration.zero;
-                      final max = player.duration ?? total;
-                      return SliderTheme(
-                        data: SliderTheme.of(context).copyWith(trackHeight: 3, thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6), overlayShape: SliderComponentShape.noOverlay),
-                        child: Slider(
-                          label: 'Posisi voice note',
-                          semanticFormatterCallback: (value) => _clock(Duration(milliseconds: (max.inMilliseconds * value).round())),
-                          value: max.inMilliseconds == 0 ? 0 : (position.inMilliseconds / max.inMilliseconds).clamp(0, 1).toDouble(),
-                          onChanged: (value) => player.seek(Duration(milliseconds: (max.inMilliseconds * value).round())),
-                        ),
-                      );
-                    },
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: const EdgeInsets.fromLTRB(6, 4, 12, 4),
+          decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(24), border: Border.all(color: Theme.of(context).dividerColor)),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _loading
+                  ? const Padding(padding: EdgeInsets.all(12), child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)))
+                  : IconButton(
+                    tooltip: player?.playing ?? false ? 'Jeda' : 'Putar voice note',
+                    icon: Icon(player?.playing ?? false ? Icons.pause_circle_filled : Icons.play_circle_fill, size: 36, color: Theme.of(context).colorScheme.primary),
+                    onPressed: _toggle,
                   ),
-          ),
-          const SizedBox(width: 8),
-          Text(_clock(player?.duration ?? total), style: TextStyle(fontSize: 12, color: mutedText(context))),
-        ]),
-      ),
-      if (_error != null) Padding(padding: const EdgeInsets.only(top: 4, left: 8), child: Text(_error!, style: const TextStyle(fontSize: 12, color: Brand.danger))),
-      if (transcript != null && transcript.trim().isNotEmpty)
-        Padding(
-          padding: const EdgeInsets.only(top: 4, left: 8),
-          child: InkWell(
-            onTap: () => setState(() => _showTranscript = !_showTranscript),
-            child: Text(
-              _showTranscript ? '“$transcript”' : 'Lihat teks rekaman',
-              style: TextStyle(fontSize: 12, color: _showTranscript ? null : Theme.of(context).colorScheme.primary, fontStyle: _showTranscript ? FontStyle.italic : null),
-            ),
+              SizedBox(
+                width: widget.compact ? 90 : 140,
+                child:
+                    player == null
+                        ? Row(
+                          children: [
+                            for (var i = 0; i < (widget.compact ? 12 : 18); i++)
+                              Expanded(
+                                child: Container(margin: const EdgeInsets.symmetric(horizontal: 1), height: 6 + (i * 7) % 14, color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.35)),
+                              ),
+                          ],
+                        )
+                        : StreamBuilder<Duration>(
+                          stream: player.positionStream,
+                          builder: (context, snapshot) {
+                            final position = snapshot.data ?? Duration.zero;
+                            final max = player.duration ?? total;
+                            return SliderTheme(
+                              data: SliderTheme.of(context).copyWith(trackHeight: 3, thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6), overlayShape: SliderComponentShape.noOverlay),
+                              child: Slider(
+                                label: 'Posisi voice note',
+                                semanticFormatterCallback: (value) => _clock(Duration(milliseconds: (max.inMilliseconds * value).round())),
+                                value: max.inMilliseconds == 0 ? 0 : (position.inMilliseconds / max.inMilliseconds).clamp(0, 1).toDouble(),
+                                onChanged: (value) => player.seek(Duration(milliseconds: (max.inMilliseconds * value).round())),
+                              ),
+                            );
+                          },
+                        ),
+              ),
+              const SizedBox(width: 8),
+              Text(_clock(player?.duration ?? total), style: TextStyle(fontSize: 12, color: mutedText(context))),
+            ],
           ),
         ),
-    ]);
+        if (_error != null) Padding(padding: const EdgeInsets.only(top: 4, left: 8), child: Text(_error!, style: const TextStyle(fontSize: 12, color: Brand.danger))),
+        if (transcript != null && transcript.trim().isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 4, left: 8),
+            child: InkWell(
+              onTap: () => setState(() => _showTranscript = !_showTranscript),
+              child: Text(
+                _showTranscript ? '“$transcript”' : 'Lihat teks rekaman',
+                style: TextStyle(fontSize: 12, color: _showTranscript ? null : Theme.of(context).colorScheme.primary, fontStyle: _showTranscript ? FontStyle.italic : null),
+              ),
+            ),
+          ),
+      ],
+    );
   }
 }
 
@@ -507,137 +702,205 @@ class ProposalCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (statusColor, statusIcon) = switch (proposal.status) {
-      'executed' => (Brand.green, Icons.check_circle),
-      'rejected' => (Colors.blueGrey, Icons.cancel_outlined),
-      'failed' => (Brand.danger, Icons.error_outline),
+      'executed' => (Theme.of(context).colorScheme.primary, Icons.check_circle),
+      'rejected' => (mutedText(context), Icons.cancel_outlined),
+      'failed' => (dangerText(context), Icons.error_outline),
       _ => (warningText(context), Icons.hourglass_top_rounded),
     };
     final muted = mutedText(context);
-    return Card(
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
       key: Key('proposal-${proposal.id}'),
+      decoration: BoxDecoration(
+        color: AiColors.card(context),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: proposal.pending ? scheme.primary.withValues(alpha: 0.35) : AiColors.border(context)),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Icon(_typeIcon(proposal.type), size: 22, color: Theme.of(context).colorScheme.primary),
-            const SizedBox(width: 10),
-            Expanded(child: Text(proposal.title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15))),
-          ]),
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(20)),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(statusIcon, size: 14, color: statusColor),
-              const SizedBox(width: 6),
-              Flexible(child: Text(proposal.statusLabel, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: statusColor))),
-            ]),
-          ),
-          const SizedBox(height: 10),
-          ..._body(context, muted),
-          for (final warning in proposal.warnings)
-            Padding(
-              padding: const EdgeInsets.only(top: 6),
-              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Icon(Icons.warning_amber_rounded, size: 16, color: warningText(context)),
-                const SizedBox(width: 6),
-                Expanded(child: Text(warning, style: TextStyle(fontSize: 12, color: warningText(context)))),
-              ]),
-            ),
-          if (proposal.error != null && proposal.error!.isNotEmpty)
-            Container(
-              margin: const EdgeInsets.only(top: 8),
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: Brand.danger.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(10)),
-              child: Text(proposal.error!, style: TextStyle(fontSize: 13, color: dangerText(context))),
-            ),
-          if (proposal.executed && proposal.resultLabel != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Row(children: [
-                Icon(Icons.receipt_long_outlined, size: 16, color: Theme.of(context).colorScheme.primary),
-                const SizedBox(width: 6),
-                Expanded(child: Text(proposal.resultLabel!, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Theme.of(context).colorScheme.primary))),
-              ]),
-            ),
-          // Cetak invoice / rincian lengkap: dibuka di browser (website Infois).
-          if (proposal.executed && (proposal.printLinks.isNotEmpty || proposal.resultUrl != null))
-            Consumer(
-              builder: (context, ref, _) => Wrap(spacing: 4, children: [
-                for (final link in proposal.printLinks)
-                  if (link['url'] != null)
-                    TextButton.icon(
-                      style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
-                      onPressed: () => openExternalLink(context, ref, link['url'].toString()),
-                      icon: const Icon(Icons.open_in_new, size: 16),
-                      label: Text(link['label']?.toString() ?? 'Buka di web'),
-                    ),
-                if (proposal.resultUrl != null)
-                  TextButton.icon(
-                    key: Key('result-link-${proposal.id}'),
-                    style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
-                    onPressed: () => openExternalLink(context, ref, proposal.resultUrl!),
-                    icon: const Icon(Icons.open_in_new, size: 16),
-                    label: const Text('Lihat di web'),
+        padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(color: scheme.primary.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(11)),
+                  child: Icon(_typeIcon(proposal.type), size: 20, color: scheme.primary),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // "Rp" tidak pernah terpisah dari angkanya di akhir baris.
+                      Text(proposal.title.replaceAll('Rp ', 'Rp\u00A0'), style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15, height: 1.3)),
+                      const SizedBox(height: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(20)),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(statusIcon, size: 13, color: statusColor),
+                            const SizedBox(width: 5),
+                            Flexible(child: Text(proposal.statusLabel, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: statusColor))),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-              ]),
-            ),
-          if (proposal.pending) ...[
-            const SizedBox(height: 12),
-            FilledButton.icon(
-              key: Key('approve-${proposal.id}'),
-              style: FilledButton.styleFrom(minimumSize: const Size(double.infinity, 46)),
-              onPressed: busy ? null : onApprove,
-              icon: busy ? SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Theme.of(context).colorScheme.onPrimary, semanticsLabel: 'Menyimpan')) : const Icon(Icons.check, size: 18),
-              label: const Text('Setujui'),
-            ),
-          ],
-          if (proposal.pending || proposal.failed) ...[
-            const SizedBox(height: 6),
-            Row(children: [
-              if (proposal.pending && proposal.editable) ...[
-                Expanded(child: OutlinedButton(key: Key('edit-${proposal.id}'), style: OutlinedButton.styleFrom(minimumSize: const Size(0, 42)), onPressed: busy ? null : onEdit, child: const Text('Ubah'))),
-                const SizedBox(width: 8),
+                ),
               ],
-              Expanded(
-                child: TextButton(
-                  key: Key('reject-${proposal.id}'),
-                  style: TextButton.styleFrom(minimumSize: const Size(0, 42), foregroundColor: dangerText(context)),
-                  onPressed: busy ? null : onReject,
-                  child: Text(proposal.failed ? 'Abaikan' : 'Tolak'),
+            ),
+            const SizedBox(height: 12),
+            Divider(height: 1, color: AiColors.border(context)),
+            const SizedBox(height: 10),
+            ..._body(context, muted),
+            for (final warning in proposal.warnings)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.warning_amber_rounded, size: 16, color: warningText(context)),
+                    const SizedBox(width: 6),
+                    Expanded(child: Text(warning, style: TextStyle(fontSize: 12, color: warningText(context)))),
+                  ],
                 ),
               ),
-            ]),
+            if (proposal.error != null && proposal.error!.isNotEmpty)
+              Container(
+                margin: const EdgeInsets.only(top: 8),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(color: Brand.danger.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(10)),
+                child: Text(proposal.error!, style: TextStyle(fontSize: 13, color: dangerText(context))),
+              ),
+            if (proposal.executed && proposal.resultLabel != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Row(
+                  children: [
+                    Icon(Icons.receipt_long_outlined, size: 16, color: scheme.primary),
+                    const SizedBox(width: 6),
+                    Expanded(child: Text(proposal.resultLabel!, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: scheme.primary))),
+                  ],
+                ),
+              ),
+            // Cetak invoice / rincian lengkap: dibuka di browser (website Infois).
+            if (proposal.executed && (proposal.printLinks.isNotEmpty || proposal.resultUrl != null))
+              Consumer(
+                builder:
+                    (context, ref, _) => Wrap(
+                      spacing: 4,
+                      children: [
+                        for (final link in proposal.printLinks)
+                          if (link['url'] != null)
+                            TextButton.icon(
+                              style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+                              onPressed: () => openExternalLink(context, ref, link['url'].toString()),
+                              icon: const Icon(Icons.open_in_new, size: 16),
+                              label: Text(link['label']?.toString() ?? 'Buka di web'),
+                            ),
+                        if (proposal.resultUrl != null)
+                          TextButton.icon(
+                            key: Key('result-link-${proposal.id}'),
+                            style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+                            onPressed: () => openExternalLink(context, ref, proposal.resultUrl!),
+                            icon: const Icon(Icons.open_in_new, size: 16),
+                            label: const Text('Lihat di web'),
+                          ),
+                      ],
+                    ),
+              ),
+            if (proposal.pending) ...[
+              const SizedBox(height: 14),
+              FilledButton.icon(
+                key: Key('approve-${proposal.id}'),
+                style: FilledButton.styleFrom(minimumSize: const Size(double.infinity, 46), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(23))),
+                onPressed: busy ? null : onApprove,
+                icon:
+                    busy
+                        ? SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: scheme.onPrimary, semanticsLabel: 'Menyimpan'))
+                        : const Icon(Icons.check_rounded, size: 18),
+                label: const Text('Setujui'),
+              ),
+            ],
+            if (proposal.pending || proposal.failed) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  if (proposal.pending && proposal.editable) ...[
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        key: Key('edit-${proposal.id}'),
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size(0, 42),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(21)),
+                          side: BorderSide(color: AiColors.border(context)),
+                        ),
+                        onPressed: busy ? null : onEdit,
+                        icon: const Icon(Icons.edit_outlined, size: 16),
+                        label: const Text('Ubah'),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                  Expanded(
+                    child: TextButton(
+                      key: Key('reject-${proposal.id}'),
+                      style: TextButton.styleFrom(minimumSize: const Size(0, 42), foregroundColor: dangerText(context), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(21))),
+                      onPressed: busy ? null : onReject,
+                      child: Text(proposal.failed ? 'Abaikan' : 'Tolak'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ],
-        ]),
+        ),
       ),
     );
   }
 
   static IconData _typeIcon(String type) => switch (type) {
-        'sale' || 'sales_order' => Icons.point_of_sale_outlined,
-        'purchase' => Icons.shopping_cart_outlined,
-        'payment' || 'collection' => Icons.payments_outlined,
-        'journal' => Icons.account_balance_wallet_outlined,
-        'products' || 'product_update' => Icons.inventory_2_outlined,
-        'delivery' => Icons.local_shipping_outlined,
-        'production' => Icons.precision_manufacturing_outlined,
-        'stock_opname' => Icons.fact_check_outlined,
-        'void' => Icons.block,
-        'settings' => Icons.settings_outlined,
-        _ => Icons.description_outlined,
-      };
+    'sale' || 'sales_order' => Icons.point_of_sale_outlined,
+    'purchase' => Icons.shopping_cart_outlined,
+    'payment' || 'collection' => Icons.payments_outlined,
+    'journal' => Icons.account_balance_wallet_outlined,
+    'products' || 'product_update' => Icons.inventory_2_outlined,
+    'delivery' => Icons.local_shipping_outlined,
+    'production' => Icons.precision_manufacturing_outlined,
+    'stock_opname' => Icons.fact_check_outlined,
+    'void' => Icons.block,
+    'settings' => Icons.settings_outlined,
+    _ => Icons.description_outlined,
+  };
 
   List<Widget> _body(BuildContext context, Color muted) {
     final preview = proposal.preview;
     final payload = proposal.payload;
-    Widget row(String label, String value, {bool bold = false}) => Padding(
-          padding: const EdgeInsets.symmetric(vertical: 2),
-          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            SizedBox(width: 110, child: Text(label, style: TextStyle(fontSize: 13, color: muted))),
-            Expanded(child: Text(value, style: TextStyle(fontSize: 13, fontWeight: bold ? FontWeight.w600 : FontWeight.w400))),
-          ]),
-        );
+    // Kolom label ikut membesar bersama ukuran huruf (maks. ±40% lebar);
+    // huruf sangat besar: label di atas nilai supaya kata tidak terpotong.
+    final scale = MediaQuery.textScalerOf(context).scale(13) / 13;
+    final stacked = scale > 1.2;
+    final labelWidth = math.min(110 * scale, MediaQuery.sizeOf(context).width * 0.4);
+    Widget row(String label, String value, {bool bold = false}) {
+      final valueText = Text(value, textAlign: bold && !stacked ? TextAlign.end : TextAlign.start, style: TextStyle(fontSize: bold ? 15 : 13, fontWeight: bold ? FontWeight.w700 : FontWeight.w400));
+      return Padding(
+        padding: EdgeInsets.symmetric(vertical: stacked ? 3 : 2),
+        child:
+            stacked
+                ? Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(label, style: TextStyle(fontSize: 12, color: muted)), valueText])
+                : Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [SizedBox(width: labelWidth, child: Text(label, style: TextStyle(fontSize: 13, color: muted))), Expanded(child: valueText)],
+                ),
+      );
+    }
+
     String money(Object? value) => rupiah(value ?? 0);
 
     switch (proposal.type) {
@@ -655,19 +918,25 @@ class ProposalCard extends StatelessWidget {
           for (final line in lines)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 3),
-              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Expanded(
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('${line['description'] ?? line['name'] ?? '-'}${line['account_label'] != null ? ' · ${line['account_label']}' : ''}', style: const TextStyle(fontSize: 13)),
-                    Text('${qty(line['quantity'] ?? 0)} ${line['unit'] ?? ''} × ${money(line['unit_price'])}', style: TextStyle(fontSize: 12, color: muted)),
-                  ]),
-                ),
-                const SizedBox(width: 8),
-                Text(money(line['total'] ?? line['line_total']), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
-              ]),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('${line['description'] ?? line['name'] ?? '-'}${line['account_label'] != null ? ' · ${line['account_label']}' : ''}', style: const TextStyle(fontSize: 13)),
+                        Text('${qty(line['quantity'] ?? 0)} ${line['unit'] ?? ''} × ${money(line['unit_price'])}', style: TextStyle(fontSize: 12, color: muted)),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(money(line['total'] ?? line['line_total']), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+                ],
+              ),
             ),
           if (totals.isNotEmpty) ...[
-            const Divider(height: 14),
+            Divider(height: 16, color: AiColors.border(context)),
             if ((totals['tax_total']?.toString() ?? '0.00') != '0.00') row('Pajak', money(totals['tax_total'])),
             row('Total', money(totals['total']), bold: true),
           ],
@@ -691,17 +960,19 @@ class ProposalCard extends StatelessWidget {
           for (final entry in entries)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 2),
-              child: Row(children: [
-                Expanded(child: Text(entry['account']?.toString() ?? '-', style: const TextStyle(fontSize: 13))),
-                Flexible(
-                  child: Text(
-                    (entry['debit']?.toString() ?? '0.00') != '0.00' ? 'Masuk ${money(entry['debit'])}' : 'Keluar ${money(entry['credit'])}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 12, color: muted),
+              child: Row(
+                children: [
+                  Expanded(child: Text(entry['account']?.toString() ?? '-', style: const TextStyle(fontSize: 13))),
+                  Flexible(
+                    child: Text(
+                      (entry['debit']?.toString() ?? '0.00') != '0.00' ? 'Masuk ${money(entry['debit'])}' : 'Keluar ${money(entry['credit'])}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 12, color: muted),
+                    ),
                   ),
-                ),
-              ]),
+                ],
+              ),
             ),
         ];
       case 'products':
@@ -711,10 +982,14 @@ class ProposalCard extends StatelessWidget {
           for (final item in items.take(8))
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 2),
-              child: Row(children: [
-                Expanded(child: Text('${item['name'] ?? '-'} (${item['unit'] ?? 'unit'})', style: const TextStyle(fontSize: 13))),
-                Flexible(child: Text(item['sale_price'] == null ? '' : 'Jual ${money(item['sale_price'])}', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: muted))),
-              ]),
+              child: Row(
+                children: [
+                  Expanded(child: Text('${item['name'] ?? '-'} (${item['unit'] ?? 'unit'})', style: const TextStyle(fontSize: 13))),
+                  Flexible(
+                    child: Text(item['sale_price'] == null ? '' : 'Jual ${money(item['sale_price'])}', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: muted)),
+                  ),
+                ],
+              ),
             ),
           if (items.length > 8) Text('… dan ${items.length - 8} lainnya', style: TextStyle(fontSize: 12, color: muted)),
         ];
@@ -725,10 +1000,19 @@ class ProposalCard extends StatelessWidget {
           for (final line in _maps(preview['lines'] ?? payload['lines']))
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 2),
-              child: Row(children: [
-                Expanded(child: Text(line['description']?.toString() ?? '-', style: const TextStyle(fontSize: 13))),
-                Flexible(child: Text('Kirim ${qty(line['quantity'] ?? 0)} ${line['unit'] ?? ''}${line['remaining'] != null ? ' dari sisa ${qty(line['remaining'])}' : ''}', maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: muted))),
-              ]),
+              child: Row(
+                children: [
+                  Expanded(child: Text(line['description']?.toString() ?? '-', style: const TextStyle(fontSize: 13))),
+                  Flexible(
+                    child: Text(
+                      'Kirim ${qty(line['quantity'] ?? 0)} ${line['unit'] ?? ''}${line['remaining'] != null ? ' dari sisa ${qty(line['remaining'])}' : ''}',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 12, color: muted),
+                    ),
+                  ),
+                ],
+              ),
             ),
         ];
       case 'production':
@@ -736,18 +1020,29 @@ class ProposalCard extends StatelessWidget {
           for (final material in _maps(preview['materials']))
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 2),
-              child: Row(children: [
-                Expanded(child: Text(material['name']?.toString() ?? '-', style: const TextStyle(fontSize: 13))),
-                Flexible(child: Text('${qty(material['quantity'] ?? 0)} ${material['unit'] ?? ''}${material['stock'] != null ? ' (stok ${qty(material['stock'])})' : ''}', maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: muted))),
-              ]),
+              child: Row(
+                children: [
+                  Expanded(child: Text(material['name']?.toString() ?? '-', style: const TextStyle(fontSize: 13))),
+                  Flexible(
+                    child: Text(
+                      '${qty(material['quantity'] ?? 0)} ${material['unit'] ?? ''}${material['stock'] != null ? ' (stok ${qty(material['stock'])})' : ''}',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 12, color: muted),
+                    ),
+                  ),
+                ],
+              ),
             ),
           for (final cost in _maps(preview['costs']))
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 2),
-              child: Row(children: [
-                Expanded(child: Text(cost['name']?.toString() ?? cost['label']?.toString() ?? 'Biaya', style: const TextStyle(fontSize: 13))),
-                Text(money(cost['amount']), style: TextStyle(fontSize: 12, color: muted)),
-              ]),
+              child: Row(
+                children: [
+                  Expanded(child: Text(cost['name']?.toString() ?? cost['label']?.toString() ?? 'Biaya', style: const TextStyle(fontSize: 13))),
+                  Text(money(cost['amount']), style: TextStyle(fontSize: 12, color: muted)),
+                ],
+              ),
             ),
         ];
       default:
@@ -755,7 +1050,12 @@ class ProposalCard extends StatelessWidget {
         final rows = <Widget>[];
         if (changes is List) {
           for (final change in changes) {
-            rows.add(Padding(padding: const EdgeInsets.symmetric(vertical: 2), child: Text(change is Map ? _changeText(Map<String, dynamic>.from(change)) : '• $change', style: const TextStyle(fontSize: 13))));
+            rows.add(
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Text(change is Map ? _changeText(Map<String, dynamic>.from(change)) : '• $change', style: const TextStyle(fontSize: 13)),
+              ),
+            );
           }
         } else if (changes is Map) {
           for (final entry in changes.entries) {
@@ -786,5 +1086,66 @@ class ProposalCard extends StatelessWidget {
 
   static Map<String, dynamic> _map(Object? value) => value is Map ? Map<String, dynamic>.from(value) : const {};
 
-  static List<Map<String, dynamic>> _maps(Object? value) => [for (final item in (value as List? ?? const [])) if (item is Map) Map<String, dynamic>.from(item)];
+  static List<Map<String, dynamic>> _maps(Object? value) => [
+    for (final item in (value as List? ?? const []))
+      if (item is Map) Map<String, dynamic>.from(item),
+  ];
+}
+
+/// Ikon "Percakapan baru": kotak bergaris dengan pensil, sama tipis dengan
+/// ikon garis lain di bilah atas (Icons.edit_square hanya ada versi penuh).
+class NewChatIcon extends StatelessWidget {
+  const NewChatIcon({super.key, this.size});
+
+  final double? size;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = IconTheme.of(context);
+    final side = size ?? theme.size ?? 24;
+    return SizedBox.square(dimension: side, child: CustomPaint(painter: _NewChatPainter(theme.color ?? Theme.of(context).colorScheme.onSurface)));
+  }
+}
+
+class _NewChatPainter extends CustomPainter {
+  const _NewChatPainter(this.color);
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final s = size.width / 24;
+    final paint =
+        Paint()
+          ..color = color
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.9 * s
+          ..strokeCap = StrokeCap.round
+          ..strokeJoin = StrokeJoin.round;
+    // Kotak terbuka di kanan atas.
+    final box =
+        Path()
+          ..moveTo(11 * s, 4 * s)
+          ..lineTo(6.5 * s, 4 * s)
+          ..arcToPoint(Offset(4 * s, 6.5 * s), radius: Radius.circular(2.5 * s), clockwise: false)
+          ..lineTo(4 * s, 17.5 * s)
+          ..arcToPoint(Offset(6.5 * s, 20 * s), radius: Radius.circular(2.5 * s), clockwise: false)
+          ..lineTo(17.5 * s, 20 * s)
+          ..arcToPoint(Offset(20 * s, 17.5 * s), radius: Radius.circular(2.5 * s), clockwise: false)
+          ..lineTo(20 * s, 13 * s);
+    canvas.drawPath(box, paint);
+    // Pensil miring.
+    final pencil =
+        Path()
+          ..moveTo(17.6 * s, 3.6 * s)
+          ..arcToPoint(Offset(20.4 * s, 6.4 * s), radius: Radius.circular(1.98 * s))
+          ..lineTo(12.2 * s, 14.6 * s)
+          ..lineTo(9 * s, 15.4 * s)
+          ..lineTo(9.8 * s, 12.2 * s)
+          ..close();
+    canvas.drawPath(pencil, paint);
+  }
+
+  @override
+  bool shouldRepaint(_NewChatPainter oldDelegate) => oldDelegate.color != color;
 }
