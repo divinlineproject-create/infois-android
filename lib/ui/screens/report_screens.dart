@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/format.dart';
 import '../../core/money.dart';
 import '../../domain/report_models.dart';
+import '../../services/file_downloads.dart';
 import '../../state/printer_controller.dart';
 import '../../state/reports_state.dart';
 import '../../state/session.dart';
@@ -39,7 +40,7 @@ class _ReportScaffold<T> extends ConsumerWidget {
         actions: [
           ...actions,
           if (shareText != null && data != null)
-            IconButton(key: const Key('share-report'), tooltip: 'Bagikan', icon: const Icon(Icons.share_outlined), onPressed: () => copyText(context, shareText!(data))),
+            IconButton(key: const Key('share-report'), tooltip: 'Bagikan', icon: const Icon(Icons.share_outlined), onPressed: () => shareTextOrCopy(context, ref, shareText!(data))),
         ],
       ),
       body: Column(

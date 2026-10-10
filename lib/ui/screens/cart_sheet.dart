@@ -8,10 +8,9 @@ import '../../core/money.dart';
 import '../../domain/cart.dart';
 import '../../domain/models.dart';
 import '../../state/pos_state.dart';
-import '../../state/workspace.dart';
 import '../theme.dart';
-import '../widgets/common.dart';
-import 'customer_picker.dart';
+import 'pos_item_sheet.dart';
+import 'pos_order_panel.dart';
 
 Future<void> showCartSheet(BuildContext context) => showModalBottomSheet<void>(
       context: context,
@@ -21,167 +20,30 @@ Future<void> showCartSheet(BuildContext context) => showModalBottomSheet<void>(
       builder: (context) => const FractionallySizedBox(heightFactor: 0.92, child: CartSheet()),
     );
 
-/// Keranjang: ubah jumlah/satuan/harga/diskon, pilih pelanggan, lalu Bayar.
-class CartSheet extends ConsumerWidget {
+/// Keranjang (HP): panel pesanan di lembar bawah, lalu Bayar.
+class CartSheet extends StatelessWidget {
   const CartSheet({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final cart = ref.watch(cartProvider);
-    final master = ref.watch(masterDataProvider).valueOrNull;
-    final inclusive = master?.tenant.pricesIncludeTax ?? false;
-    final totals = cart.totals(pricesIncludeTax: inclusive);
-    final notifier = ref.read(cartProvider.notifier);
-
-    return Column(children: [
-      Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 8, 8),
-        child: Row(children: [
-          Expanded(child: Text('Keranjang', overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700))),
-          if (!cart.isEmpty)
-            IconButton(
-              tooltip: 'Kosongkan keranjang',
-              onPressed: () async {
-                final ok = await showDialog<bool>(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    title: const Text('Kosongkan keranjang?'),
-                    actions: [
-                      TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Batal')),
-                      FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Kosongkan')),
-                    ],
-                  ),
-                );
-                if (ok == true) {
-                  notifier.clear();
-                  if (context.mounted) {
-                    Navigator.pop(context);
-                  }
-                }
-              },
-              icon: const Icon(Icons.delete_sweep_outlined),
-            ),
-        ]),
-      ),
-      Expanded(
-        child: cart.isEmpty
-            ? const EmptyState(icon: Icons.shopping_basket_outlined, title: 'Keranjang kosong')
-            : ListView(padding: const EdgeInsets.symmetric(horizontal: 16), children: [
-                for (final line in cart.lines) _LineTile(line: line, amounts: cart.amountsFor(line, pricesIncludeTax: inclusive)),
-                const Divider(height: 24),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.person_outline),
-                  title: Text(cart.customer?.name ?? 'Pelanggan umum'),
-                  subtitle: const Text('Wajib dipilih bila bayar nanti (bon)'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () async {
-                    final customer = await pickCustomer(context, ref);
-                    if (customer != null) {
-                      notifier.setCustomer(customer.isWalkIn ? null : customer);
-                    }
-                  },
-                ),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.local_offer_outlined),
-                  title: Text(Money.isPositive(cart.notaDiscountPercent) ? 'Diskon nota ${percentLabel(cart.notaDiscountPercent)}%' : 'Diskon nota'),
-                  subtitle: const Text('Berlaku untuk semua barang'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () async {
-                    final value = await askPercent(context, 'Diskon nota (%)', cart.notaDiscountPercent);
-                    if (value != null) {
-                      notifier.setNotaDiscount(value);
-                    }
-                  },
-                ),
-                const SizedBox(height: 8),
-                AmountRow('Subtotal', rupiah(totals.subtotal)),
-                if (Money.isPositive(totals.discountTotal)) AmountRow('Diskon', '-${rupiah(totals.discountTotal)}'),
-                if (Money.isPositive(totals.taxTotal)) AmountRow('${master?.tenant.salesTaxName ?? 'PPN'}${inclusive ? ' (termasuk)' : ''}', rupiah(totals.taxTotal)),
-                AmountRow('Total', rupiah(totals.total), bold: true, large: true),
-                const SizedBox(height: 16),
-              ]),
-      ),
-      SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-          child: FilledButton(
-            key: const Key('go-pay'),
-            onPressed: cart.isEmpty || !Money.isPositive(totals.total)
-                ? null
-                : () {
-                    Navigator.pop(context);
-                    context.push('/bayar');
-                  },
-            style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(56)),
-            child: Text('Bayar ${rupiah(totals.total)}'),
-          ),
-        ),
-      ),
-    ]);
-  }
+  Widget build(BuildContext context) => PosOrderPanel(
+        onClose: () {
+          if (Navigator.canPop(context)) {
+            Navigator.pop(context);
+          }
+        },
+        onPay: () {
+          Navigator.pop(context);
+          context.push('/bayar');
+        },
+      );
 }
 
-class _LineTile extends ConsumerWidget {
-  const _LineTile({required this.line, required this.amounts});
-
-  final CartLine line;
-  final LineAmounts amounts;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final notifier = ref.read(cartProvider.notifier);
-    final discount = amounts.discountPercent;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(children: [
-        Expanded(
-          child: InkWell(
-            onTap: () => showLineEditor(context, ref, line),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(line.description, style: const TextStyle(fontWeight: FontWeight.w600)),
-              Text(
-                '${qty(line.quantity)} ${line.unit} × ${rupiah(line.unitPrice)}${Money.isPositive(discount) ? ' · diskon ${percentLabel(discount)}%' : ''}',
-                style: TextStyle(fontSize: 13, color: mutedText(context)),
-              ),
-              Text(rupiah(amounts.lineTotal), style: const TextStyle(fontWeight: FontWeight.w600, color: Brand.green)),
-            ]),
-          ),
-        ),
-        IconButton(
-          tooltip: 'Kurangi',
-          onPressed: () {
-            final next = Money.sub(line.quantity, '1');
-            if (Money.isPositive(next)) {
-              notifier.update(line.key, (current) => current.copyWith(quantity: next));
-            } else {
-              notifier.remove(line.key);
-            }
-          },
-          icon: const Icon(Icons.remove_circle_outline),
-        ),
-        GestureDetector(
-          onTap: () => showLineEditor(context, ref, line),
-          child: SizedBox(width: 44, child: Text(qty(line.quantity), textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16))),
-        ),
-        IconButton(
-          key: Key('plus-${line.key}'),
-          tooltip: 'Tambah',
-          onPressed: () => notifier.update(line.key, (current) => current.copyWith(quantity: Money.add([current.quantity, '1']))),
-          icon: const Icon(Icons.add_circle_outline),
-        ),
-      ]),
-    );
-  }
-}
-
-/// Ubah satu baris: jumlah (boleh desimal), satuan, harga, diskon.
+/// Ubah satu baris: jumlah (boleh desimal), satuan, harga, diskon, catatan.
 Future<void> showLineEditor(BuildContext context, WidgetRef ref, CartLine line) => showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
+      useSafeArea: true,
       builder: (context) => Padding(
         padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
         child: _LineEditor(line: line),
@@ -201,6 +63,7 @@ class _LineEditorState extends ConsumerState<_LineEditor> {
   late final TextEditingController _quantity = TextEditingController(text: qty(widget.line.quantity).replaceAll('.', ''));
   late final TextEditingController _price = TextEditingController(text: rupiah(widget.line.unitPrice, symbol: false));
   late final TextEditingController _discount = TextEditingController(text: Money.isPositive(widget.line.discountPercent) ? percentLabel(widget.line.discountPercent) : '');
+  late final TextEditingController _note = TextEditingController(text: widget.line.note ?? '');
   late String _unit = widget.line.unit;
   bool _priceEdited = false;
   String? _error;
@@ -210,6 +73,7 @@ class _LineEditorState extends ConsumerState<_LineEditor> {
     _quantity.dispose();
     _price.dispose();
     _discount.dispose();
+    _note.dispose();
     super.dispose();
   }
 
@@ -232,8 +96,8 @@ class _LineEditorState extends ConsumerState<_LineEditor> {
     ref.read(cartProvider.notifier).update(
           widget.line.key,
           (line) => _priceEdited
-              ? line.copyWith(quantity: quantity, unit: _unit, discountPercent: discount, unitPrice: price, manualPrice: true)
-              : line.copyWith(quantity: quantity, unit: _unit, discountPercent: discount),
+              ? line.copyWith(quantity: quantity, unit: _unit, discountPercent: discount, unitPrice: price, manualPrice: true, note: _note.text)
+              : line.copyWith(quantity: quantity, unit: _unit, discountPercent: discount, note: _note.text),
         );
     Navigator.pop(context);
   }
@@ -243,7 +107,7 @@ class _LineEditorState extends ConsumerState<_LineEditor> {
     final product = widget.line.product;
     final options = product?.unitOptions() ?? const <UnitOption>[];
     return SafeArea(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Text(widget.line.description, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
@@ -290,7 +154,17 @@ class _LineEditorState extends ConsumerState<_LineEditor> {
               ),
             ),
           ]),
-          if (_error != null) ...[const SizedBox(height: 8), Text(_error!, style: const TextStyle(color: Brand.danger))],
+          const SizedBox(height: 12),
+          TextField(
+            key: const Key('line-note'),
+            controller: _note,
+            maxLength: 200,
+            textCapitalization: TextCapitalization.sentences,
+            decoration: const InputDecoration(labelText: 'Catatan barang', hintText: 'mis. tanpa gula, less ice', counterText: ''),
+          ),
+          const SizedBox(height: 8),
+          PosNoteChips(controller: _note),
+          if (_error != null) ...[const SizedBox(height: 8), Text(_error!, style: TextStyle(color: dangerText(context)))],
           const SizedBox(height: 16),
           Row(children: [
             OutlinedButton.icon(

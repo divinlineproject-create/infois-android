@@ -92,7 +92,7 @@ void main() {
 
     await tester.tap(find.byKey(const Key('open-cart')));
     await settle(tester);
-    expect(find.text('Keranjang'), findsOneWidget);
+    expect(find.text('Pesanan'), findsOneWidget);
     await tester.tap(find.byKey(const Key('go-pay')));
     await settle(tester);
 
@@ -161,7 +161,7 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('katalog kosong + server menolak: alasan tampil, bukan "Mengunduh…" selamanya', (tester) async {
+  testWidgets('katalog kosong + langganan tidak aktif: perusahaan dilepas, kembali ke Masuk dengan alasan', (tester) async {
     tester.view.physicalSize = const Size(1080, 2340);
     tester.view.devicePixelRatio = 3;
     addTearDown(tester.view.reset);
@@ -171,10 +171,13 @@ void main() {
         });
     await pumpApp(tester, seed: false, server: server);
 
-    expect(find.text('Data barang belum bisa diunduh'), findsOneWidget);
+    // Kontrak "Tolak total": 403 langganan_tidak_aktif / akses_hp_tidak_tersedia
+    // melepas perusahaan dari HP. Satu-satunya perusahaan → layar Masuk + alasan.
+    expect(find.text('Masuk ke Infois'), findsOneWidget);
+    expect(find.byKey(const Key('access-notice')), findsOneWidget);
     expect(find.textContaining('Langganan perusahaan ini sedang tidak aktif'), findsOneWidget);
+    expect(find.text('Lihat paket'), findsOneWidget);
     expect(find.text('Mengunduh data barang…'), findsNothing);
-    expect(find.text('Coba lagi'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
 

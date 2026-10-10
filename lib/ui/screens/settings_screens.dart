@@ -183,7 +183,9 @@ class SyncStatusScreen extends ConsumerWidget {
                   ? TextButton(
                       onPressed: () async {
                         final workspace = ref.read(workspaceProvider).valueOrNull;
-                        await workspace?.outbox.retry(item.clientUuid);
+                        if (workspace != null && workspace.usable) {
+                          await workspace.outbox.retry(item.clientUuid);
+                        }
                         ref.read(dataVersionProvider.notifier).state++;
                         await ref.read(syncProvider.notifier).syncNow();
                       },

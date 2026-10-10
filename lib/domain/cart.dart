@@ -133,6 +133,39 @@ String combineDiscounts(String linePercent, String notaPercent) {
   return Money.normalize(bcsub('100', remaining, 12));
 }
 
+/// Jenis pesanan (disimpan sebagai `order_type` di server).
+enum OrderType {
+  dineIn('dine_in', 'Makan di tempat', 'MAKAN DI TEMPAT'),
+  takeAway('take_away', 'Bawa pulang', 'BAWA PULANG'),
+  delivery('delivery', 'Pesan antar', 'PESAN ANTAR');
+
+  const OrderType(this.code, this.label, this.ticketLabel);
+
+  final String code;
+  final String label;
+
+  /// Huruf besar untuk struk & tiket dapur.
+  final String ticketLabel;
+
+  static OrderType? fromCode(Object? code) {
+    for (final type in values) {
+      if (type.code == code) {
+        return type;
+      }
+    }
+    return null;
+  }
+}
+
+/// Teks bebas yang dirapikan: spasi di ujung dibuang, kosong menjadi null.
+String? cleanNote(String? text, [int max = 200]) {
+  final value = (text ?? '').trim();
+  if (value.isEmpty) {
+    return null;
+  }
+  return value.length > max ? value.substring(0, max) : value;
+}
+
 class CartLine {
   const CartLine({
     required this.key,
@@ -144,10 +177,11 @@ class CartLine {
     this.discountPercent = '0.00',
     this.taxRate = '0.00',
     this.manualPrice = false,
+    this.note,
   });
 
   /// Baris baru dari katalog dengan harga satuan & harga grosir otomatis.
-  factory CartLine.fromProduct(String key, Product product, {String quantity = '1.000000', String? unit}) {
+  factory CartLine.fromProduct(String key, Product product, {String quantity = '1.000000', String? unit, String? note}) {
     final option = product.optionFor(unit);
     return CartLine(
       key: key,
@@ -157,8 +191,22 @@ class CartLine {
       unit: option.name,
       unitPrice: product.priceFor(option.name, quantity),
       taxRate: product.taxRate,
+      note: cleanNote(note),
     );
   }
+
+  factory CartLine.fromJson(Map<String, dynamic> json) => CartLine(
+        key: json['key'].toString(),
+        product: json['product'] is Map ? Product.fromJson(Map<String, dynamic>.from(json['product'] as Map)) : null,
+        description: json['description']?.toString() ?? '',
+        quantity: Money.normalize(json['quantity'], 6),
+        unit: json['unit']?.toString() ?? '',
+        unitPrice: Money.normalize(json['unit_price']),
+        discountPercent: Money.normalize(json['discount_percent']),
+        taxRate: Money.normalize(json['tax_rate']),
+        manualPrice: json['manual_price'] == true,
+        note: cleanNote(json['note']?.toString()),
+      );
 
   final String key;
   final Product? product;
@@ -172,7 +220,24 @@ class CartLine {
   /// Harga diubah manual oleh kasir: harga grosir tidak diterapkan otomatis lagi.
   final bool manualPrice;
 
-  CartLine copyWith({String? quantity, String? unit, String? unitPrice, String? discountPercent, bool? manualPrice, String? description}) {
+  /// Catatan barang untuk dapur/struk ("tanpa gula", "less ice").
+  final String? note;
+
+  Map<String, dynamic> toJson() => {
+        'key': key,
+        'product': product?.toJson(),
+        'description': description,
+        'quantity': quantity,
+        'unit': unit,
+        'unit_price': unitPrice,
+        'discount_percent': discountPercent,
+        'tax_rate': taxRate,
+        'manual_price': manualPrice,
+        'note': note,
+      };
+
+  /// [note]: null = tidak berubah, '' = hapus catatan.
+  CartLine copyWith({String? quantity, String? unit, String? unitPrice, String? discountPercent, bool? manualPrice, String? description, String? note}) {
     final nextQuantity = quantity == null ? this.quantity : Money.normalize(quantity, 6);
     final nextUnit = unit ?? this.unit;
     final nextManual = manualPrice ?? this.manualPrice;
@@ -190,6 +255,7 @@ class CartLine {
       discountPercent: discountPercent == null ? this.discountPercent : Money.normalize(discountPercent),
       taxRate: taxRate,
       manualPrice: nextManual,
+      note: note == null ? this.note : cleanNote(note),
     );
   }
 
@@ -198,12 +264,39 @@ class CartLine {
 }
 
 class Cart {
-  const Cart({this.lines = const [], this.notaDiscountPercent = '0.00', this.customer, this.note});
+  const Cart({
+    this.lines = const [],
+    this.notaDiscountPercent = '0.00',
+    this.customer,
+    this.note,
+    this.orderType,
+    this.orderLabel,
+    this.heldId,
+  });
+
+  factory Cart.fromJson(Map<String, dynamic> json) => Cart(
+        lines: [for (final line in (json['lines'] as List? ?? const [])) CartLine.fromJson(Map<String, dynamic>.from(line as Map))],
+        notaDiscountPercent: Money.normalize(json['nota_discount_percent']),
+        customer: json['customer'] is Map ? Customer.fromJson(Map<String, dynamic>.from(json['customer'] as Map)) : null,
+        note: cleanNote(json['note']?.toString(), 1000),
+        orderType: OrderType.fromCode(json['order_type']),
+        orderLabel: cleanNote(json['order_label']?.toString(), 40),
+        heldId: json['held_id']?.toString(),
+      );
 
   final List<CartLine> lines;
   final String notaDiscountPercent;
   final Customer? customer;
+
+  /// Catatan pesanan (untuk seluruh nota).
   final String? note;
+  final OrderType? orderType;
+
+  /// Meja / nomor antrian ("Meja 5", "Antrian 12").
+  final String? orderLabel;
+
+  /// Id pesanan tersimpan yang sedang dibuka (null = pesanan baru).
+  final String? heldId;
 
   bool get isEmpty => lines.isEmpty;
 
@@ -224,10 +317,42 @@ class Cart {
   /// Jumlah barang (per baris) untuk badge keranjang.
   int get itemCount => lines.length;
 
-  Cart copyWith({List<CartLine>? lines, String? notaDiscountPercent, Customer? customer, bool clearCustomer = false, String? note}) => Cart(
+  /// Total qty semua baris (mis. "5" untuk 3 kopi + 2 roti).
+  String get totalQuantity => Money.normalize(lines.fold<String>('0', (sum, line) => bcadd(sum, line.quantity, 6)), 6);
+
+  /// Qty satu barang di keranjang (semua satuan & catatan).
+  String quantityOf(int productId) =>
+      Money.normalize(lines.where((line) => line.product?.id == productId).fold<String>('0', (sum, line) => bcadd(sum, line.quantity, 6)), 6);
+
+  Map<String, dynamic> toJson() => {
+        'lines': [for (final line in lines) line.toJson()],
+        'nota_discount_percent': notaDiscountPercent,
+        'customer': customer?.toJson(),
+        'note': note,
+        'order_type': orderType?.code,
+        'order_label': orderLabel,
+        'held_id': heldId,
+      };
+
+  /// [note] / [orderLabel]: null = tidak berubah, '' = hapus.
+  Cart copyWith({
+    List<CartLine>? lines,
+    String? notaDiscountPercent,
+    Customer? customer,
+    bool clearCustomer = false,
+    String? note,
+    OrderType? orderType,
+    bool clearOrderType = false,
+    String? orderLabel,
+    String? heldId,
+  }) =>
+      Cart(
         lines: lines ?? this.lines,
         notaDiscountPercent: notaDiscountPercent == null ? this.notaDiscountPercent : Money.normalize(notaDiscountPercent),
         customer: clearCustomer ? null : (customer ?? this.customer),
-        note: note ?? this.note,
+        note: note == null ? this.note : cleanNote(note, 1000),
+        orderType: clearOrderType ? null : (orderType ?? this.orderType),
+        orderLabel: orderLabel == null ? this.orderLabel : cleanNote(orderLabel, 40),
+        heldId: heldId ?? this.heldId,
       );
 }

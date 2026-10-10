@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../state/session.dart';
 
 /// Warna brand Infois (sama dengan web).
 class Brand {
@@ -75,3 +78,27 @@ ThemeData buildTheme(Brightness brightness) {
     snackBarTheme: const SnackBarThemeData(behavior: SnackBarBehavior.floating),
   );
 }
+
+/// Pilihan tampilan di Akun › Tampilan, tersimpan di HP.
+class ThemeModeController extends Notifier<ThemeMode> {
+  @override
+  ThemeMode build() => switch (ref.watch(storageProvider).themeMode) {
+        'light' => ThemeMode.light,
+        'dark' => ThemeMode.dark,
+        _ => ThemeMode.system,
+      };
+
+  Future<void> set(ThemeMode mode) async {
+    state = mode;
+    await ref.read(storageProvider).setThemeMode(mode.name);
+  }
+}
+
+final themeModeProvider = NotifierProvider<ThemeModeController, ThemeMode>(ThemeModeController.new);
+
+/// Label pilihan tampilan.
+String themeModeLabel(ThemeMode mode) => switch (mode) {
+      ThemeMode.system => 'Ikuti sistem',
+      ThemeMode.light => 'Terang',
+      ThemeMode.dark => 'Gelap',
+    };

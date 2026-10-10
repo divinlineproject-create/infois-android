@@ -102,7 +102,7 @@ class PosService {
 
   /// Simpan penjualan. [clientUuid] dibuat sekali saat layar Bayar dibuka,
   /// sehingga tombol Bayar yang ditekan dua kali tidak membuat nota dobel.
-  Future<Map<String, dynamic>> checkout({required String clientUuid, required Cart cart, required PaymentInput payment, String? shiftClientUuid, DateTime? now}) async {
+  Future<Map<String, dynamic>> checkout({required String clientUuid, required Cart cart, required PaymentInput payment, String? shiftClientUuid, DateTime? now}) => local.guard(() async {
     if (cart.isEmpty) {
       throw const CheckoutException('Keranjang masih kosong.');
     }
@@ -134,6 +134,7 @@ class PosService {
             'gross_amount': amounts.grossAmount,
             'discount_amount': amounts.discountAmount,
             'line_total': amounts.lineTotal,
+            if (line.note != null) 'note': line.note,
           };
         }(),
     ];
@@ -150,6 +151,8 @@ class PosService {
       'customer_client_uuid': customer?.id == null ? customer?.clientUuid : null,
       'customer_name': customer?.name ?? 'Pelanggan Umum',
       'notes': cart.note,
+      'order_type': cart.orderType?.code,
+      'order_label': cart.orderLabel,
       'items': items,
       'payments': payments,
       'subtotal': totals.subtotal,
@@ -194,9 +197,13 @@ class PosService {
         'status': OutboxStatus.pending,
         'created_at': createdAt.toIso8601String(),
       });
+      // Pesanan tersimpan yang dibayar tidak perlu ada lagi di daftar.
+      if (cart.heldId != null) {
+        await txn.delete('held_orders', where: 'id = ?', whereArgs: [cart.heldId]);
+      }
       return sale;
     });
-  }
+  });
 
   /// Bagian penjualan yang dikirim ke server (API.md › item "sale").
   static Map<String, dynamic> pushData(Map<String, dynamic> sale) => {
@@ -209,6 +216,8 @@ class PosService {
         'customer_id': sale['customer_id'],
         'customer_client_uuid': sale['customer_client_uuid'],
         'notes': sale['notes'],
+        if (sale['order_type'] != null) 'order_type': sale['order_type'],
+        if (sale['order_label'] != null) 'order_label': sale['order_label'],
         'total': sale['total'],
         'items': [
           for (final item in sale['items'] as List)
@@ -220,6 +229,7 @@ class PosService {
               'unit_price': item['unit_price'],
               'discount_percent': item['discount_percent'],
               'tax_rate': item['tax_rate'],
+              if (item['note'] != null) 'note': item['note'],
             },
         ],
         'payments': [
@@ -247,7 +257,7 @@ class PosService {
   // ------------------------------------------------------------- pelanggan
 
   /// Pelanggan baru (bisa offline); dikirim lewat outbox sebelum penjualannya.
-  Future<Customer> addCustomer({required String name, String? phone, String? address}) async {
+  Future<Customer> addCustomer({required String name, String? phone, String? address}) => local.guard(() async {
     final clientUuid = newUuid();
     final customer = Customer(clientUuid: clientUuid, name: name.trim(), phone: phone?.trim(), address: address?.trim(), pending: true);
     await local.upsertCustomers([customer]);
@@ -258,11 +268,11 @@ class PosService {
       if ((customer.address ?? '').isNotEmpty) 'address': customer.address,
     });
     return customer;
-  }
+  });
 
   // ------------------------------------------------------------------ shift
 
-  Future<Map<String, dynamic>> openShift(String openingCash, {DateTime? now}) async {
+  Future<Map<String, dynamic>> openShift(String openingCash, {DateTime? now}) => local.guard(() async {
     final clientUuid = newUuid();
     final openedAt = (now ?? DateTime.now()).toUtc().toIso8601String();
     final shift = {
@@ -276,7 +286,7 @@ class PosService {
     await local.saveShift(shift);
     await OutboxStore(local).enqueue('shift_open', clientUuid, {'client_uuid': clientUuid, 'opened_at': openedAt, 'opening_cash': shift['opening_cash']});
     return shift;
-  }
+  });
 
   /// Ringkasan shift dari penjualan di HP ini.
   Future<Map<String, dynamic>> shiftSummary(Map<String, dynamic> shift) async {
@@ -308,7 +318,7 @@ class PosService {
   }
 
   /// Tutup shift dengan uang fisik yang dihitung. Kembalikan laporan untuk dicetak.
-  Future<Map<String, dynamic>> closeShift(Map<String, dynamic> shift, String closingCash, {DateTime? now}) async {
+  Future<Map<String, dynamic>> closeShift(Map<String, dynamic> shift, String closingCash, {DateTime? now}) => local.guard(() async {
     final summary = await shiftSummary(shift);
     final closedAt = (now ?? DateTime.now()).toUtc().toIso8601String();
     final counted = Money.normalize(closingCash);
@@ -333,5 +343,88 @@ class PosService {
       'closing_cash': counted,
       'difference': Money.sub(counted, summary['expected_cash']),
     };
+  });
+}
+
+/// Ringkasan satu pesanan tersimpan untuk daftar "Pesanan tersimpan".
+class HeldOrder {
+  const HeldOrder({required this.id, required this.name, required this.total, required this.itemCount, required this.createdAt, required this.updatedAt, required this.cart});
+
+  final String id;
+  final String name;
+  final String total;
+  final int itemCount;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final Cart cart;
+}
+
+/// Pesanan tersimpan (open bill) di database HP: simpan keranjang, lanjutkan
+/// nanti, hapus. Tidak dikirim ke server sampai dibayar.
+class HeldOrderStore {
+  HeldOrderStore(this.local);
+
+  final LocalDb local;
+
+  /// Nama bawaan: label meja/antrian, pelanggan, atau "Pesanan HH:mm".
+  static String defaultName(Cart cart, DateTime now) {
+    final label = cart.orderLabel;
+    if (label != null) {
+      return label;
+    }
+    final customer = cart.customer;
+    if (customer != null && !customer.isWalkIn) {
+      return customer.name;
+    }
+    return 'Pesanan ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
   }
+
+  /// Simpan (atau perbarui bila [Cart.heldId] sudah ada). Kembalikan id-nya.
+  Future<String> save(Cart cart, {required String name, required String total, DateTime? now}) => local.guard(() => _save(cart, name: name, total: total, now: now));
+
+  Future<String> _save(Cart cart, {required String name, required String total, DateTime? now}) async {
+    if (cart.isEmpty) {
+      throw const CheckoutException('Keranjang masih kosong.');
+    }
+    final at = (now ?? DateTime.now()).toIso8601String();
+    final id = cart.heldId ?? PosService.newUuid();
+    final existing = await local.db.query('held_orders', columns: ['created_at'], where: 'id = ?', whereArgs: [id], limit: 1);
+    final stored = cart.copyWith(heldId: id);
+    await local.db.insert(
+      'held_orders',
+      {
+        'id': id,
+        'name': cleanNote(name, 60) ?? defaultName(cart, DateTime.parse(at)),
+        'total': Money.normalize(total),
+        'item_count': cart.itemCount,
+        'created_at': existing.isEmpty ? at : existing.first['created_at'],
+        'updated_at': at,
+        'data': jsonEncode(stored.toJson()),
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+    return id;
+  }
+
+  Future<List<HeldOrder>> all() async => [for (final row in await local.db.query('held_orders', orderBy: 'created_at ASC')) _fromRow(row)];
+
+  Future<HeldOrder?> find(String id) async {
+    final rows = await local.db.query('held_orders', where: 'id = ?', whereArgs: [id], limit: 1);
+    return rows.isEmpty ? null : _fromRow(rows.first);
+  }
+
+  static HeldOrder _fromRow(Map<String, Object?> row) => HeldOrder(
+        id: row['id'] as String,
+        name: row['name'] as String,
+        total: row['total'] as String,
+        itemCount: row['item_count'] as int,
+        createdAt: DateTime.parse(row['created_at'] as String),
+        updatedAt: DateTime.parse(row['updated_at'] as String),
+        cart: Cart.fromJson(Map<String, dynamic>.from(jsonDecode(row['data'] as String) as Map)),
+      );
+
+  Future<void> delete(String id) => local.guard(() => local.db.delete('held_orders', where: 'id = ?', whereArgs: [id]));
+
+  /// Jumlah pesanan tersimpan (peringatan sebelum keluar).
+  Future<int> count() async => Sqflite.firstIntValue(await local.db.rawQuery('SELECT COUNT(*) FROM held_orders')) ?? 0;
 }

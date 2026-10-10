@@ -7,11 +7,13 @@ import '../../core/format.dart';
 import '../../core/money.dart';
 import '../../domain/models.dart';
 import '../../services/pos_service.dart';
+import '../../services/printing/receipt_builder.dart';
 import '../../state/pos_state.dart';
 import '../../state/printer_controller.dart';
 import '../../state/workspace.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import '../widgets/pos_keypad.dart';
 import 'customer_picker.dart';
 import 'shift_screens.dart';
 
@@ -38,7 +40,8 @@ List<String> quickCashAmounts(String total) {
   return [for (final value in values.take(6)) Money.normalize(value.toString())];
 }
 
-/// Layar Bayar: tunai (kembalian), transfer (rekening tujuan), bon, campuran.
+/// Layar Bayar: tunai (keypad, nominal cepat, kembalian), transfer
+/// (rekening tujuan), bon, campuran.
 class PayScreen extends ConsumerStatefulWidget {
   const PayScreen({super.key});
 
@@ -49,17 +52,13 @@ class PayScreen extends ConsumerStatefulWidget {
 class _PayScreenState extends ConsumerState<PayScreen> {
   /// Dibuat sekali per layar: bayar ditekan dua kali tetap satu nota.
   final String _clientUuid = PosService.newUuid();
-  final _cash = TextEditingController();
+
+  /// Nominal tunai dari keypad (digit saja). Kosong = uang pas (mode tunai).
+  String _cash = '';
   PayMode _mode = PayMode.cash;
   CashAccount? _account;
   bool _busy = false;
   String? _error;
-
-  @override
-  void dispose() {
-    _cash.dispose();
-    super.dispose();
-  }
 
   Future<void> _pay(String total) async {
     if (_busy) {
@@ -76,7 +75,7 @@ class _PayScreenState extends ConsumerState<PayScreen> {
         return;
       }
     }
-    final cash = _mode == PayMode.cash ? (_cash.text.trim().isEmpty ? total : parseMoneyInput(_cash.text)) : parseMoneyInput(_cash.text);
+    final cash = _mode == PayMode.cash ? (_cash.isEmpty ? total : parseMoneyInput(_cash)) : parseMoneyInput(_cash);
     if ((_mode == PayMode.cash || _mode == PayMode.mixed) && cash == null) {
       setState(() => _error = 'Isi jumlah uang tunai.');
       return;
@@ -96,13 +95,18 @@ class _PayScreenState extends ConsumerState<PayScreen> {
     } on CheckoutException catch (error) {
       setState(() => _error = error.message);
     } catch (error) {
-      setState(() => _error = 'Penjualan belum tersimpan: $error');
+      setState(() => _error = plainError(error, fallback: 'Penjualan belum tersimpan. Coba bayar lagi.'));
     } finally {
       if (mounted) {
         setState(() => _busy = false);
       }
     }
   }
+
+  void _key(String key) => setState(() {
+        _cash = applyKeypad(_cash, key);
+        _error = null;
+      });
 
   @override
   Widget build(BuildContext context) {
@@ -112,98 +116,136 @@ class _PayScreenState extends ConsumerState<PayScreen> {
     final total = cart.totals(pricesIncludeTax: inclusive).total;
     final accounts = master?.transferAccounts ?? const <CashAccount>[];
     _account ??= accounts.where((account) => account.id == master?.defaultTransferId).firstOrNull ?? accounts.firstOrNull;
-    final cashValue = parseMoneyInput(_cash.text);
+    final cashValue = parseMoneyInput(_cash);
     final change = _mode == PayMode.cash && cashValue != null && Money.compare(cashValue, total) >= 0 ? Money.sub(cashValue, total) : null;
+    final short = _mode == PayMode.cash && cashValue != null && Money.compare(cashValue, total) < 0 ? Money.sub(total, cashValue) : null;
     final transferPart = _mode == PayMode.mixed && cashValue != null ? Money.sub(total, cashValue) : null;
-    final needsCustomer = _mode == PayMode.bon;
+    final orderInfo = [cart.orderType?.label, cart.orderLabel].whereType<String>().join(' · ');
+
+    final keypadSection = <Widget>[
+      if (_mode == PayMode.cash) ...[
+        Wrap(spacing: 8, runSpacing: 8, children: [
+          for (final (index, amount) in quickCashAmounts(total).indexed)
+            ActionChip(
+              key: Key('quick-$index'),
+              label: Text(index == 0 && Money.compare(amount, total) == 0 ? 'Uang pas' : rupiah(amount)),
+              onPressed: () => setState(() {
+                _cash = Money.normalize(amount).split('.').first;
+                _error = null;
+              }),
+            ),
+        ]),
+        const SizedBox(height: 12),
+      ],
+      _CashDisplay(
+        label: _mode == PayMode.mixed ? 'Bagian tunai' : 'Uang diterima',
+        value: _cash.isEmpty ? null : rupiah(_cash),
+        placeholder: _mode == PayMode.cash ? 'Uang pas ${rupiah(total)}' : 'Rp 0',
+      ),
+      const SizedBox(height: 8),
+      if (change != null)
+        Row(children: [
+          Text('Kembalian', style: TextStyle(color: mutedText(context))),
+          const SizedBox(width: 12),
+          Expanded(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerRight,
+              child: Text(rupiah(change), key: const Key('pay-change'), style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w700)),
+            ),
+          ),
+        ]),
+      if (short != null) Text('Kurang ${rupiah(short)}', key: const Key('pay-short'), style: TextStyle(color: dangerText(context), fontWeight: FontWeight.w600)),
+      if (transferPart != null && Money.isPositive(transferPart)) Text('Sisanya transfer: ${rupiah(transferPart)}'),
+      const SizedBox(height: 12),
+      PosKeypad(onKey: _key),
+    ];
+
+    final header = <Widget>[
+      Card(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(children: [
+            const Text('Total belanja'),
+            const SizedBox(height: 4),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(rupiah(total), key: const Key('pay-total'), style: TextStyle(fontSize: 34, fontWeight: FontWeight.w700, color: Theme.of(context).colorScheme.primary)),
+            ),
+            Text('${cart.itemCount} barang · ${cart.customer?.name ?? 'Pelanggan umum'}', textAlign: TextAlign.center, style: TextStyle(color: mutedText(context))),
+            if (orderInfo.isNotEmpty) Text(orderInfo, key: const Key('pay-order-info'), textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w600)),
+          ]),
+        ),
+      ),
+      const SizedBox(height: 16),
+      SegmentedButton<PayMode>(
+        segments: const [
+          ButtonSegment(value: PayMode.cash, label: Text('Tunai'), icon: Icon(Icons.payments_outlined)),
+          ButtonSegment(value: PayMode.transfer, label: Text('Transfer'), icon: Icon(Icons.account_balance_outlined)),
+          ButtonSegment(value: PayMode.bon, label: Text('Bon'), icon: Icon(Icons.schedule_outlined)),
+          ButtonSegment(value: PayMode.mixed, label: Text('Campur'), icon: Icon(Icons.call_split)),
+        ],
+        selected: {_mode},
+        showSelectedIcon: false,
+        onSelectionChanged: (value) => setState(() {
+          _mode = value.first;
+          _cash = '';
+          _error = null;
+        }),
+      ),
+      const SizedBox(height: 20),
+    ];
+    final details = <Widget>[
+      if (_mode == PayMode.transfer || _mode == PayMode.mixed) ...[
+        DropdownButtonFormField<int>(
+          value: _account?.id,
+          decoration: const InputDecoration(labelText: 'Rekening tujuan transfer'),
+          items: [for (final account in accounts) DropdownMenuItem(value: account.id, child: Text(account.name))],
+          onChanged: (id) => setState(() => _account = accounts.firstWhere((account) => account.id == id)),
+        ),
+        const SizedBox(height: 16),
+      ],
+      if (_mode == PayMode.bon) ...[
+        const Text('Bon dicatat sebagai piutang pelanggan.'),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          onPressed: () async {
+            final customer = await pickCustomer(context, ref);
+            if (customer != null) {
+              ref.read(cartProvider.notifier).setCustomer(customer.isWalkIn ? null : customer);
+            }
+          },
+          icon: const Icon(Icons.person_outline),
+          label: Text(cart.customer == null ? 'Pilih pelanggan' : 'Pelanggan: ${cart.customer!.name}'),
+        ),
+      ],
+      if (_error != null) ...[const SizedBox(height: 16), Text(_error!, key: const Key('pay-error'), style: TextStyle(color: dangerText(context), fontWeight: FontWeight.w500))],
+      const SizedBox(height: 16),
+      Consumer(builder: (context, ref, _) {
+        final printer = ref.watch(printerProvider);
+        return Text(
+          printer.printer == null ? 'Belum ada printer. Struk bisa dicetak nanti dari riwayat.' : 'Struk dicetak otomatis ke ${printer.printer!.name}.',
+          style: TextStyle(fontSize: 13, color: mutedText(context)),
+        );
+      }),
+    ];
+    final usesKeypad = _mode == PayMode.cash || _mode == PayMode.mixed;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Bayar')),
-      body: ListView(padding: const EdgeInsets.all(16), children: [
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(children: [
-              const Text('Total belanja'),
-              const SizedBox(height: 4),
-              Text(rupiah(total), key: const Key('pay-total'), style: const TextStyle(fontSize: 34, fontWeight: FontWeight.w700, color: Brand.green)),
-              Text('${cart.itemCount} barang · ${cart.customer?.name ?? 'Pelanggan umum'}', style: TextStyle(color: mutedText(context))),
-            ]),
-          ),
-        ),
-        const SizedBox(height: 16),
-        SegmentedButton<PayMode>(
-          segments: const [
-            ButtonSegment(value: PayMode.cash, label: Text('Tunai'), icon: Icon(Icons.payments_outlined)),
-            ButtonSegment(value: PayMode.transfer, label: Text('Transfer'), icon: Icon(Icons.account_balance_outlined)),
-            ButtonSegment(value: PayMode.bon, label: Text('Bon'), icon: Icon(Icons.schedule_outlined)),
-            ButtonSegment(value: PayMode.mixed, label: Text('Campur'), icon: Icon(Icons.call_split)),
-          ],
-          selected: {_mode},
-          showSelectedIcon: false,
-          onSelectionChanged: (value) => setState(() {
-            _mode = value.first;
-            _cash.clear();
-            _error = null;
-          }),
-        ),
-        const SizedBox(height: 20),
-        if (_mode == PayMode.cash) ...[
-          const Text('Uang diterima', style: TextStyle(fontWeight: FontWeight.w600)),
-          const SizedBox(height: 8),
-          Wrap(spacing: 8, runSpacing: 8, children: [
-            for (final (index, amount) in quickCashAmounts(total).indexed)
-              ActionChip(
-                key: Key('quick-$index'),
-                label: Text(index == 0 && Money.compare(amount, total) == 0 ? 'Uang pas' : rupiah(amount)),
-                onPressed: () => setState(() => _cash.text = rupiah(amount, symbol: false)),
-              ),
-          ]),
-          const SizedBox(height: 12),
-          _MoneyField(controller: _cash, label: 'Jumlah uang (kosong = uang pas)', onChanged: () => setState(() {})),
-          if (change != null) ...[
-            const SizedBox(height: 16),
-            Text('Kembalian', style: TextStyle(color: mutedText(context))),
-            Text(rupiah(change), key: const Key('pay-change'), style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w700)),
-          ],
-        ],
-        if (_mode == PayMode.transfer || _mode == PayMode.mixed) ...[
-          if (_mode == PayMode.mixed) ...[
-            _MoneyField(controller: _cash, label: 'Bagian tunai', onChanged: () => setState(() {})),
-            if (transferPart != null && Money.isPositive(transferPart)) Padding(padding: const EdgeInsets.only(top: 8), child: Text('Sisanya transfer: ${rupiah(transferPart)}')),
-            const SizedBox(height: 16),
-          ],
-          DropdownButtonFormField<int>(
-            value: _account?.id,
-            decoration: const InputDecoration(labelText: 'Rekening tujuan transfer'),
-            items: [for (final account in accounts) DropdownMenuItem(value: account.id, child: Text(account.name))],
-            onChanged: (id) => setState(() => _account = accounts.firstWhere((account) => account.id == id)),
-          ),
-        ],
-        if (needsCustomer) ...[
-          const Text('Bon dicatat sebagai piutang pelanggan.'),
-          const SizedBox(height: 8),
-          OutlinedButton.icon(
-            onPressed: () async {
-              final customer = await pickCustomer(context, ref);
-              if (customer != null) {
-                ref.read(cartProvider.notifier).setCustomer(customer.isWalkIn ? null : customer);
-              }
-            },
-            icon: const Icon(Icons.person_outline),
-            label: Text(cart.customer == null ? 'Pilih pelanggan' : 'Pelanggan: ${cart.customer!.name}'),
-          ),
-        ],
-        if (_error != null) ...[const SizedBox(height: 16), Text(_error!, key: const Key('pay-error'), style: const TextStyle(color: Brand.danger, fontWeight: FontWeight.w500))],
-        const SizedBox(height: 24),
-        Consumer(builder: (context, ref, _) {
-          final printer = ref.watch(printerProvider);
-          return Text(
-            printer.printer == null ? 'Belum ada printer. Struk bisa dicetak nanti dari riwayat.' : 'Struk dicetak otomatis ke ${printer.printer!.name}.',
-            style: TextStyle(fontSize: 13, color: mutedText(context)),
-          );
-        }),
-      ]),
+      body: LayoutBuilder(builder: (context, constraints) {
+        if (constraints.maxWidth >= 720 && usesKeypad) {
+          return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Expanded(child: ListView(padding: const EdgeInsets.all(16), children: [...header, ...details])),
+            SizedBox(width: 380, child: ListView(padding: const EdgeInsets.all(16), children: keypadSection)),
+          ]);
+        }
+        return ListView(padding: const EdgeInsets.all(16), children: [
+          ...header,
+          if (usesKeypad) ...keypadSection,
+          ...details,
+        ]);
+      }),
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
@@ -211,7 +253,9 @@ class _PayScreenState extends ConsumerState<PayScreen> {
             key: const Key('pay-submit'),
             onPressed: _busy || cart.isEmpty ? null : () => _pay(total),
             style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(56)),
-            child: _busy ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white)) : Text(_mode == PayMode.bon ? 'Simpan bon' : 'Bayar'),
+            child: _busy
+                ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
+                : Text(_mode == PayMode.bon ? 'Simpan bon' : (_mode == PayMode.cash && change != null && Money.isPositive(change) ? 'Bayar · kembali ${rupiah(change)}' : 'Bayar')),
           ),
         ),
       ),
@@ -219,22 +263,35 @@ class _PayScreenState extends ConsumerState<PayScreen> {
   }
 }
 
-class _MoneyField extends StatelessWidget {
-  const _MoneyField({required this.controller, required this.label, required this.onChanged});
+/// Tampilan nominal tunai dari keypad.
+class _CashDisplay extends StatelessWidget {
+  const _CashDisplay({required this.label, required this.value, required this.placeholder});
 
-  final TextEditingController controller;
   final String label;
-  final VoidCallback onChanged;
+  final String? value;
+  final String placeholder;
 
   @override
-  Widget build(BuildContext context) => TextField(
+  Widget build(BuildContext context) => Container(
         key: const Key('pay-cash'),
-        controller: controller,
-        keyboardType: TextInputType.number,
-        inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
-        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
-        decoration: InputDecoration(labelText: label, prefixText: 'Rp '),
-        onChanged: (_) => onChanged(),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: Theme.of(context).inputDecorationTheme.fillColor,
+          border: Border.all(color: Theme.of(context).colorScheme.primary, width: 1.5),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(label, style: TextStyle(fontSize: 12.5, color: mutedText(context))),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              value ?? placeholder,
+              key: const Key('pay-cash-value'),
+              style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700, color: value == null ? mutedText(context) : null),
+            ),
+          ),
+        ]),
       );
 }
 
@@ -246,56 +303,150 @@ String printMessage(String? result) => switch (result) {
       _ => '',
     };
 
-/// Penjualan selesai: nomor nota, kembalian, cetak ulang, transaksi baru.
+/// Penjualan selesai: nomor nota, kembalian, cetak struk / pesanan dapur,
+/// kirim struk lewat WhatsApp, transaksi baru.
 class SaleDoneScreen extends ConsumerWidget {
   const SaleDoneScreen({super.key, required this.sale, this.printResult});
 
   final Map<String, dynamic> sale;
   final String? printResult;
 
+  Future<void> _sendWhatsApp(BuildContext context, WidgetRef ref) async {
+    var phone = sale['customer_phone']?.toString();
+    if (phone == null || phone.isEmpty) {
+      final controller = TextEditingController();
+      final entered = await showDialog<String>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Kirim struk WhatsApp'),
+          content: TextField(
+            key: const Key('wa-phone'),
+            controller: controller,
+            autofocus: true,
+            keyboardType: TextInputType.phone,
+            decoration: const InputDecoration(labelText: 'No. WhatsApp pembeli', hintText: '0812…', helperText: 'Kosongkan untuk memilih kontak di WhatsApp'),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Batal')),
+            FilledButton(key: const Key('wa-send'), onPressed: () => Navigator.pop(context, controller.text), child: const Text('Kirim')),
+          ],
+        ),
+      );
+      if (entered == null) {
+        return;
+      }
+      phone = entered;
+    }
+    final actions = ref.read(posActionsProvider);
+    final ok = await actions.sendWhatsApp(sale, phone: phone);
+    if (!ok) {
+      // Tanpa WhatsApp / browser: struk disalin supaya tetap bisa dikirim.
+      await Clipboard.setData(ClipboardData(text: await actions.receiptText(sale)));
+      if (context.mounted) {
+        showMessage(context, 'WhatsApp belum bisa dibuka. Struk disalin: buka WhatsApp, pilih pembeli, lalu tempel.', error: true);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final change = sale['change']?.toString() ?? '0';
     final unpaid = Money.sub(sale['total'], sale['paid']);
+    final order = ReceiptBuilder.orderHeadline(sale);
     return Scaffold(
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(children: [
-            const Spacer(),
-            const Icon(Icons.check_circle, size: 88, color: Brand.green),
-            const SizedBox(height: 12),
-            Text('Penjualan tersimpan', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700)),
-            const SizedBox(height: 4),
-            Text(sale['number']?.toString() ?? 'Nomor nota menyusul saat sinkron', key: const Key('done-number')),
-            const SizedBox(height: 24),
-            AmountRow('Total', rupiah(sale['total']), bold: true),
-            if (Money.isPositive(change)) AmountRow('Kembalian', rupiah(change), bold: true, large: true),
-            if (Money.isPositive(unpaid)) AmountRow('Belum dibayar (bon)', rupiah(unpaid), bold: true, color: Brand.amber),
-            const SizedBox(height: 16),
-            if (printResult != null && printResult != 'printed') Text(printMessage(printResult), textAlign: TextAlign.center, style: const TextStyle(color: Brand.amber)),
-            const Spacer(),
-            OutlinedButton.icon(
-              onPressed: () async {
-                final result = await ref.read(printerProvider.notifier).printSale(sale, reprint: printResult == 'printed');
-                if (context.mounted) {
-                  showMessage(context, printMessage(result.name), error: result != PrintResult.printed);
-                }
-              },
-              icon: const Icon(Icons.print_outlined),
-              label: Text(printResult == 'printed' ? 'Cetak ulang' : 'Cetak struk'),
-              style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(52)),
+        child: LayoutBuilder(
+          builder: (context, constraints) => SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight - 48),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 520),
+                  child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                    const Icon(Icons.check_circle, size: 88, color: Brand.green),
+                    const SizedBox(height: 12),
+                    Text('Penjualan tersimpan', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700)),
+                    const SizedBox(height: 4),
+                    Text(sale['number']?.toString() ?? 'Nomor nota menyusul saat sinkron', key: const Key('done-number')),
+                    if (order != null) Text(order, style: const TextStyle(fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 24),
+                    AmountRow('Total', rupiah(sale['total']), bold: true),
+                    if (Money.isPositive(change)) AmountRow('Kembalian', rupiah(change), bold: true, large: true),
+                    if (Money.isPositive(unpaid)) AmountRow('Belum dibayar (bon)', rupiah(unpaid), bold: true, color: warningText(context)),
+                    const SizedBox(height: 16),
+                    if (printResult != null && printResult != 'printed') Text(printMessage(printResult), textAlign: TextAlign.center, style: TextStyle(color: warningText(context))),
+                    const SizedBox(height: 24),
+                    Row(children: [
+                      Expanded(
+                        child: _DoneAction(
+                          key: const Key('print-receipt'),
+                          icon: Icons.print_outlined,
+                          label: printResult == 'printed' ? 'Cetak ulang' : 'Cetak struk',
+                          onTap: () async {
+                            final result = await ref.read(printerProvider.notifier).printSale(sale, reprint: printResult == 'printed');
+                            if (context.mounted) {
+                              showMessage(context, printMessage(result.name), error: result != PrintResult.printed);
+                            }
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _DoneAction(
+                          key: const Key('print-kitchen'),
+                          icon: Icons.soup_kitchen_outlined,
+                          label: 'Pesanan dapur',
+                          onTap: () async {
+                            final result = await ref.read(posActionsProvider).printKitchenTicket(sale);
+                            if (context.mounted) {
+                              showMessage(
+                                context,
+                                result == PrintResult.printed ? 'Pesanan dapur tercetak.' : printMessage(result.name).replaceFirst('Struk', 'Pesanan dapur'),
+                                error: result != PrintResult.printed,
+                              );
+                            }
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _DoneAction(key: const Key('send-wa'), icon: Icons.chat_outlined, label: 'Kirim struk WA', onTap: () => _sendWhatsApp(context, ref)),
+                      ),
+                    ]),
+                    const SizedBox(height: 12),
+                    FilledButton(
+                      key: const Key('new-sale'),
+                      onPressed: () => context.pop(),
+                      style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(56)),
+                      child: const Text('Transaksi baru'),
+                    ),
+                  ]),
+                ),
+              ),
             ),
-            const SizedBox(height: 12),
-            FilledButton(
-              key: const Key('new-sale'),
-              onPressed: () => context.pop(),
-              style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(56)),
-              child: const Text('Transaksi baru'),
-            ),
-          ]),
+          ),
         ),
       ),
     );
   }
+}
+
+class _DoneAction extends StatelessWidget {
+  const _DoneAction({super.key, required this.icon, required this.label, required this.onTap});
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => OutlinedButton(
+        onPressed: onTap,
+        style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4), minimumSize: const Size(0, 76)),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Icon(icon),
+          const SizedBox(height: 4),
+          Text(label, textAlign: TextAlign.center, maxLines: 2, style: const TextStyle(fontSize: 12.5)),
+        ]),
+      );
 }

@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../core/format.dart';
+import '../../data/api_client.dart';
+import '../../data/local_db.dart';
+import '../../services/pos_service.dart';
 import '../../state/sync_controller.dart';
 import '../theme.dart';
 
@@ -15,12 +18,15 @@ class SyncStatusBadge extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final sync = ref.watch(syncProvider);
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final green = dark ? Theme.of(context).colorScheme.primary : Brand.green;
+    final muted = mutedText(context);
     final (label, color, icon) = switch (sync) {
-      SyncState(syncing: true) => ('Menyinkron', Colors.blueGrey, Icons.sync),
-      SyncState(connection: ConnectionStatus.online) when sync.pending > 0 => ('Online · ${sync.pending} menunggu', Brand.green, Icons.cloud_upload_outlined),
-      SyncState(connection: ConnectionStatus.online) => ('Online', Brand.green, Icons.cloud_done_outlined),
-      SyncState(connection: ConnectionStatus.offline) => ('Offline${sync.pending > 0 ? ' (${sync.pending} menunggu)' : ''}', Brand.amber, Icons.cloud_off_outlined),
-      _ => ('Memeriksa…', Colors.grey, Icons.more_horiz),
+      SyncState(syncing: true) => ('Menyinkron', dark ? muted : Colors.blueGrey, Icons.sync),
+      SyncState(connection: ConnectionStatus.online) when sync.pending > 0 => ('Online · ${sync.pending} menunggu', green, Icons.cloud_upload_outlined),
+      SyncState(connection: ConnectionStatus.online) => ('Online', green, Icons.cloud_done_outlined),
+      SyncState(connection: ConnectionStatus.offline) => ('Offline${sync.pending > 0 ? ' (${sync.pending} menunggu)' : ''}', warningText(context), Icons.cloud_off_outlined),
+      _ => ('Memeriksa…', muted, Icons.more_horiz),
     };
     return Semantics(
       label: 'Status koneksi: $label',
@@ -30,11 +36,14 @@ class SyncStatusBadge extends ConsumerWidget {
         onTap: onTap,
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(20)),
+          decoration: BoxDecoration(color: color.withValues(alpha: dark ? 0.16 : 0.12), borderRadius: BorderRadius.circular(20)),
+          // Huruf besar / layar sempit: teks dipotong (…), bukan meluap dan
+          // menggeser nama perusahaan.
+          constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * 0.45),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
             Icon(icon, size: 16, color: color),
             const SizedBox(width: 6),
-            Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color)),
+            Flexible(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color))),
           ]),
         ),
       ),
@@ -78,21 +87,48 @@ class EmptyState extends StatelessWidget {
   final Widget? action;
 
   @override
-  Widget build(BuildContext context) => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Icon(icon, size: 56, color: Theme.of(context).colorScheme.primary),
-            const SizedBox(height: 16),
-            Text(title, textAlign: TextAlign.center, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
-            if (message != null) ...[
-              const SizedBox(height: 8),
-              Text(message!, textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodyMedium),
-            ],
-            if (action != null) ...[const SizedBox(height: 20), action!],
-          ]),
-        ),
-      );
+  Widget build(BuildContext context) => LayoutBuilder(builder: (context, constraints) {
+        final compact = constraints.hasBoundedHeight && constraints.maxHeight < 260;
+        final content = Center(
+          child: Padding(
+            padding: EdgeInsets.all(compact ? 12 : 32),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Icon(icon, size: compact ? 32 : 56, color: Theme.of(context).colorScheme.primary),
+              SizedBox(height: compact ? 8 : 16),
+              Text(title, textAlign: TextAlign.center, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
+              if (message != null) ...[
+                const SizedBox(height: 8),
+                Text(message!, textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodyMedium),
+              ],
+              if (action != null) ...[const SizedBox(height: 20), action!],
+            ]),
+          ),
+        );
+        if (!constraints.hasBoundedHeight) {
+          return content;
+        }
+        // Ruang pendek (HP miring, huruf besar): gulir, bukan terpotong.
+        return SingleChildScrollView(
+          child: ConstrainedBox(constraints: BoxConstraints(minHeight: constraints.maxHeight, minWidth: constraints.maxWidth), child: content),
+        );
+      });
+}
+
+/// Pesan galat untuk pengguna: pesan yang memang ditulis untuk pengguna
+/// (server, kasir, database sedang dimuat ulang); selain itu [fallback] tanpa
+/// istilah teknis (rinciannya hanya ke log).
+String plainError(Object? error, {String fallback = 'Terjadi kendala. Coba lagi.'}) {
+  if (error is ApiException) {
+    return error.message;
+  }
+  if (error is CheckoutException) {
+    return error.message;
+  }
+  if (error is LocalDbClosedException) {
+    return error.message;
+  }
+  debugPrint('Galat: $error');
+  return fallback;
 }
 
 void showMessage(BuildContext context, String message, {bool error = false}) {
@@ -116,7 +152,17 @@ class AmountRow extends StatelessWidget {
     final style = TextStyle(fontSize: large ? 20 : 15, fontWeight: bold ? FontWeight.w700 : FontWeight.w400, color: color);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Row(children: [Expanded(child: Text(label, style: style)), Text(value, style: style)]),
+      child: LayoutBuilder(
+        builder: (context, constraints) => Row(children: [
+          Expanded(child: Text(label, style: style)),
+          const SizedBox(width: 8),
+          // Nominal sangat besar / huruf besar: diperkecil, tidak meluap.
+          ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: constraints.hasBoundedWidth ? constraints.maxWidth * 0.6 : double.infinity),
+            child: FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerRight, child: Text(value, style: style)),
+          ),
+        ]),
+      ),
     );
   }
 }

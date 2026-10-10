@@ -1,8 +1,20 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:sqflite/sqflite.dart';
 
 import '../domain/models.dart';
+
+/// Database HP sedang dimuat ulang (perusahaan diganti, keluar, atau dibuka
+/// ulang setelah tertutup): pekerjaan diulang sebentar lagi.
+class LocalDbClosedException implements Exception {
+  const LocalDbClosedException([this.message = 'Data kasir sedang dimuat ulang. Coba lagi sebentar lagi.']);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
 
 /// Database lokal per user + perusahaan (data perusahaan terpisah). Menyimpan
 /// salinan data master, outbox transaksi, riwayat nota, dan pengaturan sinkron.
@@ -11,12 +23,26 @@ class LocalDb {
 
   final Database db;
 
-  static const int version = 1;
+  int _holds = 0;
+  bool _closeRequested = false;
+  Completer<void>? _waiting;
+  Future<void>? _closed;
+
+  /// Masih bisa dipakai (belum diminta tutup dan koneksinya terbuka).
+  bool get isOpen => !_closeRequested && db.isOpen;
+
+  /// 2: tabel `held_orders` (pesanan tersimpan kasir).
+  static const int version = 2;
 
   static String fileName(int userId, int tenantId) => 'infois_u${userId}_t$tenantId.db';
 
   static Future<LocalDb> open(String path, {DatabaseFactory? factory}) async {
-    final options = OpenDatabaseOptions(version: version, onCreate: (db, _) => _create(db));
+    final options = OpenDatabaseOptions(version: version, onCreate: (db, _) => _create(db), onUpgrade: _upgrade);
+    // Koneksi pribadi, bukan "single instance" bersama: tanpa ini sinkron
+    // latar (WorkManager, engine Flutter lain di proses yang sama) atau
+    // pembuka kedua mendapat koneksi yang SAMA lalu menutupnya, sehingga
+    // aplikasi gagal dengan `database_closed 1`.
+    options.singleInstance = false;
     return LocalDb(await (factory ?? databaseFactory).openDatabase(path, options: options));
   }
 
@@ -39,10 +65,83 @@ class LocalDb {
       'CREATE TABLE shifts (client_uuid TEXT PRIMARY KEY, opened_at TEXT NOT NULL, closed_at TEXT, opening_cash TEXT NOT NULL, '
       'closing_cash TEXT, data TEXT NOT NULL)',
     );
+    _createHeldOrders(batch);
     await batch.commit(noResult: true);
   }
 
-  Future<void> close() => db.close();
+  static Future<void> _upgrade(Database db, int from, int to) async {
+    final batch = db.batch();
+    if (from < 2) {
+      _createHeldOrders(batch);
+    }
+    await batch.commit(noResult: true);
+  }
+
+  /// Pesanan tersimpan (open bill): isi keranjang sebagai JSON, dilanjutkan nanti.
+  static void _createHeldOrders(Batch batch) {
+    batch.execute(
+      'CREATE TABLE IF NOT EXISTS held_orders (id TEXT PRIMARY KEY, name TEXT NOT NULL, total TEXT NOT NULL, '
+      'item_count INTEGER NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, data TEXT NOT NULL)',
+    );
+  }
+
+  /// Tahan database tetap terbuka selama [action] berjalan (mis. satu siklus
+  /// sinkron). [close] yang diminta di tengah jalan menunggu sampai selesai.
+  Future<T> hold<T>(Future<T> Function() action) async {
+    _holds++;
+    try {
+      return await action();
+    } finally {
+      _holds--;
+      if (_holds == 0 && _closeRequested) {
+        unawaited(_closeNow());
+      }
+    }
+  }
+
+  /// Pekerjaan pengguna (bayar, simpan pesanan, shift, pelanggan baru):
+  /// database tetap terbuka sampai [action] selesai walau perusahaan diganti
+  /// / pengguna keluar di tengah jalan. Bila database sudah ditutup (workspace
+  /// diganti), [LocalDbClosedException] berbahasa sehari-hari, bukan
+  /// `database_closed`.
+  Future<T> guard<T>(Future<T> Function() action) async {
+    if (!isOpen) {
+      throw const LocalDbClosedException();
+    }
+    try {
+      return await hold(action);
+    } on DatabaseException catch (error) {
+      if (error.isDatabaseClosedError()) {
+        throw const LocalDbClosedException();
+      }
+      rethrow;
+    }
+  }
+
+  /// Tutup database. Aman dipanggil berkali-kali; bila masih dipakai
+  /// ([hold]), penutupan ditunda sampai pemakaian terakhir selesai.
+  Future<void> close() {
+    _closeRequested = true;
+    if (_holds > 0) {
+      return (_waiting ??= Completer<void>()).future;
+    }
+    return _closeNow();
+  }
+
+  Future<void> _closeNow() => _closed ??= () async {
+        try {
+          if (db.isOpen) {
+            await db.close();
+          }
+        } catch (_) {
+          // Sudah tertutup dari luar: tidak ada lagi yang perlu ditutup.
+        } finally {
+          final waiting = _waiting;
+          if (waiting != null && !waiting.isCompleted) {
+            waiting.complete();
+          }
+        }
+      }();
 
   // ---------------------------------------------------------------- meta
 

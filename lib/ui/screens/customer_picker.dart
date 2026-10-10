@@ -84,7 +84,7 @@ class _CustomerPickerState extends ConsumerState<_CustomerPicker> {
       Expanded(
         child: customers.when(
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (error, _) => Center(child: Text('$error')),
+          error: (error, _) => Center(child: Text(plainError(error, fallback: 'Daftar pelanggan belum bisa dibuka. Coba lagi.'))),
           data: (items) {
             final list = items.where((customer) => !customer.isWalkIn).toList();
             return list.isEmpty

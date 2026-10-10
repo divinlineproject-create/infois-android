@@ -11,6 +11,9 @@ import 'sync_engine.dart';
 
 const backgroundSyncTask = 'infois-sync';
 
+/// Hasil satu kali sinkron latar.
+enum BackgroundSyncResult { skippedNoSession, skippedForeground, offline, synced }
+
 /// Sinkron latar tiap ±15 menit (Android WorkManager): kirim outbox dan
 /// tarik data master untuk perusahaan yang sedang aktif.
 @pragma('vm:entry-point')
@@ -18,30 +21,51 @@ void backgroundDispatcher() {
   Workmanager().executeTask((task, _) async {
     WidgetsFlutterBinding.ensureInitialized();
     try {
-      final storage = await AppStorage.load();
-      final token = await storage.token();
-      final session = storage.session();
-      final tenantId = storage.tenantId;
-      if (token == null || session == null || tenantId == null) {
-        return true;
-      }
-      final local = await LocalDb.open(p.join(await getDatabasesPath(), LocalDb.fileName(session.user.id, tenantId)));
-      try {
-        final outbox = OutboxStore(local);
-        final pending = await outbox.pendingCount();
-        final api = ApiClient(baseUrl: storage.serverUrl, token: token, tenantId: tenantId, outboxCount: () => pending);
-        final engine = SyncEngine(api: api, local: local, outbox: outbox);
-        if ((await engine.ping()).ok) {
-          await engine.run();
-        }
-      } finally {
-        await local.close();
-      }
+      await runBackgroundSync(storage: await AppStorage.load());
       return true;
-    } on Exception {
+    } catch (_) {
       return false;
     }
   });
+}
+
+/// Satu kali sinkron latar.
+///
+/// WorkManager menjalankan tugas ini di engine Flutter terpisah tetapi di
+/// PROSES yang sama dengan aplikasi bila aplikasi sedang terbuka. Karena itu:
+/// - dilewati selama aplikasi tampil di layar (aplikasi sinkron sendiri),
+/// - database dibuka dengan koneksi sendiri ([LocalDb.open] tidak memakai
+///   koneksi bersama), sehingga menutupnya tidak menutup database aplikasi
+///   (dulu: `database_closed 1` saat menekan Sinkron sekarang).
+Future<BackgroundSyncResult> runBackgroundSync({
+  required AppStorage storage,
+  Future<LocalDb> Function(String fileName)? openDb,
+  ApiClient Function(String baseUrl, String token, int tenantId, int pending)? apiFactory,
+}) async {
+  final token = await storage.token();
+  final session = storage.session();
+  final tenantId = storage.tenantId;
+  if (token == null || session == null || tenantId == null) {
+    return BackgroundSyncResult.skippedNoSession;
+  }
+  if (await storage.foregroundActive()) {
+    return BackgroundSyncResult.skippedForeground;
+  }
+  final open = openDb ?? (fileName) async => LocalDb.open(p.join(await getDatabasesPath(), fileName));
+  final local = await open(LocalDb.fileName(session.user.id, tenantId));
+  try {
+    final outbox = OutboxStore(local);
+    final pending = await outbox.pendingCount();
+    final api = apiFactory?.call(storage.serverUrl, token, tenantId, pending) ?? ApiClient(baseUrl: storage.serverUrl, token: token, tenantId: tenantId, outboxCount: () => pending);
+    final engine = SyncEngine(api: api, local: local, outbox: outbox);
+    if (!(await engine.ping()).ok) {
+      return BackgroundSyncResult.offline;
+    }
+    await engine.run();
+    return BackgroundSyncResult.synced;
+  } finally {
+    await local.close();
+  }
 }
 
 Future<void> registerBackgroundSync() async {

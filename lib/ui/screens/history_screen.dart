@@ -27,7 +27,7 @@ class HistoryScreen extends ConsumerWidget {
       appBar: AppBar(title: const Text('Riwayat nota')),
       body: sales.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(child: Text('$error')),
+        error: (error, _) => Center(child: Text(plainError(error, fallback: 'Riwayat nota belum bisa dibuka. Coba lagi.'))),
         data: (items) => items.isEmpty
             ? const EmptyState(icon: Icons.receipt_long_outlined, title: 'Belum ada penjualan di HP ini')
             : ListView.separated(

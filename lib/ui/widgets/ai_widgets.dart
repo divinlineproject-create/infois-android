@@ -7,7 +7,9 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import '../../core/format.dart';
+import '../../data/ai_api.dart';
 import '../../domain/ai_models.dart';
+import '../../services/file_downloads.dart';
 import '../../state/ai_state.dart';
 import '../theme.dart';
 import 'common.dart';
@@ -264,28 +266,72 @@ class AttachmentImage extends ConsumerWidget {
   }
 
   void _open(BuildContext context, ImageProvider image) {
+    final url = attachment.url;
     showDialog<void>(
       context: context,
       builder: (context) => Dialog.fullscreen(
         backgroundColor: Colors.black,
-        child: Stack(children: [
-          Positioned.fill(child: InteractiveViewer(child: Center(child: Image(image: image, fit: BoxFit.contain, semanticLabel: 'Foto ${attachment.name}')))),
-          Positioned(top: 8, right: 8, child: SafeArea(child: IconButton(tooltip: 'Tutup', icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context)))),
-        ]),
+        child: ScaffoldMessenger(
+          child: Scaffold(
+            backgroundColor: Colors.black,
+            body: Stack(children: [
+              Positioned.fill(child: InteractiveViewer(child: Center(child: Image(image: image, fit: BoxFit.contain, semanticLabel: 'Foto ${attachment.name}')))),
+              Positioned(
+                top: 8,
+                right: 8,
+                child: SafeArea(
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    // Foto dari server: simpan ke Download (Buka / Bagikan).
+                    if (url != null && attachment.localPath == null)
+                      Consumer(
+                        builder: (context, ref, _) => IconButton(
+                          key: const Key('attachment-image-save'),
+                          tooltip: 'Simpan ke HP',
+                          icon: const Icon(Icons.download_outlined, color: Colors.white),
+                          onPressed: () => downloadAndOffer(context, ref, apiPath: AiApi.relativeApiPath(url), fileName: attachment.name),
+                        ),
+                      ),
+                    IconButton(tooltip: 'Tutup', icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context)),
+                  ]),
+                ),
+              ),
+            ]),
+          ),
+        ),
       ),
     );
   }
 }
 
-/// Chip file (PDF/Excel/laporan) dengan nama dan ukuran.
-class AttachmentChip extends StatelessWidget {
+/// Chip file (PDF/Excel/laporan) dengan nama dan ukuran. File dari server
+/// (lampiran terkirim, laporan buatan Tim AI) diketuk untuk diunduh ke folder
+/// Download lalu dibuka / dibagikan.
+class AttachmentChip extends ConsumerWidget {
   const AttachmentChip(this.attachment, {super.key, this.onRemove});
 
   final AiAttachment attachment;
   final VoidCallback? onRemove;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final url = attachment.url;
+    final chip = _chip(context, downloadable: onRemove == null && url != null);
+    if (onRemove != null || url == null) {
+      return chip;
+    }
+    return Semantics(
+      button: true,
+      label: 'Unduh ${attachment.name}',
+      child: InkWell(
+        key: Key('attachment-download-${attachment.index}'),
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => downloadAndOffer(context, ref, apiPath: AiApi.relativeApiPath(url), fileName: attachment.name),
+        child: chip,
+      ),
+    );
+  }
+
+  Widget _chip(BuildContext context, {required bool downloadable}) {
     final icon = switch (attachment.kind) {
       'pdf' => Icons.picture_as_pdf_outlined,
       'sheet' => Icons.table_chart_outlined,
@@ -308,6 +354,7 @@ class AttachmentChip extends StatelessWidget {
           ]),
         ),
         if (onRemove != null) IconButton(visualDensity: VisualDensity.compact, tooltip: 'Hapus lampiran', icon: const Icon(Icons.close, size: 18), onPressed: onRemove),
+        if (downloadable) Padding(padding: const EdgeInsets.only(left: 6), child: Icon(Icons.download_outlined, size: 18, color: mutedText(context))),
       ]),
     );
   }
@@ -508,12 +555,33 @@ class ProposalCard extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Row(children: [
-                const Icon(Icons.receipt_long_outlined, size: 16, color: Brand.green),
+                Icon(Icons.receipt_long_outlined, size: 16, color: Theme.of(context).colorScheme.primary),
                 const SizedBox(width: 6),
-                Expanded(child: Text(proposal.resultLabel!, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Brand.green))),
+                Expanded(child: Text(proposal.resultLabel!, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Theme.of(context).colorScheme.primary))),
               ]),
             ),
-          if (proposal.executed && proposal.printLinks.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4), child: Text('Cetak dan rincian lengkap ada di website Infois.', style: TextStyle(fontSize: 12, color: muted))),
+          // Cetak invoice / rincian lengkap: dibuka di browser (website Infois).
+          if (proposal.executed && (proposal.printLinks.isNotEmpty || proposal.resultUrl != null))
+            Consumer(
+              builder: (context, ref, _) => Wrap(spacing: 4, children: [
+                for (final link in proposal.printLinks)
+                  if (link['url'] != null)
+                    TextButton.icon(
+                      style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+                      onPressed: () => openExternalLink(context, ref, link['url'].toString()),
+                      icon: const Icon(Icons.open_in_new, size: 16),
+                      label: Text(link['label']?.toString() ?? 'Buka di web'),
+                    ),
+                if (proposal.resultUrl != null)
+                  TextButton.icon(
+                    key: Key('result-link-${proposal.id}'),
+                    style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+                    onPressed: () => openExternalLink(context, ref, proposal.resultUrl!),
+                    icon: const Icon(Icons.open_in_new, size: 16),
+                    label: const Text('Lihat di web'),
+                  ),
+              ]),
+            ),
           if (proposal.pending) ...[
             const SizedBox(height: 12),
             FilledButton.icon(

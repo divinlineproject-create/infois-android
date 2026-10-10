@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
@@ -6,7 +7,7 @@ import '../core/config.dart';
 
 /// Galat API dengan pesan yang bisa langsung ditampilkan ke pengguna.
 class ApiException implements Exception {
-  const ApiException(this.message, {this.code, this.status, this.offline = false});
+  const ApiException(this.message, {this.code, this.status, this.offline = false, this.data});
 
   final String message;
   final String? code;
@@ -15,7 +16,17 @@ class ApiException implements Exception {
   /// Tidak ada koneksi / server tidak terjangkau.
   final bool offline;
 
+  /// Isi jawaban galat dari server (mis. `tenants` pada `akses_hp_tidak_tersedia`).
+  final Map<String, dynamic>? data;
+
   bool get unauthenticated => status == 401;
+
+  /// Server menolak aplikasi HP untuk perusahaan ini (paket tanpa aplikasi HP,
+  /// masa trial, atau langganan tidak aktif).
+  bool get mobileAccessDenied => status == 403 && (code == mobileAccessDeniedCode || code == subscriptionInactiveCode);
+
+  static const mobileAccessDeniedCode = 'akses_hp_tidak_tersedia';
+  static const subscriptionInactiveCode = 'langganan_tidak_aktif';
 
   @override
   String toString() => message;
@@ -55,6 +66,10 @@ class ApiClient {
   final int? tenantId;
   final int? Function()? outboxCount;
 
+  /// Dipanggil untuk setiap galat dari server (sebelum dilempar), mis. untuk
+  /// melepas perusahaan yang ditolak aplikasi HP di mana pun galat itu muncul.
+  void Function(ApiException error)? onError;
+
   static String _apiBase(String baseUrl) {
     final trimmed = baseUrl.trim().replaceAll(RegExp(r'/+$'), '');
     return '$trimmed/api/v1/';
@@ -73,12 +88,16 @@ class ApiClient {
 
   Future<Map<String, dynamic>> delete(String path) => _send(() => dio.delete<dynamic>(path));
 
-  Future<List<int>> bytes(String url) async {
+  /// Unduh isi file dengan token + X-Tenant. [onProgress] (diterima, total
+  /// byte; total -1 bila server tidak menyebutkan ukuran).
+  Future<List<int>> bytes(String url, {void Function(int received, int total)? onProgress}) async {
     try {
-      final response = await dio.get<List<int>>(url, options: Options(responseType: ResponseType.bytes));
+      final response = await dio.get<List<int>>(url, options: Options(responseType: ResponseType.bytes), onReceiveProgress: onProgress);
       return response.data ?? const [];
     } on DioException catch (error) {
       throw _convert(error);
+    } on SocketException {
+      throw const ApiException('Tidak ada koneksi internet.', offline: true);
     }
   }
 
@@ -105,7 +124,25 @@ class ApiClient {
     if (response == null) {
       return const ApiException('Tidak bisa terhubung ke server. Periksa internet Anda.', offline: true);
     }
-    final data = response.data;
+    final converted = _fromResponse(response);
+    try {
+      onError?.call(converted);
+    } catch (_) {
+      // Pendengar galat tidak boleh mengganti galat aslinya.
+    }
+    return converted;
+  }
+
+  static ApiException _fromResponse(Response<dynamic> response) {
+    var data = response.data;
+    if (data is List<int>) {
+      // Unduhan (ResponseType.bytes): galat JSON datang sebagai byte.
+      try {
+        data = jsonDecode(utf8.decode(data));
+      } catch (_) {
+        data = null;
+      }
+    }
     var message = 'Terjadi kesalahan di server (${response.statusCode}). Coba lagi nanti.';
     String? code;
     if (data is Map) {
@@ -123,6 +160,6 @@ class ApiClient {
     if (response.statusCode == 429 && code == null) {
       message = 'Terlalu banyak percobaan. Tunggu sebentar lalu coba lagi.';
     }
-    return ApiException(message, code: code, status: response.statusCode);
+    return ApiException(message, code: code, status: response.statusCode, data: data is Map ? Map<String, dynamic>.from(data) : null);
   }
 }

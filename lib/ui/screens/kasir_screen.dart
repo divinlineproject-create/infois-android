@@ -3,17 +3,30 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/format.dart';
-import '../../core/money.dart';
 import '../../domain/models.dart';
 import '../../state/pos_state.dart';
 import '../../state/sync_controller.dart';
 import '../../state/workspace.dart';
-import '../theme.dart';
 import '../widgets/common.dart';
+import '../widgets/pos_categories.dart';
+import '../widgets/pos_product_tile.dart';
 import 'cart_sheet.dart';
+import 'pos_held_orders.dart';
+import 'pos_item_sheet.dart';
+import 'pos_order_panel.dart';
 import 'shift_screens.dart';
 
-/// Layar kasir: cari & pilih barang, keranjang, lalu bayar.
+/// Lebar minimal untuk tata letak dua panel (katalog kiri, pesanan kanan).
+const double posTwoPaneWidth = 720;
+
+/// Dua panel butuh tinggi juga: HP miring / layar terbelah (mis. 780×360 dp)
+/// tetap memakai tata letak HP supaya katalog tidak tergencet.
+const double posTwoPaneMinHeight = 480;
+
+bool posUseTwoPane(BoxConstraints constraints) => constraints.maxWidth >= posTwoPaneWidth && constraints.maxHeight >= posTwoPaneMinHeight;
+
+/// Layar kasir (POS): kelompok barang, cari/scan, grid barang, keranjang.
+/// HP tegak: grid + bilah keranjang di bawah. Tablet/lanskap: dua panel.
 class KasirScreen extends ConsumerStatefulWidget {
   const KasirScreen({super.key});
 
@@ -24,6 +37,7 @@ class KasirScreen extends ConsumerStatefulWidget {
 class _KasirScreenState extends ConsumerState<KasirScreen> {
   final _search = TextEditingController();
   String _query = '';
+  String _category = 'all';
 
   @override
   void dispose() {
@@ -31,42 +45,77 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
     super.dispose();
   }
 
-  Future<void> _pickUnit(Product product) async {
-    final options = product.unitOptions();
-    if (options.length < 2) {
-      ref.read(cartProvider.notifier).add(product);
-      return;
+  void _clearSearch() => setState(() {
+        _search.clear();
+        _query = '';
+      });
+
+  /// Kode barang (scanner barcode mengetik kode lalu Enter): cocok persis → masuk pesanan.
+  Future<bool> _addByCode(String code) async {
+    final text = code.trim();
+    if (text.isEmpty) {
+      return false;
     }
-    final unit = await showModalBottomSheet<String>(
+    final workspace = await ref.read(workspaceProvider.future);
+    final product = await workspace?.local.productBySku(text);
+    if (!mounted) {
+      return false;
+    }
+    if (product == null) {
+      return false;
+    }
+    ref.read(cartProvider.notifier).add(product);
+    showMessage(context, '${product.name} masuk pesanan.');
+    return true;
+  }
+
+  Future<void> _scan() async {
+    final controller = TextEditingController();
+    final code = await showDialog<String>(
       context: context,
-      showDragHandle: true,
-      builder: (context) => SafeArea(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Text('Pilih satuan ${product.name}', style: const TextStyle(fontWeight: FontWeight.w600)),
-          for (final option in options)
-            ListTile(
-              title: Text(option.name),
-              subtitle: Money.compare(option.factor, '1') == 0 ? null : Text('Isi ${qty(option.factor)} ${product.unit}'),
-              trailing: Text(rupiah(option.price), style: const TextStyle(fontWeight: FontWeight.w600)),
-              onTap: () => Navigator.pop(context, option.name),
-            ),
+      builder: (context) => AlertDialog(
+        title: const Text('Scan kode barang'),
+        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('Arahkan scanner barcode ke barang, atau ketik kode barangnya.'),
+          const SizedBox(height: 12),
+          TextField(
+            key: const Key('scan-code'),
+            controller: controller,
+            autofocus: true,
+            textInputAction: TextInputAction.done,
+            decoration: const InputDecoration(prefixIcon: Icon(Icons.qr_code_scanner), hintText: 'Kode barang'),
+            onSubmitted: (value) => Navigator.pop(context, value),
+          ),
         ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Tutup')),
+          FilledButton(key: const Key('scan-add'), onPressed: () => Navigator.pop(context, controller.text), child: const Text('Tambah')),
+        ],
       ),
     );
-    if (unit != null) {
-      ref.read(cartProvider.notifier).add(product, unit: unit);
+    if (code == null || code.trim().isEmpty) {
+      return;
+    }
+    if (!await _addByCode(code) && mounted) {
+      showMessage(context, 'Kode "${code.trim()}" tidak ada di katalog HP ini.', error: true);
     }
   }
+
+  Future<void> _submitSearch(String value) async {
+    if (await _addByCode(value)) {
+      _clearSearch();
+    }
+  }
+
+  void _openCart() => showCartSheet(context);
+
+  void _goPay() => context.push('/bayar');
 
   @override
   Widget build(BuildContext context) {
     final master = ref.watch(masterDataProvider);
-    final products = ref.watch(productSearchProvider(_query));
-    final cart = ref.watch(cartProvider);
     final sync = ref.watch(syncProvider);
-    final shift = ref.watch(openShiftProvider).valueOrNull;
     final data = master.valueOrNull;
-    final inclusive = data?.tenant.pricesIncludeTax ?? false;
 
     if (data != null && !data.hasData) {
       final offline = sync.connection == ConnectionStatus.offline;
@@ -81,134 +130,150 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
       );
     }
 
-    return Column(children: [
-      if (data?.menus.shift ?? false) ShiftBar(shift: shift),
-      Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-        child: Row(children: [
-          Expanded(
-            child: TextField(
-              key: const Key('kasir-search'),
-              controller: _search,
-              textInputAction: TextInputAction.search,
-              decoration: InputDecoration(
-                hintText: 'Cari barang atau kode',
-                prefixIcon: const Icon(Icons.search),
-                isDense: true,
-                suffixIcon: _query.isEmpty
-                    ? null
-                    : IconButton(
-                        tooltip: 'Hapus',
-                        icon: const Icon(Icons.close),
-                        onPressed: () => setState(() {
-                          _search.clear();
-                          _query = '';
-                        }),
-                      ),
-              ),
-              onChanged: (value) => setState(() => _query = value),
-            ),
+    final shift = ref.watch(openShiftProvider).valueOrNull;
+    return LayoutBuilder(builder: (context, constraints) {
+      final twoPane = posUseTwoPane(constraints);
+      final catalog = Column(children: [
+        if (data?.menus.shift ?? false) ShiftBar(shift: shift),
+        _toolbar(twoPane),
+        Expanded(child: _grid(twoPane)),
+        if (!twoPane) _CartBarSlot(onOpen: _openCart),
+      ]);
+      if (!twoPane) {
+        return catalog;
+      }
+      final panelWidth = (constraints.maxWidth * 0.4).clamp(340.0, 440.0);
+      return Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Expanded(child: catalog),
+        const VerticalDivider(width: 1),
+        SizedBox(
+          width: panelWidth,
+          child: Material(
+            color: Theme.of(context).colorScheme.surface,
+            child: Padding(padding: const EdgeInsets.only(top: 8), child: PosOrderPanel(key: const Key('order-panel'), onPay: _goPay)),
           ),
-          const SizedBox(width: 8),
-          IconButton.filledTonal(tooltip: 'Riwayat nota', onPressed: () => context.push('/riwayat'), icon: const Icon(Icons.history)),
-        ]),
-      ),
+        ),
+      ]);
+    });
+  }
+
+  Widget _toolbar(bool twoPane) {
+    final held = ref.watch(heldOrdersProvider).valueOrNull?.length ?? 0;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
+      child: Row(children: [
+        Expanded(
+          child: TextField(
+            key: const Key('kasir-search'),
+            controller: _search,
+            textInputAction: TextInputAction.search,
+            decoration: InputDecoration(
+              hintText: 'Cari barang atau kode',
+              prefixIcon: const Icon(Icons.search),
+              isDense: true,
+              suffixIcon: _query.isEmpty ? null : IconButton(tooltip: 'Hapus', icon: const Icon(Icons.close), onPressed: _clearSearch),
+            ),
+            onChanged: (value) => setState(() => _query = value),
+            onSubmitted: _submitSearch,
+          ),
+        ),
+        IconButton(key: const Key('scan-button'), tooltip: 'Scan kode barang', onPressed: _scan, icon: const Icon(Icons.qr_code_scanner)),
+        if (!twoPane) HeldOrdersButton(count: held),
+        IconButton(tooltip: 'Riwayat nota', onPressed: () => context.push('/riwayat'), icon: const Icon(Icons.history)),
+      ]),
+    );
+  }
+
+  Widget _grid(bool twoPane) {
+    final all = ref.watch(productSearchProvider('')).valueOrNull ?? const <Product>[];
+    final products = ref.watch(productSearchProvider(_query));
+    final cart = ref.watch(cartProvider);
+    final categories = posCategories(all);
+    final category = categories.firstWhere((item) => item.key == _category, orElse: () => PosCategory.all);
+
+    return Column(children: [
+      PosCategoryChips(categories: categories, selected: category.key, onSelected: (key) => setState(() => _category = key)),
       Expanded(
         child: products.when(
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (error, _) => EmptyState(icon: Icons.error_outline, title: 'Katalog belum bisa dibuka', message: '$error'),
-          data: (items) => items.isEmpty
-              ? EmptyState(icon: Icons.inventory_2_outlined, title: _query.isEmpty ? 'Katalog kosong' : 'Barang tidak ditemukan', message: _query.isEmpty ? 'Tambahkan barang di website (Barang & Gudang › Katalog).' : null)
-              : GridView.builder(
-                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
-                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(maxCrossAxisExtent: 220, mainAxisExtent: 128, crossAxisSpacing: 10, mainAxisSpacing: 10),
-                  itemCount: items.length,
-                  itemBuilder: (context, index) => _ProductCard(
-                    product: items[index],
-                    inCart: cart.lines.where((line) => line.product?.id == items[index].id).fold('0', (sum, line) => Money.add([sum, line.quantity])),
-                    onTap: () => ref.read(cartProvider.notifier).add(items[index]),
-                    onLongPress: () => _pickUnit(items[index]),
-                  ),
-                ),
+          error: (error, _) => EmptyState(icon: Icons.error_outline, title: 'Katalog belum bisa dibuka', message: plainError(error, fallback: 'Tutup lalu buka lagi aplikasinya, atau tekan Sinkron sekarang.')),
+          data: (found) {
+            final items = found.where(category.matches).toList();
+            if (items.isEmpty) {
+              return EmptyState(
+                icon: Icons.inventory_2_outlined,
+                title: _query.isEmpty && category.key == 'all' ? 'Katalog kosong' : 'Barang tidak ditemukan',
+                message: _query.isEmpty && category.key == 'all' ? 'Tambahkan barang di website (Barang & Gudang › Katalog).' : null,
+              );
+            }
+            return GridView.builder(
+              padding: EdgeInsets.fromLTRB(16, 8, 16, twoPane ? 16 : 8),
+              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(maxCrossAxisExtent: 168, mainAxisExtent: 158, crossAxisSpacing: 10, mainAxisSpacing: 10),
+              itemCount: items.length,
+              itemBuilder: (context, index) {
+                final product = items[index];
+                return PosProductTile(
+                  product: product,
+                  inCart: cart.quantityOf(product.id),
+                  onTap: () => ref.read(cartProvider.notifier).add(product),
+                  onLongPress: () => showPosItemSheet(context, product),
+                );
+              },
+            );
+          },
         ),
       ),
-      if (!cart.isEmpty) _CartBar(count: cart.itemCount, total: cart.totals(pricesIncludeTax: inclusive).total, onOpen: () => showCartSheet(context)),
     ]);
   }
 }
 
-class _ProductCard extends StatelessWidget {
-  const _ProductCard({required this.product, required this.inCart, required this.onTap, required this.onLongPress});
+/// Bilah keranjang tetap di bawah (HP): jumlah barang + total, ketuk untuk membuka.
+class _CartBarSlot extends ConsumerWidget {
+  const _CartBarSlot({required this.onOpen});
 
-  final Product product;
-  final String inCart;
-  final VoidCallback onTap;
-  final VoidCallback onLongPress;
+  final VoidCallback onOpen;
 
   @override
-  Widget build(BuildContext context) {
-    final stock = product.stockQuantity;
-    final empty = product.trackInventory && stock != null && !Money.isPositive(stock);
-    final stockLabel = product.trackInventory && stock != null
-        ? (empty ? 'Stok habis' : 'Stok ${qty(stock)} ${product.unit}')
-        : (product.hasComposition ? 'Pakai resep' : null);
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        key: Key('product-${product.id}'),
-        onTap: onTap,
-        onLongPress: onLongPress,
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Expanded(child: Text(product.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600, height: 1.25))),
-              if (Money.isPositive(inCart))
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(color: Brand.green, borderRadius: BorderRadius.circular(12)),
-                  child: Text(qty(inCart), style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700)),
-                ),
-            ]),
-            const Spacer(),
-            Text(rupiah(product.price), style: const TextStyle(fontWeight: FontWeight.w700, color: Brand.green, fontSize: 15)),
-            if (stockLabel != null)
-              Text(stockLabel, style: TextStyle(fontSize: 12, color: empty ? Brand.amber : mutedText(context))),
-            if (product.units.isNotEmpty || product.tiers.isNotEmpty)
-              Text(product.tiers.isNotEmpty ? 'Ada harga grosir' : 'Tekan lama: pilih satuan', style: TextStyle(fontSize: 11, color: mutedText(context))),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final cart = ref.watch(cartProvider);
+    if (cart.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final inclusive = ref.watch(masterDataProvider).valueOrNull?.tenant.pricesIncludeTax ?? false;
+    final total = cart.totals(pricesIncludeTax: inclusive).total;
+    final details = [
+      if (cart.orderType != null) cart.orderType!.label,
+      if (cart.orderLabel != null) cart.orderLabel!,
+      if (cart.customer != null) cart.customer!.name,
+    ].join(' · ');
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+        child: FilledButton(
+          key: const Key('open-cart'),
+          onPressed: onOpen,
+          style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(60), padding: const EdgeInsets.symmetric(horizontal: 16)),
+          child: Row(children: [
+            Badge(
+              label: Text(qty(cart.totalQuantity)),
+              // Kontras di mode terang & gelap: warna teks tombol di atas warna tombol.
+              backgroundColor: Theme.of(context).colorScheme.onPrimary,
+              textColor: Theme.of(context).colorScheme.primary,
+              child: const Icon(Icons.shopping_basket_outlined),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('${cart.itemCount} barang', overflow: TextOverflow.ellipsis),
+                if (details.isNotEmpty) Text(details, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w400)),
+              ]),
+            ),
+            Flexible(child: FittedBox(fit: BoxFit.scaleDown, child: Text(rupiah(total), style: const TextStyle(fontWeight: FontWeight.w700)))),
+            const Icon(Icons.expand_less),
           ]),
         ),
       ),
     );
   }
-}
-
-class _CartBar extends StatelessWidget {
-  const _CartBar({required this.count, required this.total, required this.onOpen});
-
-  final int count;
-  final String total;
-  final VoidCallback onOpen;
-
-  @override
-  Widget build(BuildContext context) => SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-          child: FilledButton(
-            key: const Key('open-cart'),
-            onPressed: onOpen,
-            style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(56)),
-            child: Row(children: [
-              const Icon(Icons.shopping_basket_outlined),
-              const SizedBox(width: 10),
-              Expanded(child: Text('$count barang', overflow: TextOverflow.ellipsis)),
-              Flexible(
-                child: FittedBox(fit: BoxFit.scaleDown, child: Text(rupiah(total), style: const TextStyle(fontWeight: FontWeight.w700))),
-              ),
-              const Icon(Icons.chevron_right),
-            ]),
-          ),
-        ),
-      );
 }

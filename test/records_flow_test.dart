@@ -9,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:infois/app.dart';
 import 'package:infois/data/app_storage.dart';
 import 'package:infois/domain/models.dart';
+import 'package:infois/services/file_downloads.dart';
 import 'package:infois/state/printer_controller.dart';
 import 'package:infois/state/session.dart';
 import 'package:infois/state/sync_controller.dart';
@@ -18,6 +19,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'support/fakes.dart';
+import 'support/file_fakes.dart';
 
 /// Tab Catatan: daftar penjualan berkursor + cari, rincian dengan barang,
 /// cetak ulang struk dari server, bagian sesuai hak akses, offline.
@@ -31,6 +33,8 @@ void main() {
   const owner = TenantSummary(id: 1, name: 'Warung Tes', roleLabel: 'Pemilik', menus: Menus(pos: true, shift: true, reports: true, records: true, stock: true, cashJournal: true, voidSale: true), permissions: ownerPermissions);
   const kasirPermissions = ['ViewAny:Invoice', 'View:Invoice', 'ViewAny:Customer', 'ViewAny:ProductService', 'ViewAny:JournalEntry', 'ViewAny:Account'];
   const kasir = TenantSummary(id: 1, name: 'Warung Tes', roleLabel: 'Kasir', menus: Menus(pos: true, shift: true, records: true, stock: true), permissions: kasirPermissions);
+
+  late FakeFilePlatform files;
 
   Future<(FakePrinter, Map<String, dynamic>)> pumpApp(WidgetTester tester, {required FakeServer server, TenantSummary tenant = owner, Map<String, dynamic>? menus, bool withPrinter = false}) async {
     tester.view.physicalSize = const Size(1080, 2340);
@@ -60,6 +64,7 @@ void main() {
         apiFactoryProvider.overrideWithValue((_, __, ___, ____) => fakeApi(server)),
         connectivityStreamProvider.overrideWithValue(const Stream.empty()),
         printerTransportProvider.overrideWithValue(printer),
+        filePlatformProvider.overrideWithValue(files),
       ],
       child: const InfoisApp(),
     ));
@@ -68,7 +73,10 @@ void main() {
   }
 
   late List<String> clipboard;
-  setUp(() => clipboard = mockClipboard());
+  setUp(() {
+    clipboard = mockClipboard();
+    files = FakeFilePlatform();
+  });
 
   Future<void> openCatatan(WidgetTester tester) async {
     await tester.tap(find.widgetWithText(NavigationDestination, 'Catatan'));
@@ -145,12 +153,17 @@ void main() {
     expect(text, contains('CETAK ULANG'));
     expect(find.text('Struk tercetak.'), findsOneWidget);
 
+    // Kirim via WhatsApp membuka wa.me dengan pesan siap kirim (tidak lagi
+    // menyalin ke papan klip).
     await tapVisible(tester, find.byKey(const Key('whatsapp')));
     await settle(tester);
-    expect(find.textContaining('Pesan struk disalin'), findsOneWidget);
-    expect(clipboard.single, contains('POS-K22/000002'));
-    expect(clipboard.single, contains('Total: Rp 26.000'));
-    expect(clipboard.single, contains('http://tes/verify/uuid-1365'), reason: 'Tautan cek keaslian ikut dikirim.');
+    final whatsapp = files.urls.single;
+    expect(whatsapp.host, 'wa.me');
+    final message = whatsapp.queryParameters['text']!;
+    expect(message, contains('POS-K22/000002'));
+    expect(message, contains('Total: Rp 26.000'));
+    expect(message, contains('http://tes/verify/uuid-1365'), reason: 'Tautan cek keaslian ikut dikirim.');
+    expect(clipboard, isEmpty);
     await tester.pumpWidget(const SizedBox());
   });
 

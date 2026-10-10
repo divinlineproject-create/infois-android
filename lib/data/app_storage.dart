@@ -40,6 +40,8 @@ class AppStorage {
   static const _printerName = 'printer_name';
   static const _printerWidth = 'printer_width';
   static const _autoPrint = 'auto_print';
+  static const _themeMode = 'theme_mode';
+  static const _foregroundAt = 'foreground_at';
 
   String get serverUrl => prefs.getString(_server) ?? AppConfig.defaultServerUrl;
 
@@ -109,8 +111,36 @@ class AppStorage {
 
   Future<void> setAutoPrint(bool value) => prefs.setBool(_autoPrint, value);
 
+  /// Tampilan: `system` (ikuti HP), `light`, atau `dark`.
+  String get themeMode => switch (prefs.getString(_themeMode)) {
+        'light' => 'light',
+        'dark' => 'dark',
+        _ => 'system',
+      };
+
+  Future<void> setThemeMode(String mode) => prefs.setString(_themeMode, mode);
+
+  /// Tanda aplikasi sedang dibuka di layar (diperbarui berkala selama
+  /// tampil). Sinkron latar dilewati selama tanda ini masih baru supaya tidak
+  /// berebut database dengan aplikasi.
+  Future<void> markForeground(bool active) => active ? prefs.setInt(_foregroundAt, DateTime.now().millisecondsSinceEpoch) : prefs.remove(_foregroundAt);
+
+  /// Aplikasi tampil di layar dalam [within] terakhir (dibaca ulang dari disk:
+  /// dipanggil dari tugas latar yang punya salinan sendiri).
+  Future<bool> foregroundActive({Duration within = const Duration(minutes: 20)}) async {
+    await prefs.reload();
+    final at = prefs.getInt(_foregroundAt);
+    return at != null && DateTime.now().difference(DateTime.fromMillisecondsSinceEpoch(at)) < within;
+  }
+
+  /// Hapus login dari HP. Tiap langkah berdiri sendiri: penyimpanan aman yang
+  /// rusak (Keystore) tidak boleh membuat tombol Keluar macet.
   Future<void> clearSession() async {
-    await setToken(null);
+    try {
+      await setToken(null);
+    } catch (_) {
+      // Token tetap tidak dipakai: sesi di bawah ini yang menentukan login.
+    }
     await prefs.remove(_session);
     await prefs.remove(_tenant);
   }

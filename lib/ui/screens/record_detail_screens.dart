@@ -1,15 +1,13 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 
 import '../../core/format.dart';
 import '../../core/money.dart';
+import '../../data/ai_api.dart';
 import '../../data/api_client.dart';
 import '../../domain/record_models.dart';
+import '../../services/file_downloads.dart';
 import '../../state/printer_controller.dart';
 import '../../state/records_state.dart';
 import '../../state/session.dart';
@@ -152,17 +150,8 @@ class AttachmentStrip extends ConsumerWidget {
   }
 }
 
-/// Simpan byte ke folder dokumen aplikasi; kembalikan jalurnya.
-Future<String> saveToDocuments(String fileName, List<int> bytes) async {
-  final directory = await getApplicationDocumentsDirectory();
-  final folder = Directory(p.join(directory.path, 'infois'));
-  await folder.create(recursive: true);
-  final file = File(p.join(folder.path, fileName));
-  await file.writeAsBytes(bytes, flush: true);
-  return file.path;
-}
-
-String safeFileName(String name) => name.replaceAll(RegExp(r'[^A-Za-z0-9._-]+'), '-').replaceAll(RegExp(r'^-+|-+$'), '').toLowerCase();
+/// Nama file PDF nota dari nomornya ("POS-K22/000002" → "POS-K22-000002.pdf").
+String salePdfName(String number) => '${cleanFileName(number.replaceAll('/', '-'), fallback: 'nota')}.pdf';
 
 /// Rincian penjualan: barang, pembayaran, lampiran, cetak ulang struk,
 /// kirim WhatsApp, unduh PDF, batalkan (bila berhak).
@@ -208,12 +197,9 @@ class _SaleDetailScreenState extends ConsumerState<SaleDetailScreen> {
         }
       });
 
+  /// PDF nota ke folder Download, lalu Buka / Bagikan (mis. ke WhatsApp).
   Future<void> _pdf(SaleDetail sale) => _run(() async {
-        final bytes = await ref.read(recordActionsProvider).salePdf(widget.id);
-        final path = await saveToDocuments('${safeFileName(sale.summary.number)}.pdf', bytes);
-        if (mounted) {
-          showMessage(context, 'PDF tersimpan di $path. Buka lewat aplikasi Berkas di HP untuk membagikannya.');
-        }
+        await downloadAndOffer(context, ref, apiPath: 'records/sales/${widget.id}/pdf', fileName: salePdfName(sale.summary.number));
       });
 
   String _whatsappText(SaleDetail sale, String tenant) {
@@ -336,7 +322,7 @@ class _SaleDetailScreenState extends ConsumerState<SaleDetailScreen> {
               Expanded(
                 child: OutlinedButton.icon(
                   key: const Key('whatsapp'),
-                  onPressed: _busy || s.status == 'void' ? null : () => copyText(context, _whatsappText(sale, tenant), message: 'Pesan struk disalin. Buka WhatsApp, pilih pelanggan, lalu tempel.'),
+                  onPressed: _busy || s.status == 'void' ? null : () => sendWhatsApp(context, ref, _whatsappText(sale, tenant), phone: s.customer?.phone, copiedMessage: 'Pesan struk disalin. Buka WhatsApp, pilih pelanggan, lalu tempel.'),
                   icon: const Icon(Icons.chat_outlined),
                   label: const Text('Kirim via WhatsApp'),
                 ),
@@ -513,7 +499,7 @@ class CustomerDetailScreen extends ConsumerWidget {
         if (customer.outstandingInvoices.isNotEmpty) ...[
           FilledButton.icon(
             key: const Key('send-bill'),
-            onPressed: () => copyText(context, _billText(customer, tenant), message: 'Pesan tagihan disalin. Buka WhatsApp, pilih pelanggan, lalu tempel.'),
+            onPressed: () => sendWhatsApp(context, ref, _billText(customer, tenant), phone: customer.phone, copiedMessage: 'Pesan tagihan disalin. Buka WhatsApp, pilih pelanggan, lalu tempel.'),
             icon: const Icon(Icons.chat_outlined),
             label: const Text('Kirim tagihan via WhatsApp'),
           ),
@@ -690,6 +676,7 @@ class AttachmentScreen extends ConsumerStatefulWidget {
 class _AttachmentScreenState extends ConsumerState<AttachmentScreen> {
   bool _busy = false;
 
+  /// Simpan lampiran ke folder Download, lalu Buka / Bagikan.
   Future<void> _download() async {
     final url = widget.attachment.url;
     if (url == null || _busy) {
@@ -697,20 +684,7 @@ class _AttachmentScreenState extends ConsumerState<AttachmentScreen> {
     }
     setState(() => _busy = true);
     try {
-      final bytes = await ref.read(recordAttachmentBytesProvider(url).future);
-      final path = await saveToDocuments(safeFileName(widget.attachment.name), bytes);
-      if (mounted) {
-        showMessage(context, 'Tersimpan di $path. Buka lewat aplikasi Berkas di HP.');
-      }
-    } on ApiException catch (error) {
-      if (mounted) {
-        showMessage(context, error.message, error: true);
-      }
-    } catch (error) {
-      if (mounted) {
-        debugPrint('Lampiran gagal disimpan: $error');
-        showMessage(context, 'Berkas belum bisa disimpan di HP. Coba lagi.', error: true);
-      }
+      await downloadAndOffer(context, ref, apiPath: AiApi.relativeApiPath(url), fileName: widget.attachment.name);
     } finally {
       if (mounted) {
         setState(() => _busy = false);
@@ -738,7 +712,7 @@ class _AttachmentScreenState extends ConsumerState<AttachmentScreen> {
               : EmptyState(
                   icon: attachment.kind == 'pdf' ? Icons.picture_as_pdf_outlined : Icons.insert_drive_file_outlined,
                   title: attachment.name,
-                  message: 'File ini tidak bisa ditampilkan langsung. Unduh lalu buka lewat aplikasi Berkas di HP.',
+                  message: 'File ini tidak bisa ditampilkan langsung. Unduh untuk membukanya dengan aplikasi lain di HP atau membagikannya.',
                   action: FilledButton.icon(onPressed: _busy ? null : _download, icon: const Icon(Icons.download_outlined), label: const Text('Unduh')),
                 ),
     );

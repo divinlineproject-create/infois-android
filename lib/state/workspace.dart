@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -14,6 +15,7 @@ import '../services/sync_engine.dart';
 import 'session.dart';
 
 export '../domain/master_data.dart';
+export 'session.dart' show apiFactoryProvider;
 
 /// Semua yang dibutuhkan untuk bekerja di satu perusahaan: database lokal,
 /// outbox, klien API, dan mesin sinkron.
@@ -31,16 +33,27 @@ class Workspace {
 
   /// Jumlah outbox terakhir (untuk header X-Outbox-Count).
   int pendingCache = 0;
+
+  /// Sudah diganti (ganti perusahaan, keluar): database-nya sedang/sudah
+  /// ditutup dan tidak boleh dipakai pekerjaan baru.
+  bool disposed = false;
+
+  /// Bisa dipakai untuk pekerjaan baru.
+  bool get usable => !disposed && local.isOpen;
+}
+
+/// Workspace aktif yang siap dipakai, atau null. Saat workspace sedang dibuat
+/// ulang (ganti perusahaan, keluar) nilainya null, bukan workspace lama yang
+/// database-nya sedang ditutup.
+Workspace? readyWorkspace(Ref ref) {
+  final value = ref.read(workspaceProvider);
+  final workspace = value is AsyncData<Workspace?> ? value.value : null;
+  return workspace != null && workspace.usable ? workspace : null;
 }
 
 /// Cara membuka database lokal (diganti di tes dengan database di memori).
 final localDbOpenerProvider = Provider<Future<LocalDb> Function(String fileName)>((ref) {
   return (fileName) async => LocalDb.open(p.join(await getDatabasesPath(), fileName));
-});
-
-/// Cara membuat klien API (diganti di tes).
-final apiFactoryProvider = Provider<ApiClient Function(String baseUrl, String? token, int? tenantId, int? Function() outboxCount)>((ref) {
-  return (baseUrl, token, tenantId, outboxCount) => ApiClient(baseUrl: baseUrl, token: token, tenantId: tenantId, outboxCount: outboxCount);
 });
 
 final workspaceProvider = FutureProvider<Workspace?>((ref) async {
@@ -57,12 +70,47 @@ final workspaceProvider = FutureProvider<Workspace?>((ref) async {
     return null;
   }
 
-  final local = await ref.read(localDbOpenerProvider)(LocalDb.fileName(user.id, tenant.id));
+  // Satu pemilik koneksi database per perusahaan: workspace ini. Saat diganti,
+  // database ditutup setelah pemakaian yang sedang berjalan (mis. siklus
+  // sinkron) selesai, bukan di tengahnya.
+  final opener = ref.read(localDbOpenerProvider);
+  final apiFactory = ref.read(apiFactoryProvider);
+  final storage = ref.read(storageProvider);
+  final controller = ref.read(sessionProvider.notifier);
+  Workspace? created;
+  var replaced = false;
+  ref.onDispose(() {
+    replaced = true;
+    final workspace = created;
+    if (workspace != null) {
+      workspace.disposed = true;
+      workspace.api.onError = null;
+      unawaited(workspace.local.close());
+    }
+  });
+
+  final local = await opener(LocalDb.fileName(user.id, tenant.id));
+  if (replaced) {
+    // Sesi berubah lagi selama database dibuka: workspace ini tidak dipakai.
+    unawaited(local.close());
+    return null;
+  }
   late final Workspace workspace;
-  final api = ref.read(apiFactoryProvider)(session.serverUrl, session.token, tenant.id, () => workspace.pendingCache);
-  workspace = Workspace(storage: ref.read(storageProvider), user: user, tenant: tenant, local: local, outbox: OutboxStore(local), api: api);
-  workspace.pendingCache = await workspace.outbox.pendingCount();
-  ref.onDispose(local.close);
+  final api = apiFactory(session.serverUrl, session.token, tenant.id, () => workspace.pendingCache);
+  workspace = created = Workspace(storage: storage, user: user, tenant: tenant, local: local, outbox: OutboxStore(local), api: api);
+  // Paket tidak termasuk aplikasi HP / langganan berhenti (403 dari rute
+  // mana pun ber-X-Tenant): lepas perusahaan ini dan kembali ke Pilih
+  // perusahaan / Masuk dengan pesannya.
+  api.onError = (error) {
+    if (error.mobileAccessDenied && !workspace.disposed) {
+      unawaited(controller.dropTenant(tenant.id, error));
+    }
+  };
+  try {
+    workspace.pendingCache = await workspace.outbox.pendingCount();
+  } on DatabaseException {
+    // Jumlah tertunda diperbarui lagi oleh sinkron.
+  }
   return workspace;
 });
 

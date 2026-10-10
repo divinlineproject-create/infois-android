@@ -58,6 +58,10 @@ dependencies:
   # Dipatok: audio_session 0.2.x butuh Kotlin Gradle plugin 2.x (proyek masih 1.8.22).
   audio_session: 0.1.25
   path_provider: 2.1.5
+  # Buka tautan (web Infois, WhatsApp), buka & bagikan file unduhan.
+  url_launcher: 6.3.1
+  open_filex: 4.7.0
+  share_plus: 10.1.4
   flutter_localizations:
     sdk: flutter
 

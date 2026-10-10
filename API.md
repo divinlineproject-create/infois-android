@@ -12,7 +12,7 @@ Semua endpoint ada di bawah **`/api/v1`**, berformat JSON, pesan galat dalam Bah
 |---|---|
 | Autentikasi | Token Sanctum per **user + HP**: `Authorization: Bearer <token>`. Token terikat ke `device_uid` (ID pemasangan aplikasi). |
 | Perusahaan | Dikirim per request: header **`X-Tenant: <id atau slug>`**. Wajib untuk semua endpoint bertanda 🏢. |
-| Pengecekan 🏢 | user anggota perusahaan → langganan aktif (`hasActiveAccess()`) → HP belum dicabut → konteks tenant + team permission diaktifkan. |
+| Pengecekan 🏢 | user anggota perusahaan → perusahaan boleh memakai aplikasi HP (paket berbayar aktif yang termasuk aplikasi HP, lihat §3) → HP belum dicabut → konteks tenant + team permission diaktifkan. |
 | Header opsional | `X-App-Version: 1.0.0` dan `X-Platform: android` (dicatat di Tim & Akses › Perangkat; tanpa `X-Platform` web menampilkan "HP"), `X-Outbox-Count: 3` (jumlah transaksi tertunda di HP, tampil di web; HP memperbarui angka ini segera setelah outbox terkirim, sebelum request tarik data). |
 | Hak akses | Sama persis dengan web (role & permission per perusahaan, termasuk role custom). Server selalu mengecek ulang. |
 | Angka | Uang = string desimal 2 angka (`"52650.00"`), qty = 6 angka (`"1.500000"`). Kirim string, bukan float. |
@@ -29,7 +29,8 @@ Semua endpoint ada di bawah **`/api/v1`**, berformat JSON, pesan galat dalam Bah
 | 401 | `unauthenticated` | Token tidak ada/dicabut → login ulang. Pesan: "Sesi berakhir. Silakan masuk lagi." |
 | 400 | `perusahaan_belum_dipilih` | Header `X-Tenant` kosong |
 | 403 | `bukan_anggota` | User bukan anggota perusahaan itu |
-| 403 | `langganan_tidak_aktif` | Langganan ditangguhkan/dibatalkan |
+| 403 | `langganan_tidak_aktif` | Langganan ditangguhkan/dibatalkan (isi jawaban sama dengan `akses_hp_tidak_tersedia`, `reason: langganan_tidak_aktif`) |
+| 403 | `akses_hp_tidak_tersedia` | Perusahaan tidak boleh memakai aplikasi HP: trial, tanpa paket, atau paketnya tidak termasuk aplikasi HP (lihat §3) |
 | 403 | `perangkat_dicabut` | HP dicabut aksesnya di web (Tim & Akses › Perangkat) |
 | 403 | `perangkat_tidak_dikenal` | Token bukan token HP (tanpa `device_uid`) |
 | 403 | `tidak_berhak` | Tidak punya permission untuk aksi itu |
@@ -48,27 +49,54 @@ Bila `AppConfig.version < min_app_version`, aplikasi menampilkan "Perbarui aplik
 
 ## 3. Akun
 
+### Siapa yang boleh memakai aplikasi HP ("tolak total")
+Aplikasi HP — **termasuk Kasir** — hanya untuk perusahaan yang **langganannya aktif** (`active` atau `past_due`), **punya paket**, dan **paketnya termasuk kanal aplikasi HP** (`plans.ai_channels` null = semua kanal, atau berisi `mobile`). Selain itu perusahaan ditolak dengan alasan:
+
+| `reason` | Arti |
+|---|---|
+| `trial` | Masih masa trial |
+| `tanpa_paket` | Belum memilih paket berbayar (tanpa langganan / tanpa paket) |
+| `paket_tanpa_hp` | Paketnya tidak termasuk aplikasi HP |
+| `langganan_tidak_aktif` | Langganan ditangguhkan / dibatalkan / berakhir |
+
+Isi galat penolakan (login, `GET /me`, dan semua endpoint 🏢):
+```json
+{
+  "code": "akses_hp_tidak_tersedia",
+  "message": "Aplikasi HP Infois hanya untuk perusahaan dengan paket berbayar yang aktif dan termasuk aplikasi HP. Warung Bu Sri masih masa trial; langganan Toko Lain sudah berakhir atau dihentikan. Aplikasi HP tersedia mulai paket Starter. Kelola paket lewat website: dashboard.infois.ai › Langganan.",
+  "tenants": [
+    { "id": 1, "slug": "warung-bu-sri", "name": "Warung Bu Sri", "reason": "trial", "unlock_plan": "Starter" },
+    { "id": 2, "slug": "toko-lain", "name": "Toko Lain", "reason": "langganan_tidak_aktif", "unlock_plan": "Starter" }
+  ]
+}
+```
+- `slug` = slug website perusahaan: tombol "Lihat paket" membuka `{server}/app/{slug}/langganan` (halaman Langganan selalu per perusahaan; `/app/langganan` tidak ada). Tanpa slug aplikasi membuka `/app`.
+- `unlock_plan` = paket aktif termurah yang termasuk aplikasi HP (null bila tidak ada). Host di `message` mengikuti `APP_URL` server.
+- Endpoint 🏢: perusahaan yang ditolak → 403 `akses_hp_tidak_tersedia` (langganan berhenti tetap memakai kode `langganan_tidak_aktif`, isi sama). Berlaku juga untuk token lama bila perusahaan berhenti memenuhi syarat saat sedang dipakai.
+- **Aplikasi**: kedua kode diperlakukan sama — lupakan perusahaan itu di HP, kembali ke Pilih perusahaan (atau ke layar Masuk dengan `message` bila tidak ada yang tersisa). Jangan berhenti di layar buntu.
+- **Masa tenggang kirim transaksi**: `POST /sync/push` masih diterima **7 hari** sejak server pertama kali melihat perusahaan tidak memenuhi syarat, supaya penjualan offline yang belum terkirim tidak hilang. Semua endpoint lain langsung ditolak. Lewat 7 hari push juga ditolak (data tetap di HP; terkirim lagi setelah paket diaktifkan). Hitungan dimulai ulang bila perusahaan memenuhi syarat lagi. Masa tenggang hanya untuk perusahaan yang **pernah** memenuhi syarat (server pernah meloloskannya, atau pernah membayar langganan); perusahaan yang belum pernah boleh (mis. trial sejak awal) langsung ditolak, termasuk push.
+
 ### `POST /auth/login`
 ```json
 { "email": "sari@warung.id", "password": "rahasia", "device_name": "HP Kasir Depan", "device_uid": "5b0e7c1a-…", "platform": "android", "app_version": "1.0.0" }
 ```
-Login ulang dengan `device_uid` yang sama mengganti token lama HP itu. `device_name` menjadi nama HP di web (Tim & Akses › Perangkat) saat HP pertama kali tercatat di sebuah perusahaan; setelah itu nama diatur dari web. Jawaban = token + isi `GET /me`:
+Login ulang dengan `device_uid` yang sama mengganti token lama HP itu. `device_name` menjadi nama HP di web (Tim & Akses › Perangkat) saat HP pertama kali tercatat di sebuah perusahaan; setelah itu nama diatur dari web. Jawaban = token + isi `GET /me`; `tenants` **hanya** berisi perusahaan yang boleh memakai aplikasi HP (`mobile_eligible: true`), `default_tenant_id` dipilih dari daftar itu:
 ```json
 {
   "token": "12|xYz…",
   "token_type": "Bearer",
   "user": { "id": 5, "name": "Sari", "email": "sari@warung.id", "avatar_url": null },
-  "tenants": [ { "id": 1, "slug": "warung-bu-sri", "name": "Warung Bu Sri", "role": "cashier", "role_label": "Kasir", "active": true, "subscription_status": "active", "permissions": ["Create:Invoice", "issue-invoice", "record-payment", "…"], "menus": { "pos": true, "void_sale": false, "shift": true, "reports": false, "ai": true, "ai_channel_locked": false, "records": true, "stock": true, "cash_journal": false, "add_customer": true, "printer": true } } ],
+  "tenants": [ { "id": 1, "slug": "warung-bu-sri", "name": "Warung Bu Sri", "role": "cashier", "role_label": "Kasir", "active": true, "mobile_eligible": true, "subscription_status": "active", "permissions": ["Create:Invoice", "issue-invoice", "record-payment", "…"], "menus": { "pos": true, "void_sale": false, "shift": true, "reports": false, "ai": true, "ai_channel_locked": false, "records": true, "stock": true, "cash_journal": false, "add_customer": true, "printer": true } } ],
   "default_tenant_id": 1
 }
 ```
-Galat: 422 `login_gagal` ("Email atau kata sandi salah."), 403 `tanpa_perusahaan`.
+Galat: 422 `login_gagal` ("Email atau kata sandi salah."), 403 `tanpa_perusahaan` (akun belum terdaftar di perusahaan mana pun), 403 `akses_hp_tidak_tersedia` (punya perusahaan tetapi tidak ada yang boleh memakai aplikasi HP; **tidak ada token yang dibuat**).
 
 ### `POST /auth/logout`
 Mencabut token HP ini. `{ "ok": true }`
 
 ### `GET /me`
-User, daftar perusahaan, role, permission, dan **menu** aplikasi per perusahaan (lihat contoh di atas).
+User, daftar perusahaan, role, permission, dan **menu** aplikasi per perusahaan (lihat contoh di atas). Penyaringan sama dengan login: perusahaan yang tidak boleh memakai aplikasi HP tidak dikirim; bila user punya perusahaan tetapi tidak ada satu pun yang boleh → 403 `akses_hp_tidak_tersedia` (token tetap berlaku; aplikasi kembali ke layar Masuk dengan pesannya). Karena semua perusahaan di daftar sudah termasuk aplikasi HP, `menus.ai_channel_locked` praktis selalu `false` (tetap dikirim untuk aplikasi lama).
 
 Pemetaan menu (PLAN-MOBILE §7.1):
 
@@ -83,6 +111,9 @@ Pemetaan menu (PLAN-MOBILE §7.1):
 | `records` (Catatan) | `ViewAny:Invoice` atau `stock` atau `cash_journal` |
 | `add_customer` | `Create:Customer` |
 | `printer` | `pos` atau `ai` |
+
+### Tim AI di Telegram (catatan, bukan endpoint HP)
+Akun Telegram dihubungkan ke satu perusahaan dengan dua cara: (1) di bot tekan **Bagikan nomor saya** — hanya nomor milik pengirim sendiri yang diterima, nomornya harus sama dengan **Nomor HP (untuk Telegram)** di profil web (`/app/profile`, kolom `users.phone`; awalan +62/62/0, spasi, dan tanda hubung disamakan); bila user punya beberapa perusahaan yang paketnya membuka Telegram dan ia punya akses Tim AI, bot menampilkan tombol pilih perusahaan; nomor yang dipakai lebih dari satu akun ditolak; (2) kode sekali pakai dari Tim AI web › Saluran Telegram › Hubungkan. Hak akses di Telegram = role user itu di perusahaan tersebut (sama dengan web). Aplikasi HP cukup mengarahkan pengguna ke cara ini bila ditanya; tidak ada endpoint API-nya.
 
 ## 4. Sinkron 🏢
 
@@ -111,7 +142,7 @@ Tanpa `since` = tarikan penuh. Dengan `since` = barang/pelanggan yang berubah se
     "items": [
       {
         "id": 10, "sku": "KOP-01", "name": "Kopi bubuk", "type": "product", "unit": "pcs", "price": "25000.00", "tax_rate": "11.00",
-        "track_inventory": true, "stock_quantity": "12.000000", "minimum_stock": "5.000000", "has_composition": false, "is_active": true,
+        "track_inventory": true, "stock_quantity": "12.000000", "stock_source": "own", "minimum_stock": "5.000000", "has_composition": false, "is_active": true,
         "units": [ { "name": "karton", "factor": "24.000000", "price": "550000.00" } ],
         "tiers": [ { "unit": "pcs", "min_quantity": "10.000000", "price": "23000.00" } ],
         "updated_at": "2026-10-07T09:58:00+07:00"
@@ -127,6 +158,8 @@ Tanpa `since` = tarikan penuh. Dengan `since` = barang/pelanggan yang berubah se
 }
 ```
 - `stock_quantity` = stok di gudang HP (diatur di web, default gudang utama); `null` untuk barang tanpa stok.
+- `stock_source`: `"own"` = stok barang itu sendiri; `"recipe"` = produk resep tanpa stok sendiri (menu/paket, "Kelola stok" mati) — `stock_quantity` dihitung dari stok bahan di gudang HP (porsi yang bisa dibuat, dibulatkan ke bawah; `0` bila salah satu bahan habis) dan `track_inventory` dikirim `true` supaya lencana stok & redup "Habis" tampil; `null` = tidak dikelola stok. Saat dijual, server tetap mengurangi bahannya, bukan produk resepnya. Tarikan `since` ikut mengirim ulang produk resep yang stok/data salah satu bahannya berubah.
+- Hanya barang dengan **Tampilkan di POS** aktif yang dikirim (`items` dan `ids`). Barang yang dimatikan (mis. bahan baku) tidak ada di `ids`, sehingga HP menghapusnya di tarikan berikutnya; bila dinyalakan lagi, barang terkirim lagi karena `updated_at`-nya berubah. Penjualan dari HP lama yang masih memuat barang itu tetap diterima.
 - `receipt.show_qr` sudah memperhitungkan modul Verify dan pengaturan branding. QR offline = `verify_base_url + "/" + client_uuid` (server memakai `client_uuid` sebagai UID verifikasi saat nota diterbitkan).
 - `logo_url` diunduh dengan header yang sama (token + `X-Tenant`).
 
@@ -158,10 +191,11 @@ Jawaban:
   "date": "2026-10-07", "created_at": "2026-10-07T03:12:44Z",
   "shift_client_uuid": "a1b2…",
   "customer_id": null, "customer_client_uuid": null,
-  "notes": null,
+  "notes": "Antar ke lantai 2",
+  "order_type": "take_away", "order_label": "Meja 5",
   "total": "52650.00",
   "items": [
-    { "product_id": 1, "description": "Kopi susu", "quantity": "2.000000", "unit": "gelas", "unit_price": "18000.00", "discount_percent": "0.00", "tax_rate": "0.00" },
+    { "product_id": 1, "description": "Kopi susu", "quantity": "2.000000", "unit": "gelas", "unit_price": "18000.00", "discount_percent": "0.00", "tax_rate": "0.00", "note": "tanpa gula" },
     { "product_id": 2, "description": "Roti bakar", "quantity": "1.000000", "unit": "pcs", "unit_price": "15000.00", "discount_percent": "0.00", "tax_rate": "11.00" }
   ],
   "payments": [
@@ -170,6 +204,7 @@ Jawaban:
 }
 ```
 - Tanpa pelanggan → "Pelanggan Umum". `customer_client_uuid` = pelanggan baru dari HP (item `customer` dikirim lebih dulu di antrean yang sama).
+- **Data pesanan** (opsional): `notes` = catatan pesanan (maks. 1000), `order_type` = `dine_in` | `take_away` | `delivery` (lainnya → `ditolak`), `order_label` = meja/antrian (maks. 40), `items[].note` = catatan barang (maks. 200). Disimpan di `invoices.order_type`, `invoices.order_label`, `invoice_items.note`; `invoices.notes` berisi ringkasan yang tampil di web/PDF dan di `records/sales/{id}(/receipt).notes`: `Pesanan: Bawa pulang · Meja 5` ⏎ `Catatan: Antar ke lantai 2` ⏎ `- Kopi susu: tanpa gula` (tanpa jenis/meja: hanya catatan apa adanya).
 - **Bon**: `payments: []` (wajib pelanggan). **Campuran**: dua pembayaran `cash` + `transfer`. `method` hanya `cash` | `transfer` (tidak ada QRIS).
 - `discount_percent` = diskon efektif per baris (diskon barang digabung diskon nota di HP, 2 desimal). `total` dipakai untuk cek paritas; beda → `perlu_ditinjau`.
 - Harga di struk yang dipakai (harga server yang berubah saat offline tidak menimpa). Barang nonaktif/terhapus tetap diterima dengan `warnings`.
@@ -693,8 +728,8 @@ Kode: `lib/data/reports_api.dart`, `lib/data/records_api.dart`, model `lib/domai
 | Periode | Satu pilihan periode (`reportPeriodProvider`, default `bulan_ini`) dipakai beranda Laporan dan semua laporan rinci; "Pilih tanggal" = `period=custom&from&to` (HP menolak > 366 hari termasuk kedua ujung sebelum memanggil; buku Kas & Bank juga). Selama angka periode baru dimuat, angka lama diredupkan + garis muat. Ubin Sekilas (`/reports/overview`) tidak bergantung periode. |
 | Hak akses Catatan | Bagian ditentukan dari `tenants[].permissions` di login/`GET /me` (`ViewAny:Invoice` → Penjualan & uang masuk, `ViewAny:Bill` → Pembelian & uang keluar, `ViewAny:JournalEntry` + menu `cash_journal` atau `reports` → Kas & Bank, `ViewAny:ProductService` → Stok, `ViewAny:Customer`, `ViewAny:Supplier`); sesi lama tanpa daftar permission memakai `menus` (`records`, `stock`, `cash_journal`). Bila menu dari sinkron berubah (atau sesi belum punya daftar permission), HP memanggil `GET /me` di belakang. Server tetap mengecek ulang (403 `tidak_berhak` ditampilkan sebagai "Belum punya akses"). Galat lain tampil sebagai kalimat biasa ("Data dari server belum bisa dibaca…"), bukan teks teknis. |
 | Cetak ulang struk | `GET /records/sales/{id}/receipt` → `ReceiptBuilder.sale(..., reprint: true)` ke printer Bluetooth yang sama dengan kasir; pengaturan struk dari `sync/pull.receipt`. Laporan shift: `GET /reports/shifts/{id}` → `ReceiptBuilder.shiftReport` dengan ringkasan yang dihitung ulang. |
-| Kirim WhatsApp / Bagikan | Tanpa plugin tambahan: HP **menyalin** teks siap kirim (nota + `verification.url`, atau tagihan pelanggan dari `outstanding_invoices`, atau ringkasan laporan) ke papan klip dan meminta pengguna menempelkannya di WhatsApp. |
-| PDF & lampiran | `GET /records/sales/{id}/pdf` dan lampiran non-foto disimpan ke folder dokumen aplikasi (`…/infois/<nama>.pdf`) lalu dibuka lewat aplikasi Berkas; foto lampiran ditampilkan langsung (`GET /records/attachments/...` dengan token). |
+| Kirim WhatsApp / Bagikan | HP membuka `https://wa.me/<nomor 62…>?text=…` (url_launcher) dengan teks siap kirim (nota + `verification.url`, atau tagihan pelanggan dari `outstanding_invoices`); nomor pelanggan bila ada, kalau tidak WhatsApp meminta pilih kontak. Ringkasan laporan lewat menu Bagikan HP (share_plus). Bila WhatsApp/browser tidak ada, teks disalin ke papan klip sebagai cadangan. |
+| PDF & lampiran | `GET /records/sales/{id}/pdf`, lampiran non-foto, dan file Tim AI (`GET /ai/attachments/...`) diunduh dengan token + `X-Tenant` (progres tampil), disimpan ke folder **Download** HP (Android 10+: MediaStore tanpa izin; Android 9 ke bawah: izin penyimpanan) dan salinan di folder aplikasi, lalu pesan "Tersimpan di Download" dengan tombol **Buka** (open_filex) dan **Bagikan** (share_plus). Foto lampiran ditampilkan langsung (`GET /records/attachments/...` dengan token). |
 | Batal / retur | Tombol **Batalkan penjualan** hanya bila `can.void` true (alasan wajib); retur selalu diarahkan ke website. |
 | Offline | Laporan & Catatan menampilkan "… butuh internet"; data terakhir yang sudah tampil tetap terlihat sampai dimuat ulang. |
 
