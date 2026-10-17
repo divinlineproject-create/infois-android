@@ -700,7 +700,9 @@ void main() {
   });
 
   final boundaryKey = GlobalKey();
-  const phone = (Size(1080, 2340), 2.75);
+  // SHOTS_PHONE=play: 1080x1920 (9:16) untuk slot screenshot HP Google Play (sisi panjang
+  // maks. 2x sisi pendek; 1080x2340 ditolak).
+  final phone = Platform.environment['SHOTS_PHONE'] == 'play' ? (const Size(1080, 1920), 2.625) : (const Size(1080, 2340), 2.75);
   const tablet = (Size(1920, 1200), 1.5);
   const tabletRatio2 = (Size(1920, 1200), 2.0);
 
@@ -977,6 +979,42 @@ void main() {
     await shot(tester, '12-tablet-kasir', ratio);
     await tester.pumpWidget(const SizedBox());
   });
+
+  // Slot tablet Google Play, lanskap, dua panel (1280x800 dp): 7 inci 1920x1200
+  // (rasio 1,5) dan 10 inci 2560x1600 (rasio 2).
+  for (final (name, device) in [('tablet7', tablet), ('tablet10', (const Size(2560, 1600), 2.0))]) {
+    testWidgets('$name lanskap: kasir, kategori, bayar, berhasil', (tester) async {
+      final (_, ratio) = device;
+      await pumpApp(tester, device);
+      await addSampleItems(tester, last: 'Nasi Goreng Kampung');
+      await fillOrderDetails(tester);
+      await catalogToTop(tester);
+      await panelTo(tester, top: true);
+      await shot(tester, '$name-1-kasir', ratio);
+      await tap(tester, find.byKey(Key('category-cat:${_kopi.id}')));
+      await shot(tester, '$name-2-kategori-kopi', ratio);
+      await tap(tester, find.byKey(const Key('go-pay')));
+      for (final key in ['1', '5', '0', '000']) {
+        await tap(tester, find.byKey(Key('key-$key')));
+      }
+      await tester.fling(find.byType(Scrollable).last, const Offset(0, 3000), 3000);
+      await shot(tester, '$name-3-bayar', ratio);
+      await tap(tester, find.byKey(const Key('pay-submit')));
+      await shot(tester, '$name-4-berhasil', ratio);
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('$name lanskap gelap', (tester) async {
+      final (_, ratio) = device;
+      await pumpApp(tester, device, dark: true);
+      await addSampleItems(tester, last: 'Nasi Goreng Kampung');
+      await fillOrderDetails(tester);
+      await catalogToTop(tester);
+      await panelTo(tester, top: true);
+      await shot(tester, '$name-5-kasir-gelap', ratio);
+      await tester.pumpWidget(const SizedBox());
+    });
+  }
 
   testWidgets('tablet lanskap rasio 2 (960x600 dp): tata letak HP', (tester) async {
     final (_, ratio) = tabletRatio2;

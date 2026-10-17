@@ -12,6 +12,15 @@ Hasil terakhir (2026-10-11):
 `/private/tmp/claude-501/-Users-macbook-Documents-saas-akuntan/714afe07-e34a-4bc6-89d6-9cb097baf70e/scratchpad/play/shots/`
 (folder sementara, jadi salin ke tempat aman sebelum mengunggah, atau jalankan ulang perintah di atas).
 
+Screenshot kasir dengan foto barang & kategori, ukuran slot Play (HP 1080x1920, tablet lanskap
+7 inci 1920x1200 dan 10 inci 2560x1600):
+
+```bash
+SHOTS_PHONE=play SHOTS_DIR=/folder/keluaran flutter test test/screenshots/pos_order_screenshots.dart
+```
+
+Paket siap unggah terakhir (2026-10-18): `~/Desktop/Infois-POS-PlayStore/` (lihat BACA-SAYA.txt di sana).
+
 ## Yang diunggah
 
 | Slot Play Console | File | Ukuran | Wajib? |
