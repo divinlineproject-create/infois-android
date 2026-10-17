@@ -12,7 +12,7 @@
 ## Urutan kerja pemilik di Play Console
 
 1. Buat akun developer (US$25) atas nama **PT. DEVINE AUTADA TECH** (akun organisasi: butuh D-U-N-S).
-2. Create app: nama "Infois: Kasir & Pembukuan AI", bahasa default Indonesia, App (bukan game),
+2. Create app: nama "Infois POS: Kasir & Tim AI", bahasa default Indonesia, App (bukan game),
    Free, centang deklarasi.
 3. Isi App content (`app-content.md`, `data-safety.md`, `account-deletion.md`).
 4. Isi Main store listing (`listing-id.md`, `screenshots.md`).

@@ -185,11 +185,19 @@ class _PayScreenState extends ConsumerState<PayScreen> {
       ),
       const SizedBox(height: 16),
       SegmentedButton<PayMode>(
-        segments: const [
-          ButtonSegment(value: PayMode.cash, label: Text('Tunai'), icon: Icon(Icons.payments_outlined)),
-          ButtonSegment(value: PayMode.transfer, label: Text('Transfer'), icon: Icon(Icons.account_balance_outlined)),
-          ButtonSegment(value: PayMode.bon, label: Text('Bon'), icon: Icon(Icons.schedule_outlined)),
-          ButtonSegment(value: PayMode.mixed, label: Text('Campur'), icon: Icon(Icons.call_split)),
+        // HP sempit: tanpa ikon dan label tidak dipenggal ("Tun/ai").
+        segments: [
+          for (final (mode, label, icon) in const [
+            (PayMode.cash, 'Tunai', Icons.payments_outlined),
+            (PayMode.transfer, 'Transfer', Icons.account_balance_outlined),
+            (PayMode.bon, 'Bon', Icons.schedule_outlined),
+            (PayMode.mixed, 'Campur', Icons.call_split),
+          ])
+            ButtonSegment(
+              value: mode,
+              label: FittedBox(fit: BoxFit.scaleDown, child: Text(label, maxLines: 1, softWrap: false)),
+              icon: MediaQuery.sizeOf(context).width < 480 ? null : Icon(icon),
+            ),
         ],
         selected: {_mode},
         showSelectedIcon: false,

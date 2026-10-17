@@ -177,8 +177,12 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
           child: Stack(fit: StackFit.expand, children: [
             _scanner.buildPreview(context, onCode: _onCode, onProblem: _problem),
             const IgnorePointer(child: _ScanFrame()),
-            SafeArea(
-              child: Padding(
+            // Bilah atas (Tutup, judul, senter) menempel di atas, bukan di tengah
+            // kamera: Stack(fit: expand) meregangkan anak tanpa posisi.
+            Align(
+              alignment: Alignment.topCenter,
+              child: SafeArea(
+                child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: Space.s, vertical: Space.xs),
                 child: Row(children: [
                   _RoundButton(key: const Key('scan-close'), icon: Icons.close, tooltip: 'Tutup', onPressed: _close),
@@ -196,6 +200,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
                     ),
                   ),
                 ]),
+                ),
               ),
             ),
           ]),
