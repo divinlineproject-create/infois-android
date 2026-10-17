@@ -13,6 +13,9 @@ enum AppPermission {
   /// Printer struk Bluetooth yang sudah dipasangkan (Android 12+:
   /// BLUETOOTH_CONNECT/SCAN "Perangkat sekitar"; tanpa izin lokasi).
   bluetoothPrinter,
+
+  /// Scan barcode barang dengan kamera di kasir (CAMERA).
+  camera,
 }
 
 /// Apakah penjelasan izin [AppPermission] perlu ditampilkan (izin belum
@@ -53,6 +56,7 @@ class DevicePermissionGate implements PermissionGate {
       final permissions = switch (permission) {
         AppPermission.microphone => [Permission.microphone],
         AppPermission.bluetoothPrinter => [Permission.bluetoothConnect, Permission.bluetoothScan],
+        AppPermission.camera => [Permission.camera],
       };
       for (final item in permissions) {
         final status = await item.status;
@@ -80,6 +84,10 @@ final permissionGateProvider = Provider<PermissionGate>((ref) => const DevicePer
       AppPermission.bluetoothPrinter => (
           'Izinkan Bluetooth',
           'Infois memakai izin Perangkat sekitar (Bluetooth) hanya untuk menampilkan printer struk yang sudah dipasangkan di HP ini dan menyambung ke printer itu. Infois tidak memindai perangkat lain dan tidak meminta lokasi Anda.',
+        ),
+      AppPermission.camera => (
+          'Izinkan kamera',
+          'Infois memakai kamera hanya saat Anda membuka Scan barcode di kasir, untuk membaca barcode barang. Gambar kamera diproses di HP ini saja: tidak disimpan dan tidak dikirim ke mana pun.',
         ),
     };
 

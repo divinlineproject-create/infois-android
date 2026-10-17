@@ -67,7 +67,7 @@ class _CustomerPickerState extends ConsumerState<_CustomerPicker> {
       Padding(
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
         child: TextField(
-          autofocus: true,
+          key: const Key('customer-search'),
           decoration: const InputDecoration(hintText: 'Cari nama atau no. HP', prefixIcon: Icon(Icons.search), isDense: true),
           onChanged: (value) => setState(() => _query = value),
         ),

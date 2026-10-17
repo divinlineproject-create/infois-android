@@ -1,55 +1,67 @@
 import 'package:flutter/material.dart';
 
 import '../../domain/models.dart';
+import '../theme.dart';
 
-/// Kelompok barang untuk chip di kasir.
-///
-/// Data sinkron belum punya kategori barang, jadi kelompok diturunkan dari
-/// data yang ada: jenis (Barang/Jasa) dan satuan dasar ("Gelas", "Porsi",
-/// "Pcs" — di kafe/warung satuan biasanya sudah memisahkan minuman & makanan).
+/// Chip kategori di kasir: "Semua", lalu kategori barang dari Katalog web
+/// (urutan lalu nama, hanya yang punya barang di kasir), lalu "Lainnya" untuk
+/// barang tanpa kategori.
 class PosCategory {
-  const PosCategory(this.key, this.label, this.matches);
+  const PosCategory(this.key, this.label, this.matches, {this.count = 0});
 
   final String key;
   final String label;
   final bool Function(Product product) matches;
 
+  /// Jumlah barang di kategori ini.
+  final int count;
+
   static final all = PosCategory('all', 'Semua', (_) => true);
+
+  static const String noneKey = 'cat:none';
 }
 
-String _capitalize(String text) => text.isEmpty ? text : '${text[0].toUpperCase()}${text.substring(1)}';
-
-/// Kelompok yang berguna untuk katalog ini (hanya yang membedakan barang).
-List<PosCategory> posCategories(List<Product> products) {
-  final categories = <PosCategory>[PosCategory.all];
-  if (products.length < 2) {
-    return categories;
-  }
-  final hasService = products.any((product) => product.type == 'service');
-  final hasGoods = products.any((product) => product.type != 'service');
-  if (hasService && hasGoods) {
-    categories
-      ..add(PosCategory('type:product', 'Barang', (product) => product.type != 'service'))
-      ..add(PosCategory('type:service', 'Jasa', (product) => product.type == 'service'));
-  }
-
-  final counts = <String, int>{};
+/// Kategori yang berguna untuk katalog [products]. [categories] = daftar
+/// dari server (sync/pull); kategori yang hanya diketahui dari barang
+/// (server lama / daftar belum tersimpan) tetap ikut, diurutkan menurut nama.
+List<PosCategory> posCategories(List<Product> products, [List<ProductCategory> categories = const []]) {
+  final counts = <int, int>{};
+  final namesFromProducts = <int, String>{};
+  var uncategorized = 0;
   for (final product in products) {
-    final unit = product.unit.trim().toLowerCase();
-    if (unit.isNotEmpty) {
-      counts[unit] = (counts[unit] ?? 0) + 1;
+    final id = product.categoryId;
+    if (id == null) {
+      uncategorized++;
+      continue;
+    }
+    counts[id] = (counts[id] ?? 0) + 1;
+    if (product.categoryName != null) {
+      namesFromProducts[id] ??= product.categoryName!;
     }
   }
-  if (counts.length >= 2) {
-    final units = counts.keys.toList()..sort((a, b) => counts[b]!.compareTo(counts[a]!) != 0 ? counts[b]!.compareTo(counts[a]!) : a.compareTo(b));
-    for (final unit in units.take(8)) {
-      categories.add(PosCategory('unit:$unit', _capitalize(unit), (product) => product.unit.trim().toLowerCase() == unit));
-    }
+  if (counts.isEmpty) {
+    return [PosCategory.all];
   }
-  return categories;
+
+  final known = {for (final category in categories) category.id: category};
+  final ordered = [
+    for (final category in categories)
+      if (counts.containsKey(category.id)) category,
+  ];
+  final extra = [
+    for (final id in counts.keys)
+      if (!known.containsKey(id)) ProductCategory(id: id, name: namesFromProducts[id] ?? 'Kategori', sort: 1 << 30),
+  ]..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+
+  return [
+    PosCategory('all', 'Semua', (_) => true, count: products.length),
+    for (final category in [...ordered, ...extra])
+      PosCategory('cat:${category.id}', category.name, (product) => product.categoryId == category.id, count: counts[category.id] ?? 0),
+    if (uncategorized > 0) PosCategory(PosCategory.noneKey, 'Lainnya', (product) => product.categoryId == null, count: uncategorized),
+  ];
 }
 
-/// Baris chip kelompok barang (geser ke samping).
+/// Baris chip kategori (geser ke samping).
 class PosCategoryChips extends StatelessWidget {
   const PosCategoryChips({super.key, required this.categories, required this.selected, required this.onSelected});
 
@@ -63,12 +75,13 @@ class PosCategoryChips extends StatelessWidget {
       return const SizedBox.shrink();
     }
     return SizedBox(
-      height: 44,
+      height: 48,
       child: ListView.separated(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
+        key: const Key('category-chips'),
+        padding: const EdgeInsets.symmetric(horizontal: Space.l, vertical: Space.xs),
         scrollDirection: Axis.horizontal,
         itemCount: categories.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        separatorBuilder: (_, __) => const SizedBox(width: Space.s),
         itemBuilder: (context, index) {
           final category = categories[index];
           return ChoiceChip(
@@ -76,6 +89,7 @@ class PosCategoryChips extends StatelessWidget {
             label: Text(category.label),
             selected: category.key == selected,
             showCheckmark: false,
+            tooltip: '${category.label}: ${category.count} barang',
             onSelected: (_) => onSelected(category.key),
           );
         },

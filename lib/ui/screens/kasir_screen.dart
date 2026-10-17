@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -6,7 +7,10 @@ import '../../core/format.dart';
 import '../../domain/models.dart';
 import '../../state/pos_state.dart';
 import '../../state/sync_controller.dart';
+import '../../services/permission_gate.dart';
 import '../../state/workspace.dart';
+import '../focus.dart';
+import '../theme.dart';
 import '../widgets/common.dart';
 import '../widgets/pos_categories.dart';
 import '../widgets/pos_product_tile.dart';
@@ -14,6 +18,7 @@ import 'cart_sheet.dart';
 import 'pos_held_orders.dart';
 import 'pos_item_sheet.dart';
 import 'pos_order_panel.dart';
+import 'scan_screen.dart';
 import 'shift_screens.dart';
 
 /// Lebar minimal untuk tata letak dua panel (katalog kiri, pesanan kanan).
@@ -38,6 +43,7 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
   final _search = TextEditingController();
   String _query = '';
   String _category = 'all';
+  List<Product>? _lastFound;
 
   @override
   void dispose() {
@@ -50,61 +56,66 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
         _query = '';
       });
 
-  /// Kode barang (scanner barcode mengetik kode lalu Enter): cocok persis → masuk pesanan.
-  Future<bool> _addByCode(String code) async {
-    final text = code.trim();
-    if (text.isEmpty) {
-      return false;
-    }
-    final workspace = await ref.read(workspaceProvider.future);
-    final product = await workspace?.local.productBySku(text);
-    if (!mounted) {
-      return false;
-    }
-    if (product == null) {
-      return false;
-    }
+  /// Cari selalu di semua kategori: mulai mengetik = kembali ke "Semua".
+  void _onSearch(String value) => setState(() {
+        _query = value;
+        if (value.trim().isNotEmpty) {
+          _category = 'all';
+        }
+      });
+
+  void _addProduct(Product product) {
+    // Barang diketuk: keyboard cari ditutup supaya grid terlihat.
+    dismissKeyboard();
+    HapticFeedback.selectionClick();
     ref.read(cartProvider.notifier).add(product);
-    showMessage(context, '${product.name} masuk pesanan.');
-    return true;
   }
 
-  Future<void> _scan() async {
-    final controller = TextEditingController();
-    final code = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Scan kode barang'),
-        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('Arahkan scanner barcode ke barang, atau ketik kode barangnya.'),
-          const SizedBox(height: 12),
-          TextField(
-            key: const Key('scan-code'),
-            controller: controller,
-            autofocus: true,
-            textInputAction: TextInputAction.done,
-            decoration: const InputDecoration(prefixIcon: Icon(Icons.qr_code_scanner), hintText: 'Kode barang'),
-            onSubmitted: (value) => Navigator.pop(context, value),
-          ),
-        ]),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Tutup')),
-          FilledButton(key: const Key('scan-add'), onPressed: () => Navigator.pop(context, controller.text), child: const Text('Tambah')),
-        ],
-      ),
-    );
-    if (code == null || code.trim().isEmpty) {
+  /// Scanner barcode (Bluetooth/USB) mengetik kode lalu Enter: cocok persis
+  /// dengan barcode/SKU → masuk pesanan.
+  Future<void> _submitSearch(String value) async {
+    final text = value.trim();
+    if (text.isEmpty) {
       return;
     }
-    if (!await _addByCode(code) && mounted) {
-      showMessage(context, 'Kode "${code.trim()}" tidak ada di katalog HP ini.', error: true);
+    final product = await ref.read(posActionsProvider).addByCode(text);
+    if (!mounted || product == null) {
+      return;
     }
+    HapticFeedback.mediumImpact();
+    _clearSearch();
+    showMessage(context, '${product.name} masuk pesanan.');
   }
 
-  Future<void> _submitSearch(String value) async {
-    if (await _addByCode(value)) {
-      _clearSearch();
+  /// Scanner keyboard (Bluetooth/USB) saat kotak cari TIDAK fokus: kode
+  /// ditangkap tanpa memunculkan keyboard layar.
+  bool _scannerActive() => mounted && TabActive.read(context) && (ModalRoute.of(context)?.isCurrent ?? true);
+
+  Future<void> _onHardwareCode(String code) async {
+    final product = await ref.read(posActionsProvider).addByCode(code);
+    if (!mounted) {
+      return;
     }
+    if (product == null) {
+      HapticFeedback.heavyImpact();
+      showMessage(context, 'Kode "$code" tidak ada di katalog HP ini.', error: true);
+      return;
+    }
+    HapticFeedback.mediumImpact();
+    showMessage(context, '${product.name} masuk pesanan.');
+  }
+
+  /// Scan dengan kamera: jelaskan izin kamera dulu (sekali), lalu buka layar scan.
+  Future<void> _scanWithCamera() async {
+    FocusScope.of(context).unfocus();
+    if (!await explainPermission(context, ref, AppPermission.camera) || !mounted) {
+      return;
+    }
+    final outcome = await openScanScreen(context);
+    if (!mounted || outcome == null || outcome.added == 0) {
+      return;
+    }
+    showMessage(context, outcome.added == 1 ? '${outcome.last!.name} masuk pesanan.' : '${outcome.added} barang masuk pesanan.');
   }
 
   void _openCart() => showCartSheet(context);
@@ -131,7 +142,7 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
     }
 
     final shift = ref.watch(openShiftProvider).valueOrNull;
-    return LayoutBuilder(builder: (context, constraints) {
+    return HardwareScannerListener(active: _scannerActive, onCode: _onHardwareCode, child: LayoutBuilder(builder: (context, constraints) {
       final twoPane = posUseTwoPane(constraints);
       final catalog = Column(children: [
         if (data?.menus.shift ?? false) ShiftBar(shift: shift),
@@ -143,24 +154,24 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
         return catalog;
       }
       final panelWidth = (constraints.maxWidth * 0.4).clamp(340.0, 440.0);
+      final scheme = Theme.of(context).colorScheme;
       return Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Expanded(child: catalog),
-        const VerticalDivider(width: 1),
         SizedBox(
           width: panelWidth,
-          child: Material(
-            color: Theme.of(context).colorScheme.surface,
-            child: Padding(padding: const EdgeInsets.only(top: 8), child: PosOrderPanel(key: const Key('order-panel'), onPay: _goPay)),
+          child: DecoratedBox(
+            decoration: BoxDecoration(color: scheme.surface, border: Border(left: BorderSide(color: scheme.outlineVariant))),
+            child: Padding(padding: const EdgeInsets.only(top: Space.s), child: PosOrderPanel(key: const Key('order-panel'), onPay: _goPay)),
           ),
         ),
       ]);
-    });
+    }));
   }
 
   Widget _toolbar(bool twoPane) {
     final held = ref.watch(heldOrdersProvider).valueOrNull?.length ?? 0;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
+      padding: const EdgeInsets.fromLTRB(Space.l, Space.m, Space.s, Space.xs),
       child: Row(children: [
         Expanded(
           child: TextField(
@@ -168,16 +179,24 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
             controller: _search,
             textInputAction: TextInputAction.search,
             decoration: InputDecoration(
-              hintText: 'Cari barang atau kode',
+              hintText: 'Cari barang, barcode, SKU',
               prefixIcon: const Icon(Icons.search),
               isDense: true,
-              suffixIcon: _query.isEmpty ? null : IconButton(tooltip: 'Hapus', icon: const Icon(Icons.close), onPressed: _clearSearch),
+              suffixIcon: Row(mainAxisSize: MainAxisSize.min, children: [
+                if (_query.isNotEmpty) IconButton(tooltip: 'Hapus', icon: const Icon(Icons.close), onPressed: _clearSearch),
+                IconButton(
+                  key: const Key('scan-button'),
+                  tooltip: 'Scan barcode dengan kamera',
+                  onPressed: _scanWithCamera,
+                  icon: Icon(Icons.qr_code_scanner, color: Theme.of(context).colorScheme.primary),
+                ),
+              ]),
             ),
-            onChanged: (value) => setState(() => _query = value),
+            onChanged: _onSearch,
             onSubmitted: _submitSearch,
+            onTapOutside: (_) => dismissKeyboard(),
           ),
         ),
-        IconButton(key: const Key('scan-button'), tooltip: 'Scan kode barang', onPressed: _scan, icon: const Icon(Icons.qr_code_scanner)),
         if (!twoPane) HeldOrdersButton(count: held),
         IconButton(tooltip: 'Riwayat nota', onPressed: () => context.push('/riwayat'), icon: const Icon(Icons.history)),
       ]),
@@ -186,48 +205,59 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
 
   Widget _grid(bool twoPane) {
     final all = ref.watch(productSearchProvider('')).valueOrNull ?? const <Product>[];
+    final known = ref.watch(productCategoriesProvider).valueOrNull ?? const <ProductCategory>[];
     final products = ref.watch(productSearchProvider(_query));
     final cart = ref.watch(cartProvider);
-    final categories = posCategories(all);
+    final categories = posCategories(all, known);
     final category = categories.firstWhere((item) => item.key == _category, orElse: () => PosCategory.all);
 
     return Column(children: [
       PosCategoryChips(categories: categories, selected: category.key, onSelected: (key) => setState(() => _category = key)),
-      Expanded(
-        child: products.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (error, _) => EmptyState(icon: Icons.error_outline, title: 'Katalog belum bisa dibuka', message: plainError(error, fallback: 'Tutup lalu buka lagi aplikasinya, atau tekan Sinkron sekarang.')),
-          data: (found) {
-            final items = found.where(category.matches).toList();
-            if (items.isEmpty) {
-              return EmptyState(
-                icon: Icons.inventory_2_outlined,
-                title: _query.isEmpty && category.key == 'all' ? 'Katalog kosong' : 'Barang tidak ditemukan',
-                message: _query.isEmpty && category.key == 'all' ? 'Tambahkan barang di website (Barang & Gudang › Katalog).' : null,
-              );
-            }
-            return GridView.builder(
-              padding: EdgeInsets.fromLTRB(16, 8, 16, twoPane ? 16 : 8),
-              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(maxCrossAxisExtent: 168, mainAxisExtent: 158, crossAxisSpacing: 10, mainAxisSpacing: 10),
-              itemCount: items.length,
-              itemBuilder: (context, index) {
-                final product = items[index];
-                return PosProductTile(
-                  product: product,
-                  inCart: cart.quantityOf(product.id),
-                  onTap: () => ref.read(cartProvider.notifier).add(product),
-                  onLongPress: () => showPosItemSheet(context, product),
-                );
+      Expanded(child: Builder(builder: (context) {
+        // Hasil cari sebelumnya tetap tampil selama hasil baru dimuat (tanpa kedip).
+        if (products.hasValue) {
+          _lastFound = products.value;
+        }
+        final found = products.valueOrNull ?? _lastFound;
+        if (found == null) {
+          return products.hasError
+              ? EmptyState(icon: Icons.error_outline, title: 'Katalog belum bisa dibuka', message: plainError(products.error, fallback: 'Tutup lalu buka lagi aplikasinya, atau tekan Sinkron sekarang.'))
+              : const PosGridSkeleton();
+        }
+        final items = found.where(category.matches).toList();
+        if (items.isEmpty) {
+          final empty = _query.isEmpty && category.key == 'all';
+          return EmptyState(
+            icon: empty ? Icons.inventory_2_outlined : Icons.search_off,
+            title: empty ? 'Katalog kosong' : 'Barang tidak ditemukan',
+            message: empty ? 'Tambahkan barang di website (Barang & Gudang › Katalog).' : (_query.isNotEmpty ? 'Coba kata lain, atau scan barcode-nya.' : null),
+          );
+        }
+        return GridView.builder(
+          key: const Key('product-grid'),
+          padding: EdgeInsets.fromLTRB(Space.l, Space.s, Space.l, twoPane ? Space.l : Space.s),
+          gridDelegate: posGridDelegate,
+          itemCount: items.length,
+          itemBuilder: (context, index) {
+            final product = items[index];
+            return PosProductTile(
+              product: product,
+              inCart: cart.quantityOf(product.id),
+              onTap: () => _addProduct(product),
+              onLongPress: () {
+                HapticFeedback.lightImpact();
+                showPosItemSheet(context, product);
               },
             );
           },
-        ),
-      ),
+        );
+      })),
     ]);
   }
 }
 
-/// Bilah keranjang tetap di bawah (HP): jumlah barang + total, ketuk untuk membuka.
+/// Bilah keranjang tetap di bawah (HP): jumlah barang + total, ketuk untuk
+/// membuka. Muncul dengan geser halus saat barang pertama masuk.
 class _CartBarSlot extends ConsumerWidget {
   const _CartBarSlot({required this.onOpen});
 
@@ -236,44 +266,65 @@ class _CartBarSlot extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final cart = ref.watch(cartProvider);
+    final Widget bar;
     if (cart.isEmpty) {
-      return const SizedBox.shrink();
-    }
-    final inclusive = ref.watch(masterDataProvider).valueOrNull?.tenant.pricesIncludeTax ?? false;
-    final total = cart.totals(pricesIncludeTax: inclusive).total;
-    final details = [
-      if (cart.orderType != null) cart.orderType!.label,
-      if (cart.orderLabel != null) cart.orderLabel!,
-      if (cart.customer != null) cart.customer!.name,
-    ].join(' · ');
-    return SafeArea(
-      top: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-        child: FilledButton(
-          key: const Key('open-cart'),
-          onPressed: onOpen,
-          style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(60), padding: const EdgeInsets.symmetric(horizontal: 16)),
-          child: Row(children: [
-            Badge(
-              label: Text(qty(cart.totalQuantity)),
-              // Kontras di mode terang & gelap: warna teks tombol di atas warna tombol.
-              backgroundColor: Theme.of(context).colorScheme.onPrimary,
-              textColor: Theme.of(context).colorScheme.primary,
-              child: const Icon(Icons.shopping_basket_outlined),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('${cart.itemCount} barang', overflow: TextOverflow.ellipsis),
-                if (details.isNotEmpty) Text(details, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w400)),
-              ]),
-            ),
-            Flexible(child: FittedBox(fit: BoxFit.scaleDown, child: Text(rupiah(total), style: const TextStyle(fontWeight: FontWeight.w700)))),
-            const Icon(Icons.expand_less),
-          ]),
+      bar = const SizedBox(key: ValueKey('cart-empty'), width: double.infinity);
+    } else {
+      final scheme = Theme.of(context).colorScheme;
+      final inclusive = ref.watch(masterDataProvider).valueOrNull?.tenant.pricesIncludeTax ?? false;
+      final total = cart.totals(pricesIncludeTax: inclusive).total;
+      final details = [
+        if (cart.orderType != null) cart.orderType!.label,
+        if (cart.orderLabel != null) cart.orderLabel!,
+        if (cart.customer != null) cart.customer!.name,
+      ].join(' · ');
+      bar = SafeArea(
+        key: const ValueKey('cart-bar'),
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(Space.l, Space.xs, Space.l, Space.m),
+          child: FilledButton(
+            key: const Key('open-cart'),
+            onPressed: () {
+              HapticFeedback.selectionClick();
+              onOpen();
+            },
+            style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(64), padding: const EdgeInsets.symmetric(horizontal: Space.l), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.l))),
+            child: Row(children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(color: scheme.onPrimary.withValues(alpha: 0.16), borderRadius: BorderRadius.circular(Radii.m)),
+                alignment: Alignment.center,
+                child: Badge(
+                  label: Text(qty(cart.totalQuantity)),
+                  // Kontras di mode terang & gelap: warna teks tombol di atas warna tombol.
+                  backgroundColor: scheme.onPrimary,
+                  textColor: scheme.primary,
+                  child: const Icon(Icons.shopping_basket_outlined),
+                ),
+              ),
+              const SizedBox(width: Space.m),
+              Expanded(
+                child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('${cart.itemCount} barang', overflow: TextOverflow.ellipsis),
+                  Text(details.isEmpty ? 'Lihat pesanan' : details, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w400)),
+                ]),
+              ),
+              const SizedBox(width: Space.s),
+              Flexible(child: FittedBox(fit: BoxFit.scaleDown, child: Text(rupiah(total), style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 17)))),
+              const SizedBox(width: Space.xs),
+              const Icon(Icons.keyboard_arrow_up_rounded),
+            ]),
+          ),
         ),
-      ),
+      );
+    }
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOutCubic,
+      alignment: Alignment.bottomCenter,
+      child: bar,
     );
   }
 }

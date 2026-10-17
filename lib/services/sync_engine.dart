@@ -177,6 +177,12 @@ class SyncEngine {
     await local.upsertProducts([for (final item in products['items'] as List) Product.fromJson(Map<String, dynamic>.from(item as Map))]);
     await local.keepProducts([for (final id in products['ids'] as List) id as int]);
 
+    // Kategori barang (server lama tanpa `categories`: daftar lama tetap).
+    final categories = data['categories'];
+    if (categories is Map && categories['items'] is List) {
+      await local.saveCategories([for (final item in categories['items'] as List) ProductCategory.fromJson(Map<String, dynamic>.from(item as Map))]);
+    }
+
     final customers = Map<String, dynamic>.from(data['customers'] as Map);
     await local.upsertCustomers([for (final item in customers['items'] as List) Customer.fromJson(Map<String, dynamic>.from(item as Map))]);
     await local.keepCustomers([for (final id in customers['ids'] as List) id as int]);

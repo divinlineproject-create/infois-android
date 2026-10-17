@@ -292,8 +292,8 @@ class _AkunScreenState extends ConsumerState<AkunScreen> {
           contentPadding: const EdgeInsets.all(16),
           leading: CircleAvatar(
             radius: 26,
-            backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.14),
-            child: Text((user?.name ?? '?').characters.first.toUpperCase(), style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w700, fontSize: 20)),
+            backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+            child: Text((user?.name ?? '?').characters.first.toUpperCase(), style: TextStyle(color: Theme.of(context).colorScheme.onPrimaryContainer, fontWeight: FontWeight.w700, fontSize: 20)),
           ),
           title: Text(user?.name ?? '-', style: const TextStyle(fontWeight: FontWeight.w600)),
           subtitle: Text('${user?.email ?? ''}\n${tenant?.name ?? ''} · ${tenant?.roleLabel ?? ''}'),
@@ -395,7 +395,7 @@ class _AkunScreenState extends ConsumerState<AkunScreen> {
         label: Text(_loggingOut ? 'Keluar…' : 'Keluar', style: TextStyle(color: dangerText(context))),
       ),
       const SizedBox(height: 16),
-      Center(child: Text('Infois ${AppConfig.version} · Kasir ${master?.deviceCode ?? '-'}', style: TextStyle(fontSize: 12, color: mutedText(context)))),
+      Center(child: Text('${AppConfig.name} ${AppConfig.version} · Kasir ${master?.deviceCode ?? '-'}', style: TextStyle(fontSize: 12, color: mutedText(context)))),
     ]);
   }
 }

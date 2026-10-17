@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../core/config.dart';
 import '../state/session.dart';
 import '../domain/record_models.dart';
 import '../state/records_state.dart';
+import 'focus.dart';
 import 'screens/ai_chat_screen.dart';
 import 'screens/catatan_screen.dart';
 import 'screens/help_screens.dart';
@@ -32,6 +34,9 @@ final routerProvider = Provider<GoRouter>((ref) {
 
   return GoRouter(
     initialLocation: '/',
+    // Halaman/lembar/dialog baru melepas fokus isian di bawahnya: keyboard
+    // tidak muncul sendiri saat kembali (lihat KeyboardDismissObserver).
+    observers: [KeyboardDismissObserver()],
     refreshListenable: listenable,
     redirect: (context, state) {
       final session = ref.read(sessionProvider);
@@ -52,7 +57,18 @@ final routerProvider = Provider<GoRouter>((ref) {
       return null;
     },
     routes: [
-      GoRoute(path: '/mulai', builder: (_, __) => const Scaffold(body: Center(child: BrandMark(size: 72)))),
+      GoRoute(
+        path: '/mulai',
+        builder: (context, __) => Scaffold(
+          body: Center(
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              const BrandMark(size: 72),
+              const SizedBox(height: 16),
+              Text(AppConfig.name, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Theme.of(context).colorScheme.onSurface)),
+            ]),
+          ),
+        ),
+      ),
       GoRoute(path: '/masuk', builder: (_, __) => const LoginScreen()),
       GoRoute(path: '/perusahaan', builder: (_, __) => const TenantPickerScreen()),
       GoRoute(path: '/', builder: (_, __) => const HomeShell()),

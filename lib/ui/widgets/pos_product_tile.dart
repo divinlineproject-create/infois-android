@@ -4,43 +4,20 @@ import '../../core/format.dart';
 import '../../core/money.dart';
 import '../../domain/models.dart';
 import '../theme.dart';
+import 'product_image.dart';
 
-/// Warna tetap per nama barang (katalog belum punya foto): tile mudah dikenali.
-Color posTileColor(String name) {
-  const palette = [
-    Color(0xFF0A7F3E),
-    Color(0xFF0E7490),
-    Color(0xFF7C3AED),
-    Color(0xFFB45309),
-    Color(0xFFBE185D),
-    Color(0xFF1D4ED8),
-    Color(0xFF4D7C0F),
-    Color(0xFF9F1239),
-  ];
-  var hash = 0;
-  for (final unit in name.toLowerCase().codeUnits) {
-    hash = (hash * 31 + unit) & 0x7fffffff;
-  }
-  return palette[hash % palette.length];
-}
+export 'product_image.dart' show posInitials, posInitialsColor, posTileColor;
 
-/// Inisial dua huruf: "Kopi Susu" → "KS", "Gula" → "GU".
-String posInitials(String name) {
-  final words = name.trim().split(RegExp(r'\s+')).where((word) => word.isNotEmpty).toList();
-  if (words.isEmpty) {
-    return '?';
-  }
-  if (words.length == 1) {
-    final word = words.first;
-    return (word.length >= 2 ? word.substring(0, 2) : word).toUpperCase();
-  }
-  return '${words[0][0]}${words[1][0]}'.toUpperCase();
-}
+/// Tinggi kartu barang di grid kasir.
+const double posTileHeight = 204;
 
-/// Kotak barang di grid kasir: inisial berwarna, nama, harga, stok, badge
-/// jumlah di keranjang. Stok habis tampil redup (tetap bisa dijual; server
-/// yang menentukan stok otomatis/perlu ditinjau).
-class PosProductTile extends StatelessWidget {
+/// Grid barang kasir (dipakai grid dan kerangka muat).
+const posGridDelegate = SliverGridDelegateWithMaxCrossAxisExtent(maxCrossAxisExtent: 172, mainAxisExtent: posTileHeight, crossAxisSpacing: Space.m, mainAxisSpacing: Space.m);
+
+/// Kotak barang di grid kasir: foto (atau inisial berwarna), kategori, nama,
+/// harga, label stok, dan badge jumlah di keranjang. Stok habis tampil redup
+/// (tetap bisa dijual; server yang menentukan stok otomatis/perlu ditinjau).
+class PosProductTile extends StatefulWidget {
   const PosProductTile({super.key, required this.product, required this.inCart, required this.onTap, required this.onLongPress});
 
   final Product product;
@@ -50,108 +27,180 @@ class PosProductTile extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onLongPress;
 
+  @override
+  State<PosProductTile> createState() => _PosProductTileState();
+}
+
+class _PosProductTileState extends State<PosProductTile> {
+  bool _pressed = false;
+
+  Product get product => widget.product;
+
   bool get outOfStock => product.trackInventory && product.stockQuantity != null && !Money.isPositive(product.stockQuantity);
+
+  void _press(bool value) {
+    if (_pressed != value) {
+      setState(() => _pressed = value);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final color = posTileColor(product.name);
-    final selected = Money.isPositive(inCart);
+    final scheme = Theme.of(context).colorScheme;
+    final selected = Money.isPositive(widget.inCart);
     final stock = product.stockQuantity;
-    final String? stockLabel;
-    Color? stockColor;
+    _StockLabel? stockLabel;
     if (product.trackInventory && stock != null) {
-      if (outOfStock) {
-        stockLabel = 'Habis';
-        stockColor = dangerText(context);
-      } else {
-        stockLabel = 'Stok ${qty(stock)}';
-        stockColor = product.isLowStock() ? warningText(context) : mutedText(context);
-      }
-    } else {
-      stockLabel = null;
+      stockLabel = outOfStock
+          ? const _StockLabel('Habis', Brand.danger, Colors.white)
+          : (product.isLowStock()
+              ? _StockLabel('Sisa ${qty(stock)}', Brand.nota, Brand.ink)
+              : _StockLabel('Stok ${qty(stock)}', scheme.surface.withValues(alpha: 0.92), mutedText(context)));
     }
 
-    return Opacity(
-      opacity: outOfStock ? 0.5 : 1,
-      child: Card(
-        clipBehavior: Clip.antiAlias,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: selected ? Brand.green : Theme.of(context).dividerColor.withValues(alpha: 0.4), width: selected ? 2 : 1),
-        ),
-        child: InkWell(
-          key: Key('product-${product.id}'),
-          onTap: onTap,
-          onLongPress: onLongPress,
-          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            Expanded(
-              child: Stack(children: [
-                Positioned.fill(
-                  child: Container(
-                    color: color.withValues(alpha: 0.12),
-                    alignment: Alignment.center,
-                    // Mode gelap: warna inisial dicerahkan supaya tetap terbaca di kartu gelap.
-                    child: Text(posInitials(product.name), style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700, color: posInitialsColor(color, Theme.of(context).brightness), letterSpacing: 1)),
-                  ),
-                ),
-                if (stockLabel != null)
-                  Positioned(
-                    left: 6,
-                    top: 6,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.9), borderRadius: BorderRadius.circular(8)),
-                      child: Text(stockLabel, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: stockColor)),
+    return AnimatedScale(
+      scale: _pressed ? 0.97 : 1,
+      duration: const Duration(milliseconds: 90),
+      child: Opacity(
+        opacity: outOfStock ? 0.55 : 1,
+        child: Material(
+          color: scheme.surface,
+          clipBehavior: Clip.antiAlias,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(Radii.l),
+            side: BorderSide(color: selected ? scheme.primary : scheme.outlineVariant, width: selected ? 2 : 1),
+          ),
+          child: InkWell(
+            key: Key('product-${product.id}'),
+            onTap: widget.onTap,
+            onLongPress: widget.onLongPress,
+            onHighlightChanged: _press,
+            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              Expanded(
+                child: Stack(fit: StackFit.expand, children: [
+                  ProductImage(product: product),
+                  if (stockLabel != null)
+                    Positioned(
+                      left: Space.s,
+                      top: Space.s,
+                      child: _Pill(text: stockLabel.text, background: stockLabel.background, foreground: stockLabel.foreground),
                     ),
-                  ),
-                if (selected)
-                  Positioned(
-                    right: 6,
-                    top: 6,
-                    child: Container(
-                      key: Key('product-badge-${product.id}'),
-                      constraints: const BoxConstraints(minWidth: 28),
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(color: Brand.green, borderRadius: BorderRadius.circular(14)),
-                      child: Text(qty(inCart), textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
+                  if (selected)
+                    Positioned(
+                      right: Space.s,
+                      top: Space.s,
+                      child: TweenAnimationBuilder<double>(
+                        key: ValueKey(widget.inCart),
+                        tween: Tween(begin: 1.3, end: 1),
+                        duration: const Duration(milliseconds: 220),
+                        curve: Curves.easeOutBack,
+                        builder: (context, scale, child) => Transform.scale(scale: scale, child: child),
+                        child: Container(
+                          key: Key('product-badge-${product.id}'),
+                          constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                          alignment: Alignment.center,
+                          padding: const EdgeInsets.symmetric(horizontal: Space.s),
+                          decoration: BoxDecoration(color: scheme.primary, borderRadius: BorderRadius.circular(14), border: Border.all(color: scheme.surface, width: 2)),
+                          child: Text(qty(widget.inCart), textAlign: TextAlign.center, style: TextStyle(color: scheme.onPrimary, fontSize: 13, fontWeight: FontWeight.w700)),
+                        ),
+                      ),
                     ),
-                  ),
-                // Bahan baku yang ditampilkan di kasir: diberi label supaya
-                // tidak tertukar dengan barang jadi.
-                if (product.isRawMaterial)
-                  Positioned(
-                    left: 6,
-                    bottom: 4,
-                    child: Container(
-                      key: Key('product-kind-${product.id}'),
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.9), borderRadius: BorderRadius.circular(8)),
-                      child: Text(product.kindLabel ?? 'Bahan baku', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: mutedText(context))),
+                  // Bahan baku yang ditampilkan di kasir: diberi label supaya
+                  // tidak tertukar dengan barang jadi.
+                  if (product.isRawMaterial)
+                    Positioned(
+                      left: Space.s,
+                      bottom: Space.s,
+                      child: _Pill(key: Key('product-kind-${product.id}'), text: product.kindLabel ?? 'Bahan baku', background: scheme.surface.withValues(alpha: 0.92), foreground: mutedText(context)),
                     ),
-                  ),
-                if (product.units.isNotEmpty || product.tiers.isNotEmpty)
-                  Positioned(
-                    right: 6,
-                    bottom: 4,
-                    child: Icon(product.tiers.isNotEmpty ? Icons.sell_outlined : Icons.straighten, size: 16, color: color),
-                  ),
-              ]),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(product.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5, height: 1.2)),
-                const SizedBox(height: 2),
-                Text(rupiah(product.price), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w700, color: Theme.of(context).colorScheme.primary)),
-              ]),
-            ),
-          ]),
+                  if (product.units.isNotEmpty || product.tiers.isNotEmpty)
+                    Positioned(
+                      right: Space.s,
+                      bottom: Space.s,
+                      child: Container(
+                        padding: const EdgeInsets.all(Space.xs),
+                        decoration: BoxDecoration(color: scheme.surface.withValues(alpha: 0.92), shape: BoxShape.circle),
+                        child: Icon(product.tiers.isNotEmpty ? Icons.sell_outlined : Icons.straighten, size: 14, color: scheme.primary),
+                      ),
+                    ),
+                ]),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(Space.m - 2, Space.s, Space.m - 2, Space.m - 2),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  if (product.categoryName != null)
+                    Text(
+                      product.categoryName!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: mutedText(context), letterSpacing: 0.2),
+                    ),
+                  Text(product.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5, height: 1.25)),
+                  const SizedBox(height: 2),
+                  Text(rupiah(product.price), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: scheme.primary)),
+                ]),
+              ),
+            ]),
+          ),
         ),
       ),
     );
   }
 }
 
-/// Warna inisial barang: di mode gelap dicampur putih (kontras ≥ 4.5:1 di
-/// kartu gelap); di mode terang warna aslinya.
-Color posInitialsColor(Color color, Brightness brightness) => brightness == Brightness.dark ? Color.lerp(color, Colors.white, 0.55)! : color;
+class _StockLabel {
+  const _StockLabel(this.text, this.background, this.foreground);
+
+  final String text;
+  final Color background;
+  final Color foreground;
+}
+
+class _Pill extends StatelessWidget {
+  const _Pill({super.key, required this.text, required this.background, required this.foreground});
+
+  final String text;
+  final Color background;
+  final Color foreground;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: Space.s, vertical: 3),
+        decoration: BoxDecoration(color: background, borderRadius: BorderRadius.circular(Radii.s)),
+        child: Text(text, maxLines: 1, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: foreground)),
+      );
+}
+
+/// Kerangka grid saat katalog dimuat (kotak diam, tanpa animasi berat).
+class PosGridSkeleton extends StatelessWidget {
+  const PosGridSkeleton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    Widget bar(double width, double height) =>
+        Container(width: width, height: height, decoration: BoxDecoration(color: scheme.surfaceContainerHighest, borderRadius: BorderRadius.circular(Radii.s / 2)));
+    return GridView.builder(
+      key: const Key('product-skeleton'),
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(Space.l, Space.s, Space.l, Space.s),
+      gridDelegate: posGridDelegate,
+      itemCount: 6,
+      itemBuilder: (context, _) => DecoratedBox(
+        decoration: BoxDecoration(color: scheme.surface, borderRadius: BorderRadius.circular(Radii.l), border: Border.all(color: scheme.outlineVariant)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Expanded(
+            child: Container(
+              margin: const EdgeInsets.all(1),
+              decoration: BoxDecoration(color: scheme.surfaceContainerHigh, borderRadius: const BorderRadius.vertical(top: Radius.circular(Radii.l))),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(Space.m - 2),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [bar(90, 10), const SizedBox(height: 6), bar(60, 12)]),
+          ),
+        ]),
+      ),
+    );
+  }
+}

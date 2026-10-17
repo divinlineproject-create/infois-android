@@ -135,7 +135,10 @@ void main() {
     await tap(tester, find.byKey(const Key('text-save')));
     expect(inPanel(find.text('Antar cepat')), findsOneWidget);
 
-    // Catatan barang lewat editor baris.
+    // Catatan barang lewat editor baris (gulir panel ke atas dulu: pilihan
+    // pesanan berada di bawah daftar barang).
+    await tester.drag(inPanel(find.byType(Scrollable)).first, const Offset(0, 800));
+    await settle(tester);
     await tap(tester, inPanel(find.text('Kopi susu')));
     await tester.enterText(find.byKey(const Key('line-note')), 'tanpa gula');
     await tap(tester, find.byKey(const Key('line-save')));
@@ -247,7 +250,7 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('tablet/lanskap: dua panel, chip kelompok dari satuan, stepper di panel kanan', (tester) async {
+  testWidgets('tablet/lanskap: dua panel, tanpa kategori tidak ada chip, stepper di panel kanan', (tester) async {
     tester.view.physicalSize = const Size(1280, 800);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -256,13 +259,9 @@ void main() {
 
     expect(find.byKey(const Key('order-panel')), findsOneWidget);
     expect(find.text('Belum ada pesanan'), findsOneWidget);
-    expect(find.byKey(const Key('category-unit:gelas')), findsOneWidget);
-    expect(find.byKey(const Key('category-unit:pcs')), findsOneWidget);
-
-    await tap(tester, find.byKey(const Key('category-unit:pcs')));
-    expect(find.byKey(const Key('product-1')), findsNothing);
-    expect(find.byKey(const Key('product-2')), findsOneWidget);
-    await tap(tester, find.byKey(const Key('category-all')));
+    // Katalog tanpa kategori: tidak ada chip (dulu chip satuan "Gelas", "Pcs").
+    expect(find.byKey(const Key('category-chips')), findsNothing);
+    expect(find.byKey(const Key('category-unit:pcs')), findsNothing);
 
     await tap(tester, find.byKey(const Key('product-1')));
     expect(find.byKey(const Key('open-cart')), findsNothing, reason: 'Tablet tidak memakai bilah keranjang.');
@@ -381,10 +380,9 @@ void main() {
       expect(whatsappUri('halo', phone: null).toString(), 'https://wa.me/?text=halo');
     });
 
-    test('kelompok barang diturunkan dari jenis & satuan', () {
+    test('chip kategori dari kategori barang, bukan dari satuan/jenis', () {
       const jasa = Product(id: 3, name: 'Cuci', unit: 'kali', price: '5000', type: 'service');
-      final categories = posCategories([kopi, roti, jasa]);
-      expect(categories.map((category) => category.key), ['all', 'type:product', 'type:service', 'unit:gelas', 'unit:kali', 'unit:pcs']);
+      expect(posCategories([kopi, roti, jasa]).map((category) => category.key), ['all'], reason: 'Tanpa kategori: hanya Semua (chip disembunyikan).');
       expect(posCategories([kopi]).map((category) => category.key), ['all']);
     });
 

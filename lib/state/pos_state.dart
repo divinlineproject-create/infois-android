@@ -144,6 +144,25 @@ class PosActions {
     return CheckoutOutcome(sale, printed);
   }
 
+  /// Barang untuk kode hasil scan kamera / scanner / ketik: barcode dulu,
+  /// lalu SKU (sama dengan pencocokan server).
+  Future<Product?> productByCode(String code) async {
+    final workspace = await ref.read(workspaceProvider.future);
+    if (workspace == null || !workspace.usable) {
+      return null;
+    }
+    return workspace.local.productByCode(code);
+  }
+
+  /// Tambahkan barang dengan kode [code] ke pesanan; null bila tidak ada di katalog HP.
+  Future<Product?> addByCode(String code) async {
+    final product = await productByCode(code);
+    if (product != null) {
+      ref.read(cartProvider.notifier).add(product);
+    }
+    return product;
+  }
+
   Future<HeldOrderStore?> _heldStore() async {
     final workspace = await ref.read(workspaceProvider.future);
     return workspace == null ? null : HeldOrderStore(workspace.local);

@@ -144,17 +144,21 @@ class _PayScreenState extends ConsumerState<PayScreen> {
       ),
       const SizedBox(height: 8),
       if (change != null)
-        Row(children: [
-          Text('Kembalian', style: TextStyle(color: mutedText(context))),
-          const SizedBox(width: 12),
-          Expanded(
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerRight,
-              child: Text(rupiah(change), key: const Key('pay-change'), style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w700)),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: Space.l, vertical: Space.s),
+          decoration: BoxDecoration(color: Theme.of(context).colorScheme.surfaceContainer, borderRadius: BorderRadius.circular(Radii.m)),
+          child: Row(children: [
+            Text('Kembalian', style: TextStyle(color: mutedText(context), fontWeight: FontWeight.w500)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerRight,
+                child: Text(rupiah(change), key: const Key('pay-change'), style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700, color: Theme.of(context).colorScheme.primary)),
+              ),
             ),
-          ),
-        ]),
+          ]),
+        ),
       if (short != null) Text('Kurang ${rupiah(short)}', key: const Key('pay-short'), style: TextStyle(color: dangerText(context), fontWeight: FontWeight.w600)),
       if (transferPart != null && Money.isPositive(transferPart)) Text('Sisanya transfer: ${rupiah(transferPart)}'),
       const SizedBox(height: 12),
@@ -162,17 +166,19 @@ class _PayScreenState extends ConsumerState<PayScreen> {
     ];
 
     final header = <Widget>[
-      Card(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: Space.xl, vertical: Space.l + 4),
+        decoration: BoxDecoration(color: Theme.of(context).colorScheme.primaryContainer, borderRadius: BorderRadius.circular(Radii.l)),
+        child: DefaultTextStyle.merge(
+          style: TextStyle(color: Theme.of(context).colorScheme.onPrimaryContainer),
           child: Column(children: [
-            const Text('Total belanja'),
-            const SizedBox(height: 4),
+            const Text('Total belanja', style: TextStyle(fontWeight: FontWeight.w500)),
+            const SizedBox(height: Space.xs),
             FittedBox(
               fit: BoxFit.scaleDown,
-              child: Text(rupiah(total), key: const Key('pay-total'), style: TextStyle(fontSize: 34, fontWeight: FontWeight.w700, color: Theme.of(context).colorScheme.primary)),
+              child: Text(rupiah(total), key: const Key('pay-total'), style: TextStyle(fontSize: 34, fontWeight: FontWeight.w700, color: Theme.of(context).colorScheme.onPrimaryContainer)),
             ),
-            Text('${cart.itemCount} barang · ${cart.customer?.name ?? 'Pelanggan umum'}', textAlign: TextAlign.center, style: TextStyle(color: mutedText(context))),
+            Text('${cart.itemCount} barang · ${cart.customer?.name ?? 'Pelanggan umum'}', textAlign: TextAlign.center),
             if (orderInfo.isNotEmpty) Text(orderInfo, key: const Key('pay-order-info'), textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w600)),
           ]),
         ),
@@ -246,16 +252,24 @@ class _PayScreenState extends ConsumerState<PayScreen> {
           ...details,
         ]);
       }),
-      bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-          child: FilledButton(
-            key: const Key('pay-submit'),
-            onPressed: _busy || cart.isEmpty ? null : () => _pay(total),
-            style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(56)),
-            child: _busy
-                ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
-                : Text(_mode == PayMode.bon ? 'Simpan bon' : (_mode == PayMode.cash && change != null && Money.isPositive(change) ? 'Bayar · kembali ${rupiah(change)}' : 'Bayar')),
+      bottomNavigationBar: DecoratedBox(
+        decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface, border: Border(top: BorderSide(color: Theme.of(context).colorScheme.outlineVariant))),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(Space.l, Space.m, Space.l, Space.m),
+            child: FilledButton(
+              key: const Key('pay-submit'),
+              onPressed: _busy || cart.isEmpty
+                  ? null
+                  : () {
+                      HapticFeedback.mediumImpact();
+                      _pay(total);
+                    },
+              style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(56), textStyle: const TextStyle(fontFamily: 'Poppins', fontSize: 17, fontWeight: FontWeight.w700)),
+              child: _busy
+                  ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
+                  : Text(_mode == PayMode.bon ? 'Simpan bon' : (_mode == PayMode.cash && change != null && Money.isPositive(change) ? 'Bayar · kembali ${rupiah(change)}' : 'Bayar')),
+            ),
           ),
         ),
       ),

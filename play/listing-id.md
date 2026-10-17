@@ -11,10 +11,11 @@ yang dijejalkan.
 ## Nama aplikasi (maks. 30 karakter)
 
 ```
-Infois: Kasir & Pembukuan AI
+Infois POS: Kasir & Tim AI
 ```
 
-28 karakter. Alternatif lebih pendek: `Infois` (6).
+26 karakter. Nama di HP (ikon peluncur) sudah **Infois POS**; nama toko boleh lebih panjang.
+Alternatif: `Infois POS` (10).
 
 ## Deskripsi singkat (maks. 80 karakter)
 
@@ -27,12 +28,13 @@ Kasir offline, laporan usaha, dan Tim AI untuk pengguna Infois di HP.
 ## Deskripsi lengkap (maks. 4000 karakter)
 
 ```
-Infois adalah aplikasi pendamping untuk usaha yang sudah memakai Infois, layanan pembukuan dan kasir untuk UMKM. Pakai akun yang sama dengan Infois versi web.
+Infois POS adalah aplikasi pendamping untuk usaha yang sudah memakai Infois, layanan pembukuan dan kasir untuk UMKM. Pakai akun yang sama dengan Infois versi web.
 
 Penting: aplikasi ini untuk pengguna Infois yang sudah terdaftar. Akun dan akses aplikasi HP diatur oleh pemilik usaha atau admin Infois di perusahaan Anda.
 
 KASIR (POS)
-- Jualan cepat dari katalog barang: cari nama atau kode, kategori, harga grosir otomatis.
+- Jualan cepat dari katalog barang lengkap dengan foto: cari nama atau kode, pilih kategori, harga grosir otomatis.
+- Scan barcode barang dengan kamera HP (bisa scan terus untuk banyak barang) atau dengan scanner barcode Bluetooth/USB.
 - Tetap bisa mencatat penjualan saat internet putus. Transaksi tersimpan di HP dan terkirim otomatis begitu online lagi.
 - Bayar tunai, transfer, atau dicatat sebagai piutang pelanggan.
 - Cetak struk ke printer thermal Bluetooth 58 mm atau 80 mm, termasuk tiket pesanan dapur.
@@ -75,5 +77,5 @@ Catatan kejujuran (cek sebelum terbit):
 ## Catatan rilis pertama (maks. 500 karakter)
 
 ```
-Rilis pertama Infois di Google Play: kasir offline dengan printer Bluetooth, Tim AI (teks, voice note, foto nota), laporan penjualan, catatan transaksi, unduh PDF, dan hapus akun dari menu Akun.
+Rilis pertama Infois POS di Google Play: kasir offline dengan foto barang, kategori, scan barcode kamera, dan printer Bluetooth, Tim AI (teks, voice note, foto nota), laporan penjualan, catatan transaksi, unduh PDF, dan hapus akun dari menu Akun.
 ```

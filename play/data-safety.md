@@ -66,12 +66,22 @@ Tidak dikumpulkan (jawab **tidak**):
 | INTERNET, ACCESS_NETWORK_STATE | Server Infois, status Online/Offline | - |
 | BLUETOOTH_SCAN (neverForLocation), BLUETOOTH_CONNECT; BLUETOOTH/BLUETOOTH_ADMIN & lokasi hanya ≤ Android 11 | Printer struk | Dialog "Izinkan Bluetooth" sebelum mencari printer |
 | RECORD_AUDIO | Voice note Tim AI | Dialog "Izinkan mikrofon" sebelum rekaman pertama |
+| CAMERA | Scan barcode barang di kasir (mobile_scanner + ML Kit di dalam aplikasi) | Dialog "Izinkan kamera" saat tombol Scan pertama kali ditekan |
 | WRITE/READ_EXTERNAL_STORAGE hanya ≤ Android 9 | Simpan PDF ke folder Download | Diminta saat mengunduh |
 | WAKE_LOCK, RECEIVE_BOOT_COMPLETED | WorkManager: sinkron transaksi offline di latar | - |
 
 Dibuang dari manifest: `POST_NOTIFICATIONS`, `FOREGROUND_SERVICE` (bawaan plugin, tidak dipakai),
-`READ_MEDIA_*`. Kamera dibuka lewat aplikasi kamera sistem (image_picker), jadi tidak ada izin
-`CAMERA`. Tidak ada `QUERY_ALL_PACKAGES`.
+`READ_MEDIA_*`. Tidak ada `QUERY_ALL_PACKAGES`.
+
+**Kamera (`CAMERA`, sejak 1.0.0 "Infois POS")**: hanya untuk scan barcode barang di kasir. Gambar
+kamera diproses **di HP** oleh model barcode ML Kit yang dibundel di aplikasi (tanpa Google Play
+Services, tanpa internet); yang dipakai hanya teks kodenya untuk mencari barang di katalog HP.
+Gambar tidak disimpan, tidak diunggah, dan tidak dikirim ke server Infois atau pihak lain. Menurut
+definisi Google, data yang hanya diproses di perangkat dan tidak dikirim keluar **bukan** data
+yang "dikumpulkan", jadi formulir Data Safety tidak berubah (jangan centang Photos untuk scan).
+Foto nota Tim AI tetap lewat aplikasi kamera sistem (image_picker) seperti sebelumnya.
+Izin diminta hanya saat pengguna menekan tombol Scan, setelah penjelasan di aplikasi; bila
+ditolak, kasir tetap bisa mengetik kode atau memakai scanner Bluetooth/USB.
 
 Cadangan: `allowBackup=false` + `data_extraction_rules.xml` (tanpa cadangan cloud atau pindah
 perangkat; token login terikat Keystore HP dan transaksi offline tidak boleh terkirim dua kali).

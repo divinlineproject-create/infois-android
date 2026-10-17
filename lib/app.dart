@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'core/config.dart';
 import 'state/session.dart';
 import 'state/sync_controller.dart';
+import 'ui/focus.dart';
 import 'ui/router.dart';
 import 'ui/theme.dart';
 
@@ -42,6 +44,9 @@ class _InfoisAppState extends ConsumerState<InfoisApp> with WidgetsBindingObserv
         ref.read(syncProvider.notifier).syncNow();
       case AppLifecycleState.paused || AppLifecycleState.hidden || AppLifecycleState.detached:
         _markForeground(false);
+        // Android memunculkan lagi keyboard untuk isian yang masih fokus saat
+        // aplikasi dibuka kembali: lepas fokus sebelum ke latar.
+        dismissKeyboard();
       case AppLifecycleState.inactive:
         break;
     }
@@ -51,7 +56,7 @@ class _InfoisAppState extends ConsumerState<InfoisApp> with WidgetsBindingObserv
   Widget build(BuildContext context) {
     ref.watch(syncProvider);
     return MaterialApp.router(
-      title: 'Infois',
+      title: AppConfig.name,
       debugShowCheckedModeBanner: false,
       theme: buildTheme(Brightness.light),
       darkTheme: buildTheme(Brightness.dark),
@@ -60,6 +65,7 @@ class _InfoisAppState extends ConsumerState<InfoisApp> with WidgetsBindingObserv
       supportedLocales: const [Locale('id', 'ID'), Locale('en')],
       localizationsDelegates: const [GlobalMaterialLocalizations.delegate, GlobalWidgetsLocalizations.delegate, GlobalCupertinoLocalizations.delegate],
       routerConfig: ref.watch(routerProvider),
+      builder: (context, child) => TapToDismissKeyboard(child: child ?? const SizedBox.shrink()),
     );
   }
 }

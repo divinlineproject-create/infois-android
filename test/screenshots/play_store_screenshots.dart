@@ -213,7 +213,7 @@ void main() {
             const SizedBox(width: 56),
             const Expanded(
               child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Infois', style: TextStyle(fontFamily: 'Poppins', fontSize: 64, fontWeight: FontWeight.w700, color: Colors.white, height: 1.1)),
+                Text('Infois POS', style: TextStyle(fontFamily: 'Poppins', fontSize: 64, fontWeight: FontWeight.w700, color: Colors.white, height: 1.1)),
                 SizedBox(height: 12),
                 Text('Kasir, pembukuan, dan Tim AI untuk usaha Anda', style: TextStyle(fontFamily: 'Poppins', fontSize: 30, fontWeight: FontWeight.w500, color: Colors.white, height: 1.3)),
               ]),

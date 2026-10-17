@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/config.dart';
 import '../../core/store_policy.dart';
 import '../../data/api_client.dart';
 import '../../state/session.dart';
@@ -310,7 +311,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 key: _form,
                 child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                   const Center(child: BrandMark(size: 64)),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: Space.m),
+                  Text(
+                    AppConfig.name,
+                    key: const Key('app-name'),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, letterSpacing: 1.2, color: Theme.of(context).colorScheme.primary),
+                  ),
+                  const SizedBox(height: Space.xs),
                   Text('Masuk ke Infois', textAlign: TextAlign.center, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700)),
                   const SizedBox(height: 6),
                   const Text('Pakai akun yang sama dengan website.', textAlign: TextAlign.center),

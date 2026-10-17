@@ -13,6 +13,7 @@ import '../data/app_storage.dart';
 import '../data/local_db.dart';
 import '../data/outbox_store.dart';
 import '../domain/models.dart';
+import '../services/product_photos.dart';
 
 /// Diisi di main() dengan penyimpanan yang sudah dimuat.
 final storageProvider = Provider<AppStorage>((ref) => throw UnimplementedError('storageProvider belum diisi'));
@@ -607,6 +608,7 @@ class SessionController extends AsyncNotifier<SessionState> {
   static Future<void> Function(int userId, int tenantId) deleteCompanyData = _deleteCompanyDataFiles;
 
   static Future<void> _deleteCompanyDataFiles(int userId, int tenantId) async {
+    await ProductPhotoStore.deleteFor(userId, tenantId: tenantId);
     try {
       await deleteCompanyDataIn(Directory(await getDatabasesPath()), userId, tenantId);
     } catch (_) {
@@ -639,6 +641,7 @@ class SessionController extends AsyncNotifier<SessionState> {
   static Future<void> Function(int userId) deleteLocalData = _deleteLocalDataFiles;
 
   static Future<void> _deleteLocalDataFiles(int userId) async {
+    await ProductPhotoStore.deleteFor(userId);
     try {
       final directory = Directory(await getDatabasesPath());
       if (!directory.existsSync()) {

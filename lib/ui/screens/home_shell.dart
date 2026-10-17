@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/config.dart';
 import '../../domain/models.dart';
 import '../../state/session.dart';
 import '../../state/sync_controller.dart';
 import '../../state/workspace.dart';
+import '../focus.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 import 'ai_home_screen.dart';
@@ -69,9 +72,9 @@ class _HomeShellState extends ConsumerState<HomeShell> {
           : AppBar(
               titleSpacing: 16,
               title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(tenant?.name ?? 'Infois', overflow: TextOverflow.ellipsis),
+                Text(tenant?.name ?? AppConfig.name, overflow: TextOverflow.ellipsis),
                 if (master?.deviceCode != null)
-                  Text('Kasir ${master!.deviceCode} · ${session?.user?.name ?? ''}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w400)),
+                  Text('Kasir ${master!.deviceCode} · ${session?.user?.name ?? ''}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w400, color: mutedText(context))),
               ]),
               actions: [
                 Padding(padding: const EdgeInsets.only(right: 12), child: SyncStatusBadge(onTap: () => context.push('/sync'))),
@@ -121,15 +124,33 @@ class _HomeShellState extends ConsumerState<HomeShell> {
           // Scaffold ini dari tinggi isi tab: Scaffold di dalam tab (Tim AI,
           // Laporan, Catatan) tidak boleh menguranginya sekali lagi.
           data: MediaQuery.of(context).removePadding(removeTop: aiTab && anyBanner).removeViewInsets(removeBottom: true),
-          child: IndexedStack(index: index, children: [for (final (i, tab) in tabs.indexed) LazyTab(key: ValueKey(tab.key), active: i == index, builder: tab.builder)]),
+          // Tab tersembunyi tetap hidup tetapi tidak boleh memegang fokus:
+          // isian di tab lain (mis. kotak tulis Tim AI) tidak memunculkan
+          // keyboard di atas tab yang sedang dibuka.
+          child: IndexedStack(index: index, children: [
+            for (final (i, tab) in tabs.indexed)
+              ExcludeFocus(
+                excluding: i != index,
+                child: TabActive(active: i == index, child: LazyTab(key: ValueKey(tab.key), active: i == index, builder: tab.builder)),
+              ),
+          ]),
         )),
       ]),
       bottomNavigationBar: tabs.length < 2
           ? null
-          : NavigationBar(
-              selectedIndex: index,
-              onDestinationSelected: (value) => setState(() => _selected = tabs[value].key),
-              destinations: [for (final tab in tabs) NavigationDestination(icon: Icon(tab.icon), selectedIcon: Icon(tab.selectedIcon), label: tab.label)],
+          : DecoratedBox(
+              decoration: BoxDecoration(border: Border(top: BorderSide(color: Theme.of(context).colorScheme.outlineVariant))),
+              child: NavigationBar(
+                selectedIndex: index,
+                onDestinationSelected: (value) {
+                  dismissKeyboard();
+                  if (value != index) {
+                    HapticFeedback.selectionClick();
+                  }
+                  setState(() => _selected = tabs[value].key);
+                },
+                destinations: [for (final tab in tabs) NavigationDestination(icon: Icon(tab.icon), selectedIcon: Icon(tab.selectedIcon), label: tab.label)],
+              ),
             ),
     );
   }

@@ -10,6 +10,11 @@ bool _b(Object? value) => value == true || value == 1 || value == '1' || value =
 
 int? _i(Object? value) => value == null ? null : (value is int ? value : int.tryParse(value.toString()));
 
+String? _blank(Object? value) {
+  final text = value?.toString().trim() ?? '';
+  return text.isEmpty ? null : text;
+}
+
 class UnitOption {
   const UnitOption({required this.name, required this.factor, required this.price});
 
@@ -54,9 +59,19 @@ class Product {
     this.tiers = const [],
     this.kind,
     this.kindLabel,
+    this.barcode,
+    this.categoryId,
+    this.categoryName,
+    this.hasPhoto = false,
+    this.photoVersion,
+    this.photoUrl,
+    this.photoThumbUrl,
   });
 
-  factory Product.fromJson(Map<String, dynamic> json) => Product(
+  factory Product.fromJson(Map<String, dynamic> json) {
+    final category = json['category'] is Map ? Map<String, dynamic>.from(json['category'] as Map) : null;
+    final photoUrl = _blank(json['photo_url']);
+    return Product(
         id: _i(json['id'])!,
         sku: json['sku']?.toString(),
         name: _s(json['name']),
@@ -73,7 +88,16 @@ class Product {
         tiers: [for (final tier in (json['tiers'] as List? ?? const [])) PriceTier.fromJson(Map<String, dynamic>.from(tier as Map))],
         kind: (json['kind']?.toString() ?? '').isEmpty ? null : json['kind'].toString(),
         kindLabel: (json['kind_label']?.toString() ?? '').trim().isEmpty ? null : json['kind_label'].toString(),
+        barcode: _blank(json['barcode']),
+        categoryId: _i(json['category_id']) ?? _i(category?['id']),
+        categoryName: _blank(json['category_name']) ?? _blank(category?['name']),
+        // Server lama tanpa `has_photo`: ada photo_url = ada foto.
+        hasPhoto: json.containsKey('has_photo') ? _b(json['has_photo']) : photoUrl != null,
+        photoVersion: _blank(json['photo_version']),
+        photoUrl: photoUrl,
+        photoThumbUrl: _blank(json['photo_thumb_url']),
       );
+  }
 
   final int id;
   final String? sku;
@@ -97,6 +121,20 @@ class Product {
   /// Label jenis dari server, mis. "Bahan baku".
   final String? kindLabel;
 
+  /// Barcode dari Katalog web (scan kamera / scanner), atau null.
+  final String? barcode;
+
+  /// Kategori barang di Katalog web; null = tanpa kategori.
+  final int? categoryId;
+  final String? categoryName;
+
+  /// Barang punya foto di web. [photoVersion] berubah setiap foto diganti
+  /// (kunci cache foto di HP).
+  final bool hasPhoto;
+  final String? photoVersion;
+  final String? photoUrl;
+  final String? photoThumbUrl;
+
   /// Bahan baku yang dicentang "Tampilkan di POS" di web.
   bool get isRawMaterial => kind == 'raw_material';
 
@@ -117,6 +155,13 @@ class Product {
         'tiers': [for (final tier in tiers) tier.toJson()],
         'kind': kind,
         'kind_label': kindLabel,
+        'barcode': barcode,
+        'category_id': categoryId,
+        'category_name': categoryName,
+        'has_photo': hasPhoto,
+        'photo_version': photoVersion,
+        'photo_url': photoUrl,
+        'photo_thumb_url': photoThumbUrl,
       };
 
   /// Satuan dasar (isi 1) + satuan lain, sama dengan `ProductService::unitOptions()`.
@@ -165,6 +210,19 @@ class Product {
   }
 
   static int _compare6(String a, String b) => bccomp(Money.normalize(a, 6), Money.normalize(b, 6), 6);
+}
+
+/// Kategori barang dari Katalog web (chip Kategori di kasir).
+class ProductCategory {
+  const ProductCategory({required this.id, required this.name, this.sort = 0});
+
+  factory ProductCategory.fromJson(Map<String, dynamic> json) => ProductCategory(id: _i(json['id'])!, name: _s(json['name']), sort: _i(json['sort']) ?? 0);
+
+  final int id;
+  final String name;
+  final int sort;
+
+  Map<String, dynamic> toJson() => {'id': id, 'name': name, 'sort': sort};
 }
 
 class Customer {

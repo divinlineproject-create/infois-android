@@ -1,4 +1,4 @@
-# Merilis Infois ke Google Play
+# Merilis Infois POS ke Google Play
 
 Aplikasi HP Infois **hanya** didistribusikan lewat Google Play (keputusan pemilik,
 2026-10-11). Tidak ada unduhan APK dari website atau landing.
@@ -39,11 +39,22 @@ Versi ada di `pubspec.yaml`: `version: <versionName>+<versionCode>`.
   `AppConfig.version` di `lib/core/config.dart` (dikirim sebagai `X-App-Version` dan dipakai
   server untuk `min_app_version`).
 
-Versi saat ini **1.2.0+3** (Pusat Bantuan, verifikasi dua langkah saat masuk, pesan
-pemeliharaan, hasil Setujui Tim AI). Sebelumnya 1.1.0+2 (Akun Usaha). Untuk unggahan pertama ke
-Play angka ini boleh dipakai apa adanya; tidak perlu kembali ke `1.0.0+1`.
+Versi saat ini **1.0.0+1** = **rilis pertama di Google Play** (keputusan pemilik 2026-10-18:
+aplikasi belum pernah diunggah atau dipasang di mana pun, jadi penomoran dimulai dari 1.0.0,
+build 1). Nomor 1.1.0+2 dan 1.2.0+3 sebelumnya hanya build uji internal dan tidak dipakai lagi.
+APK uji lama (1.2.0+3) yang mungkin masih ada di HP tes harus **dihapus dulu** sebelum memasang
+build ini (versionCode lebih kecil tidak bisa dipasang di atasnya).
 
-Contoh rilis berikutnya: ubah ke `1.2.1+4`, lalu `AppConfig.version = '1.2.1'`.
+Isi 1.0.0 (Infois POS): nama aplikasi **Infois POS** (package tetap `id.infois.infois`), foto
+barang di kasir (cache offline), chip **Kategori** (menggantikan chip satuan), **scan barcode
+dengan kamera** (izin `CAMERA` baru, lihat `play/data-safety.md`) + scanner Bluetooth/USB tanpa
+keyboard layar, tampilan kasir baru, perbaikan keyboard yang muncul sendiri, ditambah semua fitur
+build uji sebelumnya (Pusat Bantuan, verifikasi dua langkah, pesan pemeliharaan, Akun Usaha).
+
+Server: `INFOIS_MOBILE_MIN_VERSION` (default `1.0.0`) **tidak boleh** lebih tinggi dari 1.0.0,
+kalau tidak aplikasi menampilkan "Versi aplikasi ini sudah lama".
+
+Contoh rilis berikutnya: ubah ke `1.0.1+2`, lalu `AppConfig.version = '1.0.1'`.
 
 ## 3. Membangun AAB
 

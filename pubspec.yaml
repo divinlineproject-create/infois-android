@@ -1,5 +1,5 @@
 name: infois
-description: "Infois — kasir offline, Tim AI, dan laporan untuk UMKM."
+description: "Infois POS — kasir offline, Tim AI, dan laporan untuk UMKM."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.2.0+3
+version: 1.0.0+1
 
 environment:
   sdk: ^3.7.0
@@ -65,6 +65,11 @@ dependencies:
   # Pusat Bantuan: urai HTML artikel (sudah disanitasi server) menjadi widget
   # sendiri. Paket ini sudah ikut terpasang lewat esc_pos_utils_plus.
   html: 0.15.7
+  # Kasir: scan barcode dengan kamera HP. 7.0.1 = versi terakhir yang masih
+  # dibangun dengan Kotlin 1.8 (proyek masih Kotlin Gradle plugin 1.8.22; 7.1+
+  # butuh Kotlin 2.x) dan sudah mendukung Flutter 3.29. Model barcode ML Kit
+  # dibundel di APK (bawaan paket): tanpa Google Play Services, jalan offline.
+  mobile_scanner: 7.0.1
   flutter_localizations:
     sdk: flutter
 

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 /// Ubah teks nominal dengan tombol keypad: angka, "000", hapus satu, kosongkan.
 /// Teks hanya berisi digit (rupiah tanpa desimal), maksimal 13 digit.
@@ -28,6 +29,11 @@ class PosKeypad extends StatelessWidget {
     ['000', '0', 'back'],
   ];
 
+  void _press(String key) {
+    HapticFeedback.selectionClick();
+    onKey(key);
+  }
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
@@ -43,18 +49,18 @@ class PosKeypad extends StatelessWidget {
                   height: 56,
                   child: key == 'back'
                       ? GestureDetector(
-                          onLongPress: () => onKey('clear'),
+                          onLongPress: () => _press('clear'),
                           child: FilledButton.tonal(
                             key: const Key('key-back'),
-                            onPressed: () => onKey('back'),
+                            onPressed: () => _press('back'),
                             style: FilledButton.styleFrom(padding: EdgeInsets.zero),
                             child: const Icon(Icons.backspace_outlined, semanticLabel: 'Hapus'),
                           ),
                         )
                       : OutlinedButton(
                           key: Key('key-$key'),
-                          onPressed: () => onKey(key),
-                          style: OutlinedButton.styleFrom(padding: EdgeInsets.zero, foregroundColor: scheme.onSurface),
+                          onPressed: () => _press(key),
+                          style: OutlinedButton.styleFrom(padding: EdgeInsets.zero, foregroundColor: scheme.onSurface, backgroundColor: scheme.surface),
                           child: Text(key, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600)),
                         ),
                 ),

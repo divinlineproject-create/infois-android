@@ -9,6 +9,7 @@ import 'package:sqflite/sqflite.dart' show DatabaseException;
 import '../data/api_client.dart';
 import '../domain/models.dart';
 import '../services/sync_engine.dart';
+import 'photo_state.dart';
 import 'session.dart';
 import 'workspace.dart';
 
@@ -266,6 +267,9 @@ class SyncController extends Notifier<SyncState> {
       }
       state = state.copyWith(syncing: false, lastSyncAt: summary.failed ? null : DateTime.now(), message: message, clearMessage: message == null, clearMaintenance: true);
       _setMaintenance(null);
+      if (!summary.failed) {
+        _prefetchPhotos(workspace);
+      }
     } on ApiException catch (error) {
       if (_disposed) {
         return;
@@ -335,6 +339,25 @@ class SyncController extends Notifier<SyncState> {
         await refreshPending();
       }
     }
+  }
+
+  /// Setelah sinkron: unduh thumbnail barang yang belum ada di HP (supaya
+  /// foto tetap tampil saat offline) dan buang foto barang yang sudah tidak
+  /// ada. Di latar, tidak menahan sinkron; gagal = dicoba sinkron berikutnya.
+  void _prefetchPhotos(Workspace workspace) {
+    unawaited(() async {
+      try {
+        final store = await ref.read(productPhotoStoreProvider.future);
+        if (store == null || _disposed || !workspace.usable) {
+          return;
+        }
+        final products = await workspace.local.hold(() => workspace.local.products(activeOnly: false, limit: 5000));
+        await store.keepOnly({for (final product in products) product.id});
+        await store.prefetchThumbs(products.where((product) => product.isActive));
+      } catch (_) {
+        // Foto opsional: kartu barang memakai inisial.
+      }
+    }());
   }
 
   void _setMaintenance(String? message) {

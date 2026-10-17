@@ -167,6 +167,13 @@ final productSearchProvider = FutureProvider.family<List<Product>, String>((ref,
   return workspace == null ? const [] : workspace.local.products(query: query);
 });
 
+/// Kategori barang tersimpan di HP (chip Kategori di kasir).
+final productCategoriesProvider = FutureProvider<List<ProductCategory>>((ref) async {
+  ref.watch(dataVersionProvider);
+  final workspace = await ref.watch(workspaceProvider.future);
+  return workspace == null ? const [] : workspace.local.categories();
+});
+
 final customerSearchProvider = FutureProvider.family<List<Customer>, String>((ref, query) async {
   ref.watch(dataVersionProvider);
   final workspace = await ref.watch(workspaceProvider.future);

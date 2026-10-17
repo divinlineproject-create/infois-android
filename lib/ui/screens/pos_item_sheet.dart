@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/format.dart';
 import '../../core/money.dart';
 import '../../domain/models.dart';
+import '../../services/product_photos.dart';
 import '../../state/pos_state.dart';
 import '../theme.dart';
+import '../widgets/product_image.dart';
 
 /// Catatan cepat yang sering dipakai kasir (ketuk untuk menambah).
 const posQuickNotes = ['Tanpa gula', 'Sedikit gula', 'Tanpa es', 'Es sedikit', 'Pedas', 'Tidak pedas', 'Dibungkus'];
@@ -86,8 +89,33 @@ class _PosItemSheetState extends ConsumerState<PosItemSheet> {
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Text(product.name, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
-          Text('${rupiah(price)} / $_unit${product.isRawMaterial ? ' · ${product.kindLabel ?? 'Bahan baku'}' : ''}', style: TextStyle(color: mutedText(context))),
+          if (product.hasPhoto) ...[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(Radii.l),
+              child: SizedBox(height: 180, child: ProductImage(key: const Key('item-photo'), product: product, size: PhotoSize.full, initialsSize: 44)),
+            ),
+            const SizedBox(height: Space.m),
+          ],
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            if (!product.hasPhoto) ...[
+              ClipRRect(borderRadius: BorderRadius.circular(Radii.m), child: SizedBox(width: 64, height: 64, child: ProductPlaceholder(name: product.name, fontSize: 20))),
+              const SizedBox(width: Space.m),
+            ],
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                if (product.categoryName != null)
+                  Text(product.categoryName!, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: mutedText(context))),
+                Text(product.name, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
+                const SizedBox(height: 2),
+                Text.rich(TextSpan(children: [
+                  TextSpan(text: rupiah(price), style: TextStyle(fontWeight: FontWeight.w700, color: Theme.of(context).colorScheme.primary)),
+                  TextSpan(text: ' / $_unit${product.isRawMaterial ? ' · ${product.kindLabel ?? 'Bahan baku'}' : ''}', style: TextStyle(color: mutedText(context))),
+                ])),
+                if (product.trackInventory && product.stockQuantity != null)
+                  Text('Stok ${qty(product.stockQuantity!)} ${product.unit}', style: TextStyle(fontSize: 12.5, color: product.isLowStock() ? warningText(context) : mutedText(context))),
+              ]),
+            ),
+          ]),
           if (options.length > 1) ...[
             const SizedBox(height: 16),
             const Text('Satuan', style: TextStyle(fontWeight: FontWeight.w600)),
@@ -124,6 +152,7 @@ class _PosItemSheetState extends ConsumerState<PosItemSheet> {
           FilledButton(
             key: const Key('item-add'),
             onPressed: () {
+              HapticFeedback.mediumImpact();
               ref.read(cartProvider.notifier).add(product, unit: _unit, quantity: _quantity, note: _note.text);
               Navigator.pop(context);
             },

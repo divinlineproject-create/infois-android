@@ -119,11 +119,16 @@ class _TenantPickerScreenState extends ConsumerState<TenantPickerScreen> {
                   index -= headers.length;
                   final tenant = tenants[index];
                   return Card(
+                    clipBehavior: Clip.antiAlias,
                     child: ListTile(
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      leading: CircleAvatar(
-                        backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.14),
-                        child: Text(tenant.name.isEmpty ? '?' : tenant.name[0].toUpperCase(), style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w700)),
+                      shape: const RoundedRectangleBorder(),
+                      leading: Container(
+                        width: 44,
+                        height: 44,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(color: Theme.of(context).colorScheme.primaryContainer, borderRadius: BorderRadius.circular(12)),
+                        child: Text(tenant.name.isEmpty ? '?' : tenant.name[0].toUpperCase(), style: TextStyle(color: Theme.of(context).colorScheme.onPrimaryContainer, fontWeight: FontWeight.w700, fontSize: 18)),
                       ),
                       title: Text(tenant.name, style: const TextStyle(fontWeight: FontWeight.w600)),
                       subtitle: Text(tenant.active ? (tenant.roleLabel ?? 'Anggota') : 'Sedang tidak aktif · hubungi pemilik usaha', style: TextStyle(color: tenant.active ? null : warningText(context))),

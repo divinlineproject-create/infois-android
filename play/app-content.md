@@ -15,7 +15,9 @@ di bagian 2 "Data yang kami kumpulkan" (`landing/resources/markdown/pages/kebija
    izin mikrofon hanya untuk merekam voice note Tim AI, dan izin Bluetooth hanya untuk printer
    struk. Di Android 11 ke bawah, sistem juga meminta izin lokasi untuk mencari printer
    Bluetooth; aplikasi tidak membaca, menyimpan, atau mengirim lokasi Anda. Foto nota diambil
-   lewat aplikasi kamera HP hanya saat Anda memilihnya.
+   lewat aplikasi kamera HP hanya saat Anda memilihnya. Izin kamera dipakai hanya saat Anda
+   membuka Scan barcode di kasir; gambar kamera diproses di HP untuk membaca barcode dan tidak
+   disimpan atau dikirim ke mana pun.
 ```
 
 ## Akses aplikasi (App access) untuk peninjau
@@ -36,7 +38,8 @@ menolak masuk bila perusahaan tidak punya paket aktif yang termasuk aplikasi HP.
   > purchases are possible in the app. Tabs: Kasir (point of sale, works offline), Tim AI (AI
   > assistant; type "2 cappuccino, cash" and tap Setujui on the proposal), Laporan (reports),
   > Catatan (records), Akun (account; "Hapus akun" opens the account deletion page). A Bluetooth
-  > thermal printer is optional.
+  > thermal printer is optional. In Kasir, the scan icon in the search bar scans a product
+  > barcode with the camera (camera permission is requested only then; images stay on the device).
 
 ## Iklan
 

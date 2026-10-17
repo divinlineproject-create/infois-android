@@ -17,6 +17,9 @@
     <uses-feature android:name="android.hardware.bluetooth" android:required="false" />
     <!-- Tim AI: voice note (mikrofon) dan foto nota (kamera lewat image_picker). -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Kasir: scan barcode barang dengan kamera (mobile_scanner). Diminta hanya saat
+         tombol Scan ditekan; gambar diproses di HP, tidak disimpan/dikirim. -->
+    <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <!-- Unduhan (PDF nota, lampiran, file Tim AI) ke folder Download. Android 10+
@@ -34,7 +37,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" tools:node="remove" />
 
     <application
-        android:label="Infois"
+        android:label="Infois POS"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher"

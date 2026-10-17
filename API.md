@@ -137,7 +137,9 @@ Saat dicatat: perusahaan dilepas dari daftar dan dari perusahaan aktif (kembali 
 
 Sinkron latar (WorkManager): 403 `perusahaan_ditutup` → dicatat dengan jumlah belum terkirim, perusahaan aktif dikosongkan sehingga tugas berikutnya dilewati; 403 `bukan_anggota` → tugas selesai tanpa galat (WorkManager tidak mengulang) dan aplikasi yang memastikannya lewat `GET /me` saat dibuka.
 
-**Urutan rilis (versi):** aplikasi 1.1.0 (penanganan ini) dirilis dulu. Server baru boleh menjawab `perusahaan_ditutup` bila `X-App-Version` ≥ `config('infois.mobile.closed_code_min_version')` = `1.1.0` **dan** ada bukti tutup (cache `closed-member:{tenant}:{user}`, 30 hari); selain itu tetap `bukan_anggota`. Setelah masa adopsi, naikkan `INFOIS_MOBILE_MIN_VERSION` ke `1.1.0` supaya aplikasi lama diminta memperbarui. Kode: `android/lib/state/session.dart` (`GoneCompany`, `companyGone`, `acknowledgeGone`, `refreshMe(notMemberOf:)`), `android/lib/state/sync_controller.dart`, `android/lib/services/background_sync.dart`; tes `android/test/closed_company_test.dart`.
+**Urutan rilis (versi):** aplikasi 1.1.0 (penanganan ini) dirilis dulu. Server baru boleh menjawab `perusahaan_ditutup` bila `X-App-Version` ≥ `config('infois.mobile.closed_code_min_version')` = `1.1.0` **dan** ada bukti tutup (cache `closed-member:{tenant}:{user}`, 30 hari); selain itu tetap `bukan_anggota`. Setelah masa adopsi, naikkan `INFOIS_MOBILE_MIN_VERSION` ke `1.1.0` supaya aplikasi lama diminta memperbarui.
+
+> **Penomoran ulang (2026-10-18):** rilis Play pertama memakai versi **1.0.0** ("Infois POS", sudah termasuk penanganan ini). Karena itu server **wajib** memakai `INFOIS_MOBILE_CLOSED_CODE_MIN_VERSION=1.0.0` (atau ubah bawaan `closed_code_min_version` ke `1.0.0`), dan `INFOIS_MOBILE_MIN_VERSION` tidak boleh di atas `1.0.0`. Tanpa itu aplikasi 1.0.0 mendapat `bukan_anggota` (tetap tertangani lewat `GET /me`, tetapi tanpa pesan "ditutup") atau diminta memperbarui. Kode: `android/lib/state/session.dart` (`GoneCompany`, `companyGone`, `acknowledgeGone`, `refreshMe(notMemberOf:)`), `android/lib/state/sync_controller.dart`, `android/lib/services/background_sync.dart`; tes `android/test/closed_company_test.dart`.
 
 ### Tim AI di Telegram (catatan, bukan endpoint HP)
 Akun Telegram dihubungkan ke satu perusahaan dengan dua cara: (1) di bot tekan **Bagikan nomor saya** — hanya nomor milik pengirim sendiri yang diterima, nomornya harus sama dengan **Nomor HP (untuk Telegram)** di profil web (`/app/profile`, kolom `users.phone`; awalan +62/62/0, spasi, dan tanda hubung disamakan); bila user punya beberapa perusahaan yang paketnya membuka Telegram dan ia punya akses Tim AI, bot menampilkan tombol pilih perusahaan; nomor yang dipakai lebih dari satu akun ditolak; (2) kode sekali pakai dari Tim AI web › Saluran Telegram › Hubungkan. Hak akses di Telegram = role user itu di perusahaan tersebut (sama dengan web). Aplikasi HP cukup mengarahkan pengguna ke cara ini bila ditanya; tidak ada endpoint API-nya.
@@ -168,7 +170,10 @@ Tanpa `since` = tarikan penuh. Dengan `since` = barang/pelanggan yang berubah se
   "products": {
     "items": [
       {
-        "id": 10, "sku": "KOP-01", "name": "Kopi bubuk", "type": "product", "unit": "pcs", "price": "25000.00", "tax_rate": "11.00",
+        "id": 10, "sku": "KOP-01", "barcode": "8991234567890", "name": "Kopi bubuk", "type": "product", "unit": "pcs", "price": "25000.00", "tax_rate": "11.00",
+        "category_id": 3, "category": { "id": 3, "name": "Minuman" },
+        "has_photo": true, "photo_version": "9c1e2a7b4d30",
+        "photo_url": "https://dashboard.infois.ai/api/v1/products/10/photo", "photo_thumb_url": "https://dashboard.infois.ai/api/v1/products/10/photo?size=thumb",
         "track_inventory": true, "stock_quantity": "12.000000", "stock_source": "own", "minimum_stock": "5.000000", "has_composition": false, "is_active": true,
         "units": [ { "name": "karton", "factor": "24.000000", "price": "550000.00" } ],
         "tiers": [ { "unit": "pcs", "min_quantity": "10.000000", "price": "23000.00" } ],
@@ -177,6 +182,7 @@ Tanpa `since` = tarikan penuh. Dengan `since` = barang/pelanggan yang berubah se
     ],
     "ids": [10, 11, 12]
   },
+  "categories": { "items": [ { "id": 3, "name": "Minuman", "sort": 1 }, { "id": 4, "name": "Makanan", "sort": 2 } ], "ids": [3, 4] },
   "customers": { "items": [ { "id": 7, "name": "Bu Ani", "phone": "0812", "email": null, "address": null, "client_uuid": null, "is_walk_in": false } ], "ids": [7, 8] },
   "accounts": { "items": [ { "id": 21, "code": "1-1100", "name": "Kas", "kind": "cash" }, { "id": 22, "code": "1-1200", "name": "Bank", "kind": "bank" } ], "ids": [21, 22], "default_cash_id": 21, "default_transfer_id": 22 },
   "warehouses": { "items": [ { "id": 1, "code": "UTAMA", "name": "Gudang Utama", "is_default": true, "is_active": true } ], "ids": [1] },
@@ -190,6 +196,13 @@ Tanpa `since` = tarikan penuh. Dengan `since` = barang/pelanggan yang berubah se
 - `type` hanya `product` | `service` (yang dikenal aplikasi lama). **Bahan baku** dikirim sebagai `type: "product"` (barang berstok, stok selalu dikelola) dengan jenis aslinya di **`kind`** (`product` | `service` | `raw_material`) dan **`kind_label`** ("Barang" | "Jasa" | "Bahan baku"). Bawaannya bahan baku tidak "Tampilkan di POS" sehingga tidak dikirim; yang dicentang tampil di kasir dengan label "Bahan baku" (aplikasi ≥ 1.2.0).
 - `receipt.show_qr` sudah memperhitungkan modul Verify dan pengaturan branding. QR offline = `verify_base_url + "/" + client_uuid` (server memakai `client_uuid` sebagai UID verifikasi saat nota diterbitkan).
 - `logo_url` diunduh dengan header yang sama (token + `X-Tenant`).
+- **Katalog kasir (aplikasi ≥ 1.0.0 "Infois POS"; field aditif, aplikasi lama mengabaikannya):**
+  - `barcode` (atau `null`): kode hasil scan kamera / scanner dicocokkan ke **barcode dulu, lalu SKU** (huruf besar/kecil tidak dibedakan) — sama dengan pencocokan server untuk `items[].code` di `sync/push`.
+  - `category_id` + `category` (`{id, name}` atau `null`): kategori barang di Katalog web. `categories` = **semua** kategori perusahaan (selalu lengkap, urut `sort` lalu nama). HP menampilkan chip "Semua" + kategori yang punya barang di kasir + "Lainnya" (barang tanpa kategori). Kategori diganti nama/dihapus → barangnya ikut terkirim ulang di tarikan `since`.
+  - `has_photo` + `photo_version` (12 karakter, berubah setiap foto diganti; `null` tanpa foto) = **kunci cache** foto di HP. Foto diunduh dari `GET /products/{id}/photo` (asli) atau `?size=thumb` (persegi 256 px) dengan token + `X-Tenant`; HP selalu memakai rute relatif ke server aplikasi (token tidak dikirim ke host lain) dan menambahkan `&v=<photo_version>`. `photo_url` / `photo_thumb_url` hanya informasi. Foto disimpan di HP per perusahaan (`{id}_{versi}_{t|f}`), jadi tetap tampil offline setelah pertama dimuat; versi lama dihapus.
+
+### `GET /products/{id}/photo?size=thumb`
+Foto barang (JPG/PNG/WebP; `size=thumb` = JPEG persegi kecil). Barang perusahaan lain / tanpa foto = 404. Header `ETag` = versi foto, `Cache-Control: private, max-age=86400`.
 
 ### `POST /sync/push`
 Kirim isi outbox **berurutan**, maksimal **50** item. Setiap item punya `client_uuid` (UUID v4 dari HP) → idempoten.

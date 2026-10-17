@@ -32,7 +32,11 @@ class LocalDb {
   bool get isOpen => !_closeRequested && db.isOpen;
 
   /// 2: tabel `held_orders` (pesanan tersimpan kasir).
-  static const int version = 2;
+  /// 3: kolom `barcode` + `category_id` di `products` (scan kamera, chip Kategori).
+  static const int version = 3;
+
+  /// Kunci meta daftar kategori barang (JSON, dari sync/pull).
+  static const String categoriesKey = 'product_categories';
 
   static String fileName(int userId, int tenantId) => 'infois_u${userId}_t$tenantId.db';
 
@@ -49,8 +53,12 @@ class LocalDb {
   static Future<void> _create(Database db) async {
     final batch = db.batch();
     batch.execute('CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT)');
-    batch.execute('CREATE TABLE products (id INTEGER PRIMARY KEY, name TEXT NOT NULL, sku TEXT, search TEXT NOT NULL, is_active INTEGER NOT NULL, data TEXT NOT NULL)');
+    batch.execute(
+      'CREATE TABLE products (id INTEGER PRIMARY KEY, name TEXT NOT NULL, sku TEXT, search TEXT NOT NULL, is_active INTEGER NOT NULL, data TEXT NOT NULL, '
+      'barcode TEXT, category_id INTEGER)',
+    );
     batch.execute('CREATE INDEX products_search ON products (search)');
+    batch.execute('CREATE INDEX products_barcode ON products (barcode)');
     batch.execute('CREATE TABLE customers (key TEXT PRIMARY KEY, id INTEGER, client_uuid TEXT, name TEXT NOT NULL, search TEXT NOT NULL, data TEXT NOT NULL)');
     batch.execute(
       'CREATE TABLE outbox (seq INTEGER PRIMARY KEY AUTOINCREMENT, client_uuid TEXT NOT NULL UNIQUE, type TEXT NOT NULL, data TEXT NOT NULL, '
@@ -75,6 +83,26 @@ class LocalDb {
       _createHeldOrders(batch);
     }
     await batch.commit(noResult: true);
+    if (from < 3) {
+      await _addCatalogColumns(db);
+    }
+  }
+
+  /// Versi 3: barcode & kategori. Data barang lama belum punya isinya, jadi
+  /// cursor sinkron dihapus: tarikan berikutnya penuh dan mengisi semuanya.
+  static Future<void> _addCatalogColumns(Database db) async {
+    final columns = {for (final row in await db.rawQuery('PRAGMA table_info(products)')) row['name'].toString()};
+    if (columns.isEmpty) {
+      return;
+    }
+    if (!columns.contains('barcode')) {
+      await db.execute('ALTER TABLE products ADD COLUMN barcode TEXT');
+    }
+    if (!columns.contains('category_id')) {
+      await db.execute('ALTER TABLE products ADD COLUMN category_id INTEGER');
+    }
+    await db.execute('CREATE INDEX IF NOT EXISTS products_barcode ON products (barcode)');
+    await db.delete('meta', where: 'key IN (?, ?)', whereArgs: ['sync_cursor', 'last_full_pull']);
   }
 
   /// Pesanan tersimpan (open bill): isi keranjang sebagai JSON, dilanjutkan nanti.
@@ -176,7 +204,9 @@ class LocalDb {
           'id': product.id,
           'name': product.name,
           'sku': product.sku,
-          'search': '${product.name} ${product.sku ?? ''}'.toLowerCase(),
+          'barcode': product.barcode,
+          'category_id': product.categoryId,
+          'search': '${product.name} ${product.sku ?? ''} ${product.barcode ?? ''} ${product.categoryName ?? ''}'.toLowerCase(),
           'is_active': product.isActive ? 1 : 0,
           'data': jsonEncode(product.toJson()),
         },
@@ -215,8 +245,39 @@ class LocalDb {
   }
 
   Future<Product?> productBySku(String sku) async {
-    final rows = await db.query('products', where: 'LOWER(sku) = ?', whereArgs: [sku.toLowerCase()], limit: 1);
+    final rows = await db.query('products', where: 'LOWER(sku) = ?', whereArgs: [sku.toLowerCase()], orderBy: 'is_active DESC', limit: 1);
     return rows.isEmpty ? null : Product.fromJson(Map<String, dynamic>.from(jsonDecode(rows.first['data'] as String) as Map));
+  }
+
+  /// Barang untuk kode hasil scan / ketik: barcode dulu, lalu SKU (sama
+  /// dengan pencocokan server saat penjualan dikirim). Huruf besar/kecil
+  /// tidak dibedakan; barang aktif didahulukan.
+  Future<Product?> productByCode(String code) async {
+    final text = code.trim();
+    if (text.isEmpty) {
+      return null;
+    }
+    final rows = await db.query('products', where: 'LOWER(barcode) = ?', whereArgs: [text.toLowerCase()], orderBy: 'is_active DESC', limit: 1);
+    if (rows.isNotEmpty) {
+      return Product.fromJson(Map<String, dynamic>.from(jsonDecode(rows.first['data'] as String) as Map));
+    }
+    return productBySku(text);
+  }
+
+  // ---------------------------------------------------------- categories
+
+  Future<void> saveCategories(List<ProductCategory> categories) =>
+      setMeta(categoriesKey, jsonEncode([for (final category in categories) category.toJson()]));
+
+  /// Kategori barang tersimpan, urut seperti di web (urutan lalu nama).
+  Future<List<ProductCategory>> categories() async {
+    final raw = await getMeta(categoriesKey);
+    if (raw == null) {
+      return const [];
+    }
+    final list = [for (final item in jsonDecode(raw) as List) ProductCategory.fromJson(Map<String, dynamic>.from(item as Map))];
+    list.sort((a, b) => a.sort != b.sort ? a.sort.compareTo(b.sort) : a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    return list;
   }
 
   Future<int> productCount() async => Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM products')) ?? 0;

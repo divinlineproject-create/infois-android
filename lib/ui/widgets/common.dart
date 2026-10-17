@@ -94,12 +94,21 @@ class EmptyState extends StatelessWidget {
           child: Padding(
             padding: EdgeInsets.all(compact ? 12 : 32),
             child: Column(mainAxisSize: MainAxisSize.min, children: [
-              Icon(icon, size: compact ? 32 : 56, color: Theme.of(context).colorScheme.primary),
+              Container(
+                width: compact ? 56 : 88,
+                height: compact ? 56 : 88,
+                decoration: BoxDecoration(color: Theme.of(context).colorScheme.primaryContainer, shape: BoxShape.circle),
+                alignment: Alignment.center,
+                child: Icon(icon, size: compact ? 28 : 40, color: Theme.of(context).colorScheme.onPrimaryContainer),
+              ),
               SizedBox(height: compact ? 8 : 16),
               Text(title, textAlign: TextAlign.center, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
               if (message != null) ...[
                 const SizedBox(height: 8),
-                Text(message!, textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodyMedium),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 360),
+                  child: Text(message!, textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: mutedText(context), height: 1.45)),
+                ),
               ],
               if (action != null) ...[const SizedBox(height: 20), action!],
             ]),

@@ -4,11 +4,14 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart' show printCapabilities;
+import 'package:flutter/foundation.dart' show ValueListenable, ValueNotifier;
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart' show BuildContext, ColoredBox, Key, ValueChanged, Widget;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:infois/data/api_client.dart';
 import 'package:infois/data/local_db.dart';
 import 'package:infois/domain/models.dart';
+import 'package:infois/services/code_scanner.dart';
 import 'package:infois/services/printing/printer_service.dart';
 import 'package:infois/services/sync_engine.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -163,4 +166,33 @@ List<String> mockClipboard() {
     return null;
   });
   return copied;
+}
+
+/// Pemindai kamera palsu: tes memanggil [emit] seolah kamera membaca kode.
+class FakeCodeScanner implements CodeScanner {
+  ValueChanged<String>? _onCode;
+  final ValueNotifier<bool?> _torch = ValueNotifier<bool?>(false);
+  ScannerProblem? problem;
+  bool disposed = false;
+  int torchToggles = 0;
+
+  void emit(String code) => _onCode?.call(code);
+
+  @override
+  Widget buildPreview(BuildContext context, {required ValueChanged<String> onCode, required Widget Function(BuildContext context, ScannerProblem problem) onProblem}) {
+    _onCode = onCode;
+    return problem == null ? const ColoredBox(key: Key('fake-camera'), color: Color(0xFF000000)) : onProblem(context, problem!);
+  }
+
+  @override
+  ValueListenable<bool?> get torch => _torch;
+
+  @override
+  Future<void> toggleTorch() async {
+    torchToggles++;
+    _torch.value = !(_torch.value ?? false);
+  }
+
+  @override
+  Future<void> dispose() async => disposed = true;
 }
