@@ -716,7 +716,11 @@ Future<void> playHelpVideo(BuildContext context, WidgetRef ref, HelpVideo video)
     return;
   }
   final platform = ref.read(filePlatformProvider);
-  final extension = p.extension(Uri.tryParse(video.url)?.path ?? '').toLowerCase();
+  // Server mengirim ekstensi lewat ?ext= (path URL sengaja tanpa titik
+  // ekstensi supaya tidak ditangkap nginx sebagai file statis).
+  final uri = Uri.tryParse(video.url);
+  final queryExtension = uri?.queryParameters['ext']?.trim() ?? '';
+  final extension = (queryExtension.isNotEmpty ? '.$queryExtension' : p.extension(uri?.path ?? '')).toLowerCase();
   final mime = extension == '.webm' ? 'video/webm' : 'video/mp4';
   final progress = ValueNotifier<double?>(null);
   // Dilepas setelah pemberitahuan progres benar-benar tertutup (animasi
