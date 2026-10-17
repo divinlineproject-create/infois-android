@@ -67,6 +67,9 @@ b) App access:
 
 c) Ads: No, my app does not contain ads.
 
+c2) Advertising ID: No, aplikasi tidak memakai advertising ID (tanpa iklan & analitik; manifest
+    rilis tidak memuat izin com.google.android.gms.permission.AD_ID).
+
 d) Content rating (kuesioner IARC):
    - Email: [ISI: email dukungan]
    - Category: All Other App Types (utilitas/produktivitas/bisnis), bukan game.
