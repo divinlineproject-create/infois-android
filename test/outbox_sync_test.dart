@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:infois/data/api_client.dart';
 import 'package:infois/data/local_db.dart';
 import 'package:infois/data/outbox_store.dart';
 import 'package:infois/domain/cart.dart';
@@ -207,6 +208,61 @@ void main() {
       final item = (await outbox.pending()).single;
       expect(item.attempts, 1);
       expect(item.lastError, contains('Tidak bisa terhubung'));
+    });
+
+    test('pemeliharaan (503 kanal_pemeliharaan): dilempar ke pemanggil, outbox tetap menunggu tanpa menambah percobaan', () async {
+      await pos.checkout(clientUuid: 'maint-1', cart: cartOf([(kopi, '1')]), payment: const PaymentInput(mode: PayMode.cash));
+      final server = FakeServer((options, body) => {
+            '_status': 503,
+            'code': 'kanal_pemeliharaan',
+            'message': 'Aplikasi HP Infois sedang dalam pemeliharaan. Penjualan yang tersimpan di HP tetap aman dan terkirim otomatis setelah selesai.',
+          });
+      final engine = SyncEngine(api: fakeApi(server), local: local, outbox: outbox);
+
+      await expectLater(engine.run(), throwsA(isA<ApiException>().having((error) => error.maintenance, 'maintenance', isTrue).having((error) => error.unauthenticated, 'unauthenticated', isFalse)));
+      final item = (await outbox.pending()).single;
+      expect(item.clientUuid, 'maint-1');
+      expect(item.attempts, 0, reason: 'Jeda coba ulang tidak bertambah karena pemeliharaan.');
+      expect(server.requests.where((request) => request.path == 'sync/pull'), isEmpty);
+    });
+
+    test('tarik data: bahan baku dikirim sebagai barang dengan label jenisnya; yang tidak tampil di POS ikut terhapus', () async {
+      await local.upsertProducts([const Product(id: 5, name: 'Biji kopi', unit: 'kg', price: '0.00', kind: 'raw_material', kindLabel: 'Bahan baku')]);
+      final server = FakeServer((options, body) {
+        if (options.path != 'sync/pull') {
+          return null;
+        }
+        return {
+          'cursor': 'c2',
+          'tenant': {'id': 1, 'name': 'Warung Tes'},
+          'receipt': {'width': 58, 'company': {'name': 'Warung Tes'}, 'logo_url': null},
+          'device': {'id': 3, 'code': 'K1', 'name': 'HP Tes'},
+          'menus': {'pos': false},
+          'user': {'id': 1, 'name': 'Sari'},
+          'products': {
+            'items': [
+              {'id': 1, 'name': 'Kopi susu', 'type': 'product', 'kind': 'product', 'kind_label': 'Barang', 'unit': 'gelas', 'price': '18000.00', 'tax_rate': '0.00', 'is_active': true, 'units': [], 'tiers': []},
+              {'id': 6, 'name': 'Gula aren', 'type': 'product', 'kind': 'raw_material', 'kind_label': 'Bahan baku', 'unit': 'kg', 'price': '30000.00', 'tax_rate': '0.00', 'track_inventory': true, 'stock_quantity': '4.000000', 'is_active': true, 'units': [], 'tiers': []},
+            ],
+            // Biji kopi (id 5) tidak lagi "Tampilkan di POS": tidak ada di ids.
+            'ids': [1, 6],
+          },
+          'customers': {'items': [], 'ids': []},
+          'accounts': {'items': [], 'ids': []},
+          'warehouses': {'items': [], 'ids': []},
+          'number_blocks': [],
+          'open_shift': null,
+        };
+      });
+      await SyncEngine(api: fakeApi(server), local: local, outbox: outbox).pull(forceFull: true);
+
+      final products = {for (final product in await local.products()) product.name: product};
+      expect(products.keys, ['Gula aren', 'Kopi susu']);
+      expect(products['Gula aren']!.type, 'product');
+      expect(products['Gula aren']!.isRawMaterial, isTrue);
+      expect(products['Gula aren']!.kindLabel, 'Bahan baku');
+      expect(products['Gula aren']!.trackInventory, isTrue);
+      expect(products['Kopi susu']!.isRawMaterial, isFalse);
     });
 
     test('tarik data: nomor terakhir mengikuti last_used server (pasang ulang aplikasi tidak mengulang nomor)', () async {

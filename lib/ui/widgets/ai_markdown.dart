@@ -1,6 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/store_policy.dart';
 import '../../services/file_downloads.dart';
@@ -259,6 +260,10 @@ enum AiLinkAction {
 
   /// Situs lain, atau teks tautan menyebut alamat yang berbeda: tanya dulu.
   confirm,
+
+  /// Artikel Pusat Bantuan Infois (`/bantuan/{slug}`): dibuka di layar
+  /// artikel aplikasi (lihat [helpArticleSlugFromUrl]).
+  helpArticle,
 }
 
 final _hostLike = RegExp(r'^(?:https?://)?(?:www\.)?((?:[a-z0-9-]+\.)+[a-z]{2,})(?:[/:?#]\S*)?$', caseSensitive: false);
@@ -272,6 +277,9 @@ AiLinkAction aiLinkAction(String url, {String? label}) {
   if (uri == null || !const {'http', 'https'}.contains(uri.scheme.toLowerCase()) || uri.host.isEmpty) {
     return AiLinkAction.block;
   }
+  if (helpArticleSlugFromUrl(url) != null) {
+    return AiLinkAction.helpArticle;
+  }
   // Halaman pembelian paket/koin (Langganan, Dompet Koin, harga) dan panel
   // dashboard (menu sampingnya memuat keduanya) tidak dibuka dari aplikasi
   // Play Store. Hapus akun & dokumen cetak tetap boleh.
@@ -283,6 +291,63 @@ AiLinkAction aiLinkAction(String url, {String? label}) {
   final shown = label == null ? null : _hostLike.firstMatch(label.trim())?.group(1)?.toLowerCase();
   final misleading = shown != null && shown != host && shown != host.replaceFirst(RegExp(r'^www\.'), '');
   return trusted && !misleading ? AiLinkAction.open : AiLinkAction.confirm;
+}
+
+/// Buka tautan dari isi yang tidak sepenuhnya kita tulis (jawaban Tim AI,
+/// artikel Pusat Bantuan) sesuai [aiLinkAction]: artikel bantuan dibuka di
+/// layar artikel aplikasi, tautan terlarang diabaikan (panel dashboard dengan
+/// pesan), situs di luar Infois dikonfirmasi dulu.
+Future<void> openUntrustedLink(BuildContext context, WidgetRef ref, String url, {String? label}) async {
+  switch (aiLinkAction(url, label: label)) {
+    case AiLinkAction.helpArticle:
+      await GoRouter.of(context).push('/bantuan/artikel/${Uri.encodeComponent(helpArticleSlugFromUrl(url)!)}');
+      return;
+    case AiLinkAction.block:
+      if (isWebPanelUrl(url) && !isPurchaseUrl(url)) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(const SnackBar(content: Text(blockedLinkMessage)));
+      }
+      return;
+    case AiLinkAction.open:
+      break;
+    case AiLinkAction.confirm:
+      if (!await confirmExternalLink(context, url)) {
+        return;
+      }
+  }
+  if (context.mounted) {
+    await openExternalLink(context, ref, url.trim());
+  }
+}
+
+/// Tanya dulu sebelum membuka situs di luar Infois: tampilkan alamat aslinya.
+Future<bool> confirmExternalLink(BuildContext context, String url, {String title = 'Buka tautan?', String intro = 'Tautan ini menuju situs di luar Infois:'}) async {
+  final host = Uri.tryParse(url.trim())?.host ?? url;
+  final ok = await showDialog<bool>(
+    context: context,
+    builder:
+        (dialog) => AlertDialog(
+          key: const Key('link-confirm'),
+          title: Text(title),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(intro),
+              const SizedBox(height: 8),
+              Text(host, style: const TextStyle(fontWeight: FontWeight.w700)),
+              const SizedBox(height: 4),
+              Text(url, maxLines: 3, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: mutedText(dialog))),
+              const SizedBox(height: 8),
+              Text('Jangan masukkan kata sandi atau data pembayaran bila Anda ragu.', style: TextStyle(fontSize: 12.5, color: mutedText(dialog))),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialog, false), child: const Text('Batal')),
+            FilledButton(key: const Key('link-confirm-open'), onPressed: () => Navigator.pop(dialog, true), child: const Text('Buka')),
+          ],
+        ),
+  );
+  return ok == true;
 }
 
 /// Jawaban Tim AI dalam Markdown ringan: **tebal**, _miring_, `kode`,
@@ -323,48 +388,7 @@ class _AiMarkdownState extends ConsumerState<AiMarkdown> {
       widget.onTapLink!(url);
       return;
     }
-    switch (aiLinkAction(url, label: label)) {
-      case AiLinkAction.block:
-        if (isWebPanelUrl(url) && !isPurchaseUrl(url)) {
-          ScaffoldMessenger.maybeOf(context)?.showSnackBar(const SnackBar(content: Text(blockedLinkMessage)));
-        }
-        return;
-      case AiLinkAction.open:
-        break;
-      case AiLinkAction.confirm:
-        final host = Uri.parse(url.trim()).host;
-        final ok = await showDialog<bool>(
-          context: context,
-          builder:
-              (dialog) => AlertDialog(
-                key: const Key('link-confirm'),
-                title: const Text('Buka tautan?'),
-                content: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('Tautan ini menuju situs di luar Infois:'),
-                    const SizedBox(height: 8),
-                    Text(host, style: const TextStyle(fontWeight: FontWeight.w700)),
-                    const SizedBox(height: 4),
-                    Text(url, maxLines: 3, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: mutedText(dialog))),
-                    const SizedBox(height: 8),
-                    Text('Jangan masukkan kata sandi atau data pembayaran bila Anda ragu.', style: TextStyle(fontSize: 12.5, color: mutedText(dialog))),
-                  ],
-                ),
-                actions: [
-                  TextButton(onPressed: () => Navigator.pop(dialog, false), child: const Text('Batal')),
-                  FilledButton(key: const Key('link-confirm-open'), onPressed: () => Navigator.pop(dialog, true), child: const Text('Buka')),
-                ],
-              ),
-        );
-        if (ok != true || !mounted) {
-          return;
-        }
-    }
-    if (mounted) {
-      await openExternalLink(context, ref, url.trim());
-    }
+    await openUntrustedLink(context, ref, url, label: label);
   }
 
   List<InlineSpan> _spans(String text, TextStyle base) {

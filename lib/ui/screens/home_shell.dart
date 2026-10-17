@@ -6,6 +6,7 @@ import '../../domain/models.dart';
 import '../../state/session.dart';
 import '../../state/sync_controller.dart';
 import '../../state/workspace.dart';
+import '../theme.dart';
 import '../widgets/common.dart';
 import 'ai_home_screen.dart';
 import 'akun_screen.dart';
@@ -57,6 +58,11 @@ class _HomeShellState extends ConsumerState<HomeShell> {
     // Tab Tim AI punya bilah atas sendiri (Riwayat · judul · Percakapan baru)
     // seperti aplikasi chat; status sinkron pindah ke laci Riwayat.
     final aiTab = tabs[index].key == 'ai';
+    final maintenance = ref.watch(maintenanceProvider);
+    final updateBanner = sync.mustUpdate && !_updateDismissed;
+    final anyBanner = updateBanner || maintenance != null;
+    // Tanpa bilah aplikasi (tab Tim AI) spanduk pertama tidak boleh di bawah status bar.
+    final bannerTop = aiTab ? EdgeInsetsDirectional.only(start: 16, top: 24 + MediaQuery.paddingOf(context).top) : null;
     return Scaffold(
       appBar: aiTab
           ? null
@@ -72,19 +78,49 @@ class _HomeShellState extends ConsumerState<HomeShell> {
               ],
             ),
       body: Column(children: [
-        if (sync.mustUpdate && !_updateDismissed)
+        if (updateBanner)
           MaterialBanner(
-            // Tanpa bilah aplikasi (tab Tim AI) spanduk tidak boleh di bawah status bar.
-            padding: aiTab ? EdgeInsetsDirectional.only(start: 16, top: 24 + MediaQuery.paddingOf(context).top) : null,
+            padding: bannerTop,
             content: const Text('Versi aplikasi ini sudah lama. Perbarui aplikasi Infois supaya data tetap tersimpan dengan benar.'),
             actions: [TextButton(onPressed: () => setState(() => _updateDismissed = true), child: const Text('Nanti'))],
+          ),
+        // Aplikasi HP dimatikan sementara oleh admin Infois (503
+        // kanal_pemeliharaan): tetap masuk, transaksi tetap di antrean HP.
+        if (maintenance != null)
+          Material(
+            key: const Key('maintenance-banner'),
+            color: warningText(context).withValues(alpha: 0.1),
+            child: SafeArea(
+              top: aiTab && !updateBanner,
+              bottom: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 8, 10),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [
+                    Icon(Icons.construction_rounded, size: 20, color: warningText(context)),
+                    const SizedBox(width: 8),
+                    const Expanded(child: Text('Aplikasi sedang pemeliharaan', style: TextStyle(fontWeight: FontWeight.w700))),
+                    TextButton(
+                      key: const Key('maintenance-retry'),
+                      onPressed: sync.syncing ? null : () => ref.read(syncProvider.notifier).syncNow(),
+                      child: const Text('Coba lagi'),
+                    ),
+                  ]),
+                  Text(maintenance, key: const Key('maintenance-message'), maxLines: 5, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13, height: 1.35)),
+                  if (sync.pending > 0) ...[
+                    const SizedBox(height: 4),
+                    Text('${sync.pending} transaksi aman tersimpan di HP dan terkirim otomatis setelah selesai.', key: const Key('maintenance-pending'), style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
+                  ],
+                ]),
+              ),
+            ),
           ),
         // Laporan & Catatan baru memanggil server saat tab-nya pertama dibuka.
         Expanded(child: MediaQuery(
           // Spanduk sudah memakai ruang status bar. Keyboard sudah dikurangi
           // Scaffold ini dari tinggi isi tab: Scaffold di dalam tab (Tim AI,
           // Laporan, Catatan) tidak boleh menguranginya sekali lagi.
-          data: MediaQuery.of(context).removePadding(removeTop: aiTab && sync.mustUpdate && !_updateDismissed).removeViewInsets(removeBottom: true),
+          data: MediaQuery.of(context).removePadding(removeTop: aiTab && anyBanner).removeViewInsets(removeBottom: true),
           child: IndexedStack(index: index, children: [for (final (i, tab) in tabs.indexed) LazyTab(key: ValueKey(tab.key), active: i == index, builder: tab.builder)]),
         )),
       ]),

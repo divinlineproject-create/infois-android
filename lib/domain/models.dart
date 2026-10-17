@@ -52,6 +52,8 @@ class Product {
     this.isActive = true,
     this.units = const [],
     this.tiers = const [],
+    this.kind,
+    this.kindLabel,
   });
 
   factory Product.fromJson(Map<String, dynamic> json) => Product(
@@ -69,6 +71,8 @@ class Product {
         isActive: json['is_active'] == null ? true : _b(json['is_active']),
         units: [for (final unit in (json['units'] as List? ?? const [])) UnitOption.fromJson(Map<String, dynamic>.from(unit as Map))],
         tiers: [for (final tier in (json['tiers'] as List? ?? const [])) PriceTier.fromJson(Map<String, dynamic>.from(tier as Map))],
+        kind: (json['kind']?.toString() ?? '').isEmpty ? null : json['kind'].toString(),
+        kindLabel: (json['kind_label']?.toString() ?? '').trim().isEmpty ? null : json['kind_label'].toString(),
       );
 
   final int id;
@@ -86,6 +90,16 @@ class Product {
   final List<UnitOption> units;
   final List<PriceTier> tiers;
 
+  /// Jenis asli di Katalog web: `product` | `service` | `raw_material`
+  /// (bahan baku dikirim sebagai [type] `product`); null dari server lama.
+  final String? kind;
+
+  /// Label jenis dari server, mis. "Bahan baku".
+  final String? kindLabel;
+
+  /// Bahan baku yang dicentang "Tampilkan di POS" di web.
+  bool get isRawMaterial => kind == 'raw_material';
+
   Map<String, dynamic> toJson() => {
         'id': id,
         'sku': sku,
@@ -101,6 +115,8 @@ class Product {
         'is_active': isActive,
         'units': [for (final unit in units) unit.toJson()],
         'tiers': [for (final tier in tiers) tier.toJson()],
+        'kind': kind,
+        'kind_label': kindLabel,
       };
 
   /// Satuan dasar (isi 1) + satuan lain, sama dengan `ProductService::unitOptions()`.

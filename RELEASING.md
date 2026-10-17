@@ -39,10 +39,11 @@ Versi ada di `pubspec.yaml`: `version: <versionName>+<versionCode>`.
   `AppConfig.version` di `lib/core/config.dart` (dikirim sebagai `X-App-Version` dan dipakai
   server untuk `min_app_version`).
 
-Versi saat ini **1.1.0+2** (sudah dinaikkan untuk fitur Akun Usaha). Untuk unggahan pertama ke
+Versi saat ini **1.2.0+3** (Pusat Bantuan, verifikasi dua langkah saat masuk, pesan
+pemeliharaan, hasil Setujui Tim AI). Sebelumnya 1.1.0+2 (Akun Usaha). Untuk unggahan pertama ke
 Play angka ini boleh dipakai apa adanya; tidak perlu kembali ke `1.0.0+1`.
 
-Contoh rilis berikutnya: ubah ke `1.1.1+3`, lalu `AppConfig.version = '1.1.1'`.
+Contoh rilis berikutnya: ubah ke `1.2.1+4`, lalu `AppConfig.version = '1.2.1'`.
 
 ## 3. Membangun AAB
 

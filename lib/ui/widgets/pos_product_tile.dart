@@ -116,6 +116,19 @@ class PosProductTile extends StatelessWidget {
                       child: Text(qty(inCart), textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
                     ),
                   ),
+                // Bahan baku yang ditampilkan di kasir: diberi label supaya
+                // tidak tertukar dengan barang jadi.
+                if (product.isRawMaterial)
+                  Positioned(
+                    left: 6,
+                    bottom: 4,
+                    child: Container(
+                      key: Key('product-kind-${product.id}'),
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.9), borderRadius: BorderRadius.circular(8)),
+                      child: Text(product.kindLabel ?? 'Bahan baku', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: mutedText(context))),
+                    ),
+                  ),
                 if (product.units.isNotEmpty || product.tiers.isNotEmpty)
                   Positioned(
                     right: 6,

@@ -7,6 +7,7 @@ import '../domain/record_models.dart';
 import '../state/records_state.dart';
 import 'screens/ai_chat_screen.dart';
 import 'screens/catatan_screen.dart';
+import 'screens/help_screens.dart';
 import 'screens/history_screen.dart';
 import 'screens/home_shell.dart';
 import 'screens/login_screen.dart';
@@ -68,6 +69,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/ai/percakapan',
         builder: (_, state) => AiChatScreen(conversationId: int.tryParse(state.uri.queryParameters['id'] ?? ''), initialText: state.extra is String ? state.extra as String : null),
       ),
+      // Pusat Bantuan (isi platform, cukup login).
+      GoRoute(path: '/bantuan', builder: (_, __) => const HelpHomeScreen()),
+      GoRoute(path: '/bantuan/kategori/:slug', builder: (_, state) => HelpCategoryScreen(slug: state.pathParameters['slug'] ?? '')),
+      GoRoute(path: '/bantuan/artikel/:slug', builder: (_, state) => HelpArticleScreen(slug: state.pathParameters['slug'] ?? '')),
       GoRoute(path: '/printer', builder: (_, __) => const PrinterSettingsScreen()),
       GoRoute(path: '/sync', builder: (_, __) => const SyncStatusScreen()),
       GoRoute(path: '/tutup-kasir', builder: (_, __) => const ShiftCloseScreen()),

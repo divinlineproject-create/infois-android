@@ -246,6 +246,50 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
+  testWidgets('usulan: bukti & mockup yang akan dilampirkan; setelah Setujui kalimat hasil + rincian di snackbar dan kartu', (tester) async {
+    final server = FakeServer(aiHandler(approve: 'outcome'));
+    await pumpApp(tester, server: server);
+    await openAiTab(tester);
+    await openHistory(tester);
+    await tester.tap(find.byKey(const Key('conversation-12')));
+    await settle(tester);
+
+    expect(find.text('Bukti: nota.jpg, struk.pdf akan dilampirkan'), findsOneWidget);
+    expect(find.text('Mockup: desain kaos.png akan ditambahkan'), findsOneWidget);
+
+    await tester.ensureVisible(find.byKey(const Key('approve-3')));
+    await tester.tap(find.byKey(const Key('approve-3')));
+    await settle(tester);
+
+    final snack = tester.widget<SnackBar>(find.byType(SnackBar));
+    expect(((snack.content as Text).data)!, 'Penjualan INV-0001 untuk Pak Budi berhasil dicatat sebesar Rp 30.000 · belum dibayar.\n• Piutang Pak Budi bertambah Rp 30.000\n• 📎 2 bukti transaksi dilampirkan');
+    expect(find.byKey(const Key('proposal-result-3')), findsOneWidget);
+    expect(find.text('Penjualan INV-0001 untuk Pak Budi berhasil dicatat sebesar Rp\u00A030.000 · belum dibayar.'), findsOneWidget);
+    expect(find.text('Piutang Pak Budi bertambah Rp\u00A030.000'), findsOneWidget);
+    expect(find.text('📎 2 bukti transaksi dilampirkan'), findsOneWidget);
+    expect(find.textContaining('akan dilampirkan'), findsNothing, reason: 'Sudah tercatat.');
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('usulan gagal dicatat (422): alasan tampil di kartu, usulan tetap menunggu', (tester) async {
+    final server = FakeServer(aiHandler(approve: 'fail'));
+    await pumpApp(tester, server: server);
+    await openAiTab(tester);
+    await openHistory(tester);
+    await tester.tap(find.byKey(const Key('conversation-12')));
+    await settle(tester);
+
+    await tester.ensureVisible(find.byKey(const Key('approve-3')));
+    await tester.tap(find.byKey(const Key('approve-3')));
+    await settle(tester);
+
+    expect(find.descendant(of: find.byType(SnackBar), matching: find.text('Gagal dicatat: Harga "Kopi susu" belum diisi.')), findsOneWidget);
+    expect(find.descendant(of: find.byKey(const Key('proposal-3')), matching: find.text('Harga "Kopi susu" belum diisi.')), findsOneWidget);
+    expect(find.byKey(const Key('approve-3')), findsOneWidget, reason: 'Masih bisa diubah lalu disetujui lagi.');
+    expect(find.text('Bukti: nota.jpg, struk.pdf akan dilampirkan'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets('file dari Tim AI: kartu file dengan Buka dan Bagikan (diunduh sekali)', (tester) async {
     final files = FakeFilePlatform();
     final server = FakeServer(aiHandler(withReport: true));
@@ -451,7 +495,7 @@ void main() {
 /// Server palsu: ping + sinkron minimal, dan semua endpoint Tim AI
 /// (API.md › 6). [onRun] dipanggil setiap GET /ai/runs/7; polling pertama
 /// masih berjalan, berikutnya selesai.
-Map<String, dynamic>? Function(RequestOptions options, Map<String, dynamic>? body) aiHandler({int Function()? onRun, Map<String, dynamic>? menus, Map<String, dynamic>? overview, bool withReport = false}) {
+Map<String, dynamic>? Function(RequestOptions options, Map<String, dynamic>? body) aiHandler({int Function()? onRun, Map<String, dynamic>? menus, Map<String, dynamic>? overview, bool withReport = false, String approve = 'ok'}) {
   var polls = 0;
   return (options, body) {
     final path = options.path;
@@ -510,7 +554,7 @@ Map<String, dynamic>? Function(RequestOptions options, Map<String, dynamic>? bod
           'active_run_id': null,
           'messages': [
             {'id': 40, 'conversation_id': 12, 'run_id': 7, 'role': 'user', 'content': 'jual 2 kopi susu ke pak budi', 'failed': false, 'coins': null, 'teams': [], 'run_status': 'completed', 'created_at': '2026-10-09T09:00:00+07:00', 'attachments': [], 'proposals': []},
-            assistantJson(withReport: withReport),
+            assistantJson(withReport: withReport, withFiles: approve != 'ok'),
           ],
         };
       case 'ai/attachments/41/0':
@@ -526,6 +570,21 @@ Map<String, dynamic>? Function(RequestOptions options, Map<String, dynamic>? bod
           return {'id': 7, 'conversation_id': 12, 'status': 'running', 'done': false, 'error': null, 'coins_charged': null, 'assistant_message': null, 'proposals': []};
         }
         return {'id': 7, 'conversation_id': 12, 'status': 'completed', 'done': true, 'error': null, 'coins_charged': '4.260', 'assistant_message': assistantJson(), 'proposals': [proposalJson()]};
+      case 'ai/proposals/3/approve' when approve == 'outcome':
+        return {
+          'proposal': proposalJson(status: 'executed', statusLabel: 'Tercatat', resultLabel: 'INV-0001 · Rp 30.000', resultMessage: 'Penjualan INV-0001 untuk Pak Budi berhasil dicatat sebesar Rp 30.000 · belum dibayar.', resultDetails: ['Piutang Pak Budi bertambah Rp 30.000', '📎 2 bukti transaksi dilampirkan']),
+          'message': 'Penjualan INV-0001 untuk Pak Budi berhasil dicatat sebesar Rp 30.000 · belum dibayar.',
+          'details': ['Piutang Pak Budi bertambah Rp 30.000', '📎 2 bukti transaksi dilampirkan'],
+        };
+      case 'ai/proposals/3/approve' when approve == 'fail':
+        return {
+          '_status': 422,
+          'code': 'ditolak',
+          'message': 'Gagal dicatat: Harga "Kopi susu" belum diisi.',
+          'reason': 'Harga "Kopi susu" belum diisi.',
+          'details': [],
+          'proposal': proposalJson(error: 'Harga "Kopi susu" belum diisi.', withFiles: true),
+        };
       case 'ai/proposals/3/approve':
         return {
           'proposal': proposalJson(status: 'executed', statusLabel: 'Tercatat', resultLabel: 'INV-0001 · Rp 30.000, lunas'),
@@ -550,7 +609,7 @@ Map<String, dynamic> conversationJson() => {
       'updated_at': '2026-10-09T09:00:05+07:00',
     };
 
-Map<String, dynamic> assistantJson({bool withReport = false}) => {
+Map<String, dynamic> assistantJson({bool withReport = false, bool withFiles = false}) => {
       'id': 41,
       'conversation_id': 12,
       'run_id': 7,
@@ -566,10 +625,10 @@ Map<String, dynamic> assistantJson({bool withReport = false}) => {
       'attachments': [
         if (withReport) {'index': 0, 'name': 'Laba rugi Oktober.pdf', 'mime': 'application/pdf', 'size': 24576, 'kind': 'report', 'seconds': null, 'transcript': null, 'url': 'https://dashboard.infois.ai/api/v1/ai/attachments/41/0'},
       ],
-      'proposals': [proposalJson()],
+      'proposals': [proposalJson(withFiles: withFiles)],
     };
 
-Map<String, dynamic> proposalJson({String status = 'pending', String statusLabel = 'Menunggu persetujuan', String? resultLabel}) => {
+Map<String, dynamic> proposalJson({String status = 'pending', String statusLabel = 'Menunggu persetujuan', String? resultLabel, String? resultMessage, List<String> resultDetails = const [], String? error, bool withFiles = false}) => {
       'id': 3,
       'conversation_id': 12,
       'run_id': 7,
@@ -601,8 +660,12 @@ Map<String, dynamic> proposalJson({String status = 'pending', String statusLabel
         'payment': 'Belum dibayar, ditagih ke pelanggan nanti',
         'warnings': [],
       },
-      'error': null,
+      'error': error,
       'result_label': resultLabel,
+      'result_message': resultMessage,
+      'result_details': resultDetails,
+      'proof_files': withFiles && status == 'pending' ? ['nota.jpg', 'struk.pdf'] : [],
+      'mockup_files': withFiles && status == 'pending' ? ['desain kaos.png'] : [],
       'result_url': null,
       'print_links': [],
       'decided_at': status == 'pending' ? null : '2026-10-09T09:01:00+07:00',

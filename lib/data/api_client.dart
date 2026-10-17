@@ -36,6 +36,23 @@ class ApiException implements Exception {
   /// aplikasi lama). Dipastikan lewat `GET /me` sebelum data HP dihapus.
   bool get notMember => status == 403 && code == notMemberCode;
 
+  /// Verifikasi dua langkah saat masuk (API.md › Login): kode belum
+  /// dikirim, salah, atau terlalu sering salah.
+  static const twoFactorRequiredCode = 'butuh_kode_2fa';
+  static const twoFactorInvalidCode = 'kode_2fa_salah';
+  static const twoFactorThrottledCode = 'kode_2fa_terlalu_sering';
+
+  bool get twoFactorRequired => code == twoFactorRequiredCode;
+
+  /// Cara verifikasi akun ini dari `metode_2fa`: `aplikasi` dan/atau `email`.
+  List<String> get twoFactorMethods => [for (final method in (data?['metode_2fa'] as List? ?? const [])) method.toString()];
+
+  /// Aplikasi HP sedang dimatikan sementara oleh admin Infois (503
+  /// `kanal_pemeliharaan`). Sesi tetap; transaksi tetap di antrean HP.
+  bool get maintenance => code == maintenanceCode;
+
+  static const maintenanceCode = 'kanal_pemeliharaan';
+
   static const companyClosedCode = 'perusahaan_ditutup';
   static const notMemberCode = 'bukan_anggota';
 

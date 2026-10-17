@@ -150,6 +150,39 @@ bool isWebPanelUrl(String url) {
   return !(segments.length >= 2 && segments[1] == deleteAccountPath.split('/').last);
 }
 
+/// Slug artikel Pusat Bantuan dari tautan web Infois (`/bantuan/{slug}`
+/// atau `/app/{perusahaan}/pusat-bantuan/artikel/{slug}`, mis. dari jawaban
+/// Tim AI), atau null. Tautan ini dibuka di layar artikel aplikasi, bukan di
+/// browser (halaman panel tetap tidak dibuka).
+String? helpArticleSlugFromUrl(String url) {
+  final uri = Uri.tryParse(url.trim());
+  if (uri == null) {
+    return null;
+  }
+  if (uri.host.isEmpty) {
+    // Relatif ("/bantuan/…"); bukan "mailto:" / "#bagian".
+    if (uri.hasScheme || !uri.path.startsWith('/')) {
+      return null;
+    }
+  } else {
+    final host = uri.host.toLowerCase();
+    final serverHost = Uri.tryParse(AppConfig.serverUrl)?.host.toLowerCase();
+    final dashboard = (host.endsWith('.infois.ai') && host != 'www.infois.ai') || host == serverHost;
+    if (!dashboard || !const {'http', 'https'}.contains(uri.scheme.toLowerCase())) {
+      return null;
+    }
+  }
+  final segments = [for (final segment in uri.pathSegments) if (segment.isNotEmpty) segment];
+  final slugPattern = RegExp(r'^[A-Za-z0-9-]+$');
+  if (segments.length == 2 && segments[0].toLowerCase() == 'bantuan' && slugPattern.hasMatch(segments[1]) && segments[1].toLowerCase() != 'media') {
+    return segments[1];
+  }
+  if (segments.length == 5 && segments[0].toLowerCase() == 'app' && segments[2].toLowerCase() == 'pusat-bantuan' && segments[3].toLowerCase() == 'artikel' && slugPattern.hasMatch(segments[4])) {
+    return segments[4];
+  }
+  return null;
+}
+
 /// Tautan yang tidak dibuka aplikasi Play Store: halaman pembelian dan
 /// halaman panel dashboard (lihat [isPurchaseUrl], [isWebPanelUrl]).
 bool isBlockedInAppUrl(String url) => isPurchaseUrl(url) || isWebPanelUrl(url);

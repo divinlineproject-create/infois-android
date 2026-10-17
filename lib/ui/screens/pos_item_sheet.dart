@@ -87,7 +87,7 @@ class _PosItemSheetState extends ConsumerState<PosItemSheet> {
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Text(product.name, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
-          Text('${rupiah(price)} / $_unit', style: TextStyle(color: mutedText(context))),
+          Text('${rupiah(price)} / $_unit${product.isRawMaterial ? ' · ${product.kindLabel ?? 'Bahan baku'}' : ''}', style: TextStyle(color: mutedText(context))),
           if (options.length > 1) ...[
             const SizedBox(height: 16),
             const Text('Satuan', style: TextStyle(fontWeight: FontWeight.w600)),

@@ -91,9 +91,10 @@ class SyncEngine {
         final response = await api.post('sync/push', data: {'items': [for (final item in items) item.toPush()]}, timeout: pushTimeout);
         results = [for (final result in (response['results'] as List? ?? const [])) Map<String, dynamic>.from(result as Map)];
       } on ApiException catch (error) {
-        if (error.companyClosed || error.notMember) {
-          // Bukan galat per transaksi: perusahaan ditutup / user dikeluarkan.
-          // Pemanggil yang memutuskan (pesan + hapus data), tanpa coba ulang.
+        if (error.companyClosed || error.notMember || error.maintenance) {
+          // Bukan galat per transaksi: perusahaan ditutup / user dikeluarkan /
+          // aplikasi HP sedang pemeliharaan. Pemanggil yang memutuskan;
+          // transaksi tetap di antrean tanpa menambah hitungan percobaan.
           rethrow;
         }
         await outbox.markAttemptFailed(items, error.message);

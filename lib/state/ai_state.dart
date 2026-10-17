@@ -628,7 +628,7 @@ class AiChatController extends AutoDisposeFamilyNotifier<AiChatState, int> {
         return true;
       }
       _replaceProposal(result.proposal);
-      state = state.copyWith(notice: result.message);
+      state = state.copyWith(notice: outcomeNotice(result.message, result.details));
       ref.invalidate(aiOverviewProvider);
       return true;
     } on ApiException catch (error) {
@@ -636,8 +636,14 @@ class AiChatController extends AutoDisposeFamilyNotifier<AiChatState, int> {
         return false;
       }
       _expireIfUnauthenticated(ref, error);
+      final fresh = error.data?['proposal'];
       if (error.code == 'sudah_diproses') {
         await load();
+      } else if (fresh is Map && error.code == 'ditolak') {
+        // Usulan tetap menunggu dengan alasan gagalnya (`reason`) di kartu.
+        final updated = AiProposal.fromJson(Map<String, dynamic>.from(fresh));
+        final reason = error.data?['reason']?.toString();
+        _replaceProposal(updated.error == null || updated.error!.isEmpty ? updated.copyWith(error: reason ?? error.message) : updated);
       } else {
         _replaceProposal(proposal.copyWith(error: error.message));
       }
@@ -664,7 +670,7 @@ class AiChatController extends AutoDisposeFamilyNotifier<AiChatState, int> {
         return;
       }
       _replaceProposal(result.proposal);
-      state = state.copyWith(notice: result.message);
+      state = state.copyWith(notice: outcomeNotice(result.message, result.details));
       ref.invalidate(aiOverviewProvider);
     } on ApiException catch (error) {
       if (!_alive) {
@@ -690,5 +696,8 @@ class AiChatController extends AutoDisposeFamilyNotifier<AiChatState, int> {
     }
   }
 }
+
+/// Pesan hasil Setujui/Tolak: kalimat utama + rincian per baris.
+String outcomeNotice(String message, List<String> details) => [message, for (final line in details) '• $line'].join('\n');
 
 final aiChatProvider = NotifierProvider.autoDispose.family<AiChatController, AiChatState, int>(AiChatController.new);

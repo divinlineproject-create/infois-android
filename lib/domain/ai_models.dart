@@ -251,6 +251,10 @@ class AiProposal {
     this.printLinks = const [],
     this.decidedAt,
     this.createdAt,
+    this.resultMessage,
+    this.resultDetails = const [],
+    this.proofFiles = const [],
+    this.mockupFiles = const [],
   });
 
   factory AiProposal.fromJson(Map<String, dynamic> json) => AiProposal(
@@ -271,7 +275,16 @@ class AiProposal {
         printLinks: _maps(json['print_links']),
         decidedAt: _date(json['decided_at']),
         createdAt: _date(json['created_at']),
+        resultMessage: (json['result_message']?.toString() ?? '').trim().isEmpty ? null : json['result_message'].toString(),
+        resultDetails: _strings(json['result_details']),
+        proofFiles: _strings(json['proof_files']),
+        mockupFiles: _strings(json['mockup_files']),
       );
+
+  static List<String> _strings(Object? value) => [
+        for (final item in value is List ? value : const [])
+          if (item != null && item.toString().trim().isNotEmpty) item.toString(),
+      ];
 
   final int id;
   final int? conversationId;
@@ -292,6 +305,17 @@ class AiProposal {
   final List<Map<String, dynamic>> printLinks;
   final DateTime? decidedAt;
   final DateTime? createdAt;
+
+  /// Kalimat hasil setelah disetujui/ditolak, mis. "Penjualan INV-0012 …
+  /// berhasil dicatat", dan rinciannya (dampak kas, bukti dilampirkan).
+  final String? resultMessage;
+  final List<String> resultDetails;
+
+  /// Nama file bukti (foto/PDF dari chat) yang akan dilampirkan saat disetujui.
+  final List<String> proofFiles;
+
+  /// Desain yang akan menjadi mockup pesanan penjualan saat disetujui.
+  final List<String> mockupFiles;
 
   bool get pending => status == 'pending';
   bool get executed => status == 'executed';
@@ -318,6 +342,10 @@ class AiProposal {
         printLinks: printLinks,
         decidedAt: decidedAt,
         createdAt: createdAt,
+        resultMessage: resultMessage,
+        resultDetails: resultDetails,
+        proofFiles: proofFiles,
+        mockupFiles: mockupFiles,
       );
 }
 

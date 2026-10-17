@@ -42,6 +42,12 @@ class Workspace {
   bool get usable => !disposed && local.isOpen;
 }
 
+/// Pesan pemeliharaan dari server (503 `kanal_pemeliharaan`: aplikasi HP
+/// dimatikan sementara oleh admin Infois), atau null. Diisi dari galat rute
+/// mana pun, dikosongkan setelah sinkron berhasil. Tidak mengeluarkan
+/// pengguna; transaksi offline tetap di antrean HP.
+final maintenanceProvider = StateProvider<String?>((ref) => null);
+
 /// Workspace aktif yang siap dipakai, atau null. Saat workspace sedang dibuat
 /// ulang (ganti perusahaan, keluar) nilainya null, bukan workspace lama yang
 /// database-nya sedang ditutup.
@@ -107,6 +113,8 @@ final workspaceProvider = FutureProvider<Workspace?>((ref) async {
   api.onError = (error) {
     if (error.mobileAccessDenied && !workspace.disposed) {
       unawaited(controller.dropTenant(tenant.id, error));
+    } else if (error.maintenance && !workspace.disposed) {
+      ref.read(maintenanceProvider.notifier).state = error.message;
     } else if (error.companyClosed && !workspace.disposed) {
       // Perusahaan ditutup (dari rute mana pun): pesan + lepas perusahaan.
       unawaited(controller.companyGone(tenant.id, reason: GoneReason.closed, message: error.message, local: local));

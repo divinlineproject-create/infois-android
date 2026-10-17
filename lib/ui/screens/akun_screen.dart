@@ -101,7 +101,7 @@ Future<void> showDeleteAccountSheet(BuildContext context, WidgetRef ref, String 
 }
 
 /// Akun: profil, ganti perusahaan, printer, status sinkron, tampilan,
-/// kebijakan privasi, hapus akun, keluar.
+/// Pusat Bantuan, kebijakan privasi, hapus akun, keluar.
 class AkunScreen extends ConsumerStatefulWidget {
   const AkunScreen({super.key});
 
@@ -349,6 +349,14 @@ class _AkunScreenState extends ConsumerState<AkunScreen> {
       // hanya disebut sebagai tempat pengaturan lengkap (tanpa tautan).
       Card(
         child: Column(children: [
+          ListTile(
+            key: const Key('akun-help'),
+            leading: const Icon(Icons.help_outline),
+            title: const Text('Pusat Bantuan'),
+            subtitle: const Text('Panduan memakai Infois, langkah demi langkah'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push('/bantuan'),
+          ),
           ListTile(
             key: const Key('akun-web-info'),
             leading: const Icon(Icons.computer_outlined),

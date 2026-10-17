@@ -779,7 +779,44 @@ class ProposalCard extends StatelessWidget {
                 decoration: BoxDecoration(color: Brand.danger.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(10)),
                 child: Text(proposal.error!, style: TextStyle(fontSize: 13, color: dangerText(context))),
               ),
-            if (proposal.executed && proposal.resultLabel != null)
+            // Bukti / mockup dari chat yang ikut disimpan saat disetujui.
+            if (proposal.pending && proposal.proofFiles.isNotEmpty)
+              _attachNote(context, key: Key('proposal-proofs-${proposal.id}'), icon: Icons.attach_file_rounded, text: 'Bukti: ${proposal.proofFiles.join(', ')} akan dilampirkan'),
+            if (proposal.pending && proposal.mockupFiles.isNotEmpty)
+              _attachNote(context, key: Key('proposal-mockups-${proposal.id}'), icon: Icons.image_outlined, text: 'Mockup: ${proposal.mockupFiles.join(', ')} akan ditambahkan'),
+            // Hasil setelah disetujui/ditolak: kalimat utama + rincian (dampak kas, lampiran).
+            if ((proposal.executed || proposal.rejected) && proposal.resultMessage != null)
+              Padding(
+                key: Key('proposal-result-${proposal.id}'),
+                padding: const EdgeInsets.only(top: 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(top: 1),
+                          child: Icon(proposal.executed ? Icons.receipt_long_outlined : Icons.info_outline, size: 16, color: proposal.executed ? scheme.primary : muted),
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            proposal.resultMessage!.replaceAll('Rp ', 'Rp\u00A0'),
+                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: proposal.executed ? scheme.primary : muted),
+                          ),
+                        ),
+                      ],
+                    ),
+                    for (final line in proposal.resultDetails)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 22, top: 3),
+                        child: Text(line.replaceAll('Rp ', 'Rp\u00A0'), style: TextStyle(fontSize: 12.5, color: muted, height: 1.35)),
+                      ),
+                  ],
+                ),
+              )
+            else if (proposal.executed && proposal.resultLabel != null)
               Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: Row(
@@ -867,6 +904,19 @@ class ProposalCard extends StatelessWidget {
       ),
     );
   }
+
+  static Widget _attachNote(BuildContext context, {required Key key, required IconData icon, required String text}) => Padding(
+    key: key,
+    padding: const EdgeInsets.only(top: 6),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 16, color: mutedText(context)),
+        const SizedBox(width: 6),
+        Expanded(child: Text(text, style: TextStyle(fontSize: 12.5, color: mutedText(context)))),
+      ],
+    ),
+  );
 
   static IconData _typeIcon(String type) => switch (type) {
     'sale' || 'sales_order' => Icons.point_of_sale_outlined,

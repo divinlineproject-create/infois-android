@@ -22,6 +22,7 @@ class SyncState {
     this.lastSyncAt,
     this.message,
     this.mustUpdate = false,
+    this.maintenance,
   });
 
   final ConnectionStatus connection;
@@ -37,13 +38,17 @@ class SyncState {
   /// Versi aplikasi di bawah versi minimum server.
   final bool mustUpdate;
 
-  SyncState copyWith({ConnectionStatus? connection, bool? syncing, int? pending, DateTime? lastSyncAt, String? message, bool clearMessage = false, bool? mustUpdate}) => SyncState(
+  /// Pesan pemeliharaan dari server (503 `kanal_pemeliharaan`), atau null.
+  final String? maintenance;
+
+  SyncState copyWith({ConnectionStatus? connection, bool? syncing, int? pending, DateTime? lastSyncAt, String? message, bool clearMessage = false, bool? mustUpdate, String? maintenance, bool clearMaintenance = false}) => SyncState(
         connection: connection ?? this.connection,
         syncing: syncing ?? this.syncing,
         pending: pending ?? this.pending,
         lastSyncAt: lastSyncAt ?? this.lastSyncAt,
         message: clearMessage ? null : (message ?? this.message),
         mustUpdate: mustUpdate ?? this.mustUpdate,
+        maintenance: clearMaintenance ? null : (maintenance ?? this.maintenance),
       );
 }
 
@@ -60,6 +65,9 @@ class SyncController extends Notifier<SyncState> {
   bool _again = false;
 
   static const Duration interval = Duration(minutes: 15);
+
+  /// Coba lagi saat pemeliharaan (server: Retry-After 300 detik).
+  static const Duration maintenanceRetry = Duration(minutes: 5);
 
   @override
   SyncState build() {
@@ -256,7 +264,8 @@ class SyncController extends Notifier<SyncState> {
       } else if (summary.rejected > 0) {
         message = '${summary.rejected} transaksi ditolak server. Lihat Akun › Status sinkron.';
       }
-      state = state.copyWith(syncing: false, lastSyncAt: summary.failed ? null : DateTime.now(), message: message, clearMessage: message == null);
+      state = state.copyWith(syncing: false, lastSyncAt: summary.failed ? null : DateTime.now(), message: message, clearMessage: message == null, clearMaintenance: true);
+      _setMaintenance(null);
     } on ApiException catch (error) {
       if (_disposed) {
         return;
@@ -264,6 +273,15 @@ class SyncController extends Notifier<SyncState> {
       if (error.unauthenticated) {
         state = state.copyWith(syncing: false);
         await ref.read(sessionProvider.notifier).expire();
+        return;
+      }
+      if (error.maintenance) {
+        // Aplikasi HP dimatikan sementara (Administrator › Kanal Tim AI):
+        // tetap masuk, antrean tetap di HP, dicoba lagi beberapa menit lagi.
+        state = state.copyWith(syncing: false, connection: ConnectionStatus.online, maintenance: error.message, clearMessage: true);
+        _setMaintenance(error.message);
+        _retry?.cancel();
+        _retry = Timer(maintenanceRetry, _autoSync);
         return;
       }
       if (error.companyClosed) {
@@ -316,6 +334,16 @@ class SyncController extends Notifier<SyncState> {
         ref.read(dataVersionProvider.notifier).state++;
         await refreshPending();
       }
+    }
+  }
+
+  void _setMaintenance(String? message) {
+    if (_disposed) {
+      return;
+    }
+    final notifier = ref.read(maintenanceProvider.notifier);
+    if (notifier.state != message) {
+      notifier.state = message;
     }
   }
 

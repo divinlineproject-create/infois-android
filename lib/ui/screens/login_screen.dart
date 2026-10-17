@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/store_policy.dart';
@@ -63,51 +66,233 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _email = TextEditingController();
   final _password = TextEditingController();
   final _deviceName = TextEditingController(text: 'HP Kasir');
+  final _code = TextEditingController();
   bool _busy = false;
   bool _hidePassword = true;
   String? _error;
   AccessNotice? _notice;
 
+  /// Verifikasi dua langkah: cara yang aktif (`aplikasi`, `email`); null =
+  /// masih di langkah email & kata sandi.
+  List<String>? _methods;
+
+  String? _codeError;
+  bool _useRecovery = false;
+
+  /// Detik sebelum "Kirim ulang kode" boleh diketuk lagi.
+  int _resendIn = 0;
+  Timer? _resendTimer;
+
+  static final _sixDigits = RegExp(r'^\d{6}$');
+  static final _recoveryCode = RegExp(r'^[A-Za-z0-9]{10}-[A-Za-z0-9]{10}$');
+
   @override
   void dispose() {
+    _resendTimer?.cancel();
     _email.dispose();
     _password.dispose();
     _deviceName.dispose();
+    _code.dispose();
     super.dispose();
   }
 
-  Future<void> _submit() async {
-    if (!_form.currentState!.validate()) {
+  bool get _codeStep => _methods != null;
+
+  void _startResendCooldown() {
+    _resendTimer?.cancel();
+    setState(() => _resendIn = 30);
+    _resendTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted || _resendIn <= 1) {
+        timer.cancel();
+        if (mounted) {
+          setState(() => _resendIn = 0);
+        }
+        return;
+      }
+      setState(() => _resendIn--);
+    });
+  }
+
+  /// Kembali ke langkah email & kata sandi.
+  void _backToPassword() => setState(_resetCodeStep);
+
+  void _resetCodeStep() {
+    _resendTimer?.cancel();
+    _code.clear();
+    _methods = null;
+    _codeError = null;
+    _useRecovery = false;
+    _resendIn = 0;
+  }
+
+  String? _validateCode(String value) {
+    final code = value.replaceAll(' ', '');
+    if (code.isEmpty) {
+      return _useRecovery ? 'Isi kode pemulihan.' : 'Isi kode 6 angka.';
+    }
+    if (_useRecovery) {
+      return _recoveryCode.hasMatch(code) ? null : 'Kode pemulihan berbentuk 10 huruf/angka, tanda -, lalu 10 huruf/angka.';
+    }
+    return _sixDigits.hasMatch(code) ? null : 'Kode terdiri dari 6 angka.';
+  }
+
+  Future<void> _submit({bool resend = false}) async {
+    if (_busy) {
       return;
+    }
+    if (!_codeStep && !_form.currentState!.validate()) {
+      return;
+    }
+    String? code;
+    if (_codeStep && !resend) {
+      final invalid = _validateCode(_code.text);
+      if (invalid != null) {
+        setState(() => _codeError = invalid);
+        return;
+      }
+      code = _code.text.replaceAll(' ', '');
     }
     setState(() {
       _busy = true;
       _error = null;
+      _codeError = null;
       _notice = null;
     });
     ref.read(sessionProvider.notifier).clearNotice();
     try {
-      await ref.read(sessionProvider.notifier).login(email: _email.text, password: _password.text, deviceName: _deviceName.text);
+      await ref.read(sessionProvider.notifier).login(email: _email.text, password: _password.text, deviceName: _deviceName.text, code: code);
     } on ApiException catch (error) {
       if (!mounted) {
+        return;
+      }
+      if (error.twoFactorRequired) {
+        final methods = error.twoFactorMethods;
+        final wasCodeStep = _codeStep;
+        setState(() {
+          _methods = methods.isEmpty ? const ['aplikasi'] : methods;
+          if (!(_methods!.contains('aplikasi'))) {
+            _useRecovery = false;
+          }
+        });
+        if (_methods!.contains('email')) {
+          _startResendCooldown();
+          if (resend || wasCodeStep) {
+            showMessage(context, 'Kode baru sudah dikirim ke email Anda.');
+          }
+        }
         return;
       }
       setState(() {
         if (error.status == 403 && error.code == ApiException.mobileAccessDeniedCode) {
           _notice = AccessNotice.fromError(error);
+          _resetCodeStep();
+        } else if (_codeStep && (error.code == ApiException.twoFactorInvalidCode || error.code == ApiException.twoFactorThrottledCode)) {
+          _codeError = error.message;
+          _code.clear();
+        } else if (_codeStep && error.code == 'login_gagal') {
+          // Kata sandi diganti di tempat lain: ulangi dari awal.
+          _resetCodeStep();
+          _error = error.message;
+        } else if (_codeStep) {
+          _codeError = error.message;
         } else {
           _error = error.message;
         }
       });
     } catch (_) {
       if (mounted) {
-        setState(() => _error = 'Belum bisa masuk. Coba lagi.');
+        setState(() => _codeStep ? _codeError = 'Belum bisa masuk. Coba lagi.' : _error = 'Belum bisa masuk. Coba lagi.');
       }
     } finally {
       if (mounted) {
         setState(() => _busy = false);
       }
     }
+  }
+
+  String get _codeHint {
+    final methods = _methods ?? const [];
+    final app = methods.contains('aplikasi');
+    final email = methods.contains('email');
+    if (_useRecovery) {
+      return 'Masukkan salah satu kode pemulihan yang Anda simpan saat mengaktifkan verifikasi dua langkah. Setiap kode hanya bisa dipakai sekali.';
+    }
+    if (app && email) {
+      return 'Masukkan 6 angka dari aplikasi autentikator (mis. Google Authenticator), atau kode yang kami kirim ke ${_email.text.trim()}.';
+    }
+    if (email) {
+      return 'Kami mengirim kode 6 angka ke ${_email.text.trim()}. Periksa juga folder Spam. Kode berlaku 10 menit.';
+    }
+    return 'Buka aplikasi autentikator (mis. Google Authenticator) lalu masukkan 6 angka untuk Infois.';
+  }
+
+  List<Widget> _codeFields(BuildContext context) {
+    final methods = _methods ?? const [];
+    return [
+      Text('Verifikasi dua langkah', key: const Key('login-2fa-title'), style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+      const SizedBox(height: 6),
+      Text(_codeHint, key: const Key('login-2fa-hint'), style: const TextStyle(fontSize: 13.5, height: 1.4)),
+      const SizedBox(height: 16),
+      TextField(
+        key: const Key('login-2fa-code'),
+        controller: _code,
+        autofocus: true,
+        keyboardType: _useRecovery ? TextInputType.visiblePassword : TextInputType.number,
+        autofillHints: _useRecovery ? null : const [AutofillHints.oneTimeCode],
+        autocorrect: false,
+        enableSuggestions: false,
+        maxLength: _useRecovery ? 21 : 6,
+        textAlign: _useRecovery ? TextAlign.start : TextAlign.center,
+        style: _useRecovery ? null : const TextStyle(fontSize: 22, letterSpacing: 8, fontWeight: FontWeight.w600),
+        inputFormatters: [_useRecovery ? FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9-]')) : FilteringTextInputFormatter.digitsOnly],
+        decoration: InputDecoration(
+          labelText: _useRecovery ? 'Kode pemulihan' : 'Kode 6 angka',
+          hintText: _useRecovery ? 'xxxxxxxxxx-xxxxxxxxxx' : null,
+          counterText: '',
+          errorText: _codeError,
+          errorMaxLines: 4,
+          prefixIcon: const Icon(Icons.password_rounded),
+        ),
+        onChanged: (value) {
+          if (_codeError != null) {
+            setState(() => _codeError = null);
+          }
+          if (!_useRecovery && _sixDigits.hasMatch(value)) {
+            _submit();
+          }
+        },
+        onSubmitted: (_) => _submit(),
+      ),
+      const SizedBox(height: 16),
+      FilledButton(
+        key: const Key('login-2fa-submit'),
+        onPressed: _busy ? null : _submit,
+        child: _busy ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white)) : const Text('Verifikasi & masuk'),
+      ),
+      const SizedBox(height: 8),
+      if (methods.contains('aplikasi'))
+        TextButton(
+          key: const Key('login-2fa-recovery'),
+          onPressed:
+              _busy
+                  ? null
+                  : () {
+                    _code.clear();
+                    setState(() {
+                      _useRecovery = !_useRecovery;
+                      _codeError = null;
+                    });
+                  },
+          child: Text(_useRecovery ? 'Pakai kode 6 angka' : 'Pakai kode pemulihan'),
+        ),
+      if (methods.contains('email'))
+        TextButton(
+          key: const Key('login-2fa-resend'),
+          onPressed: _busy || _resendIn > 0 ? null : () => _submit(resend: true),
+          child: Text(_resendIn > 0 ? 'Kirim ulang kode ke email ($_resendIn)' : 'Kirim ulang kode ke email'),
+        ),
+      TextButton(key: const Key('login-2fa-back'), onPressed: _busy ? null : _backToPassword, child: const Text('Kembali')),
+    ];
   }
 
   @override
@@ -144,6 +329,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                   ],
                   const SizedBox(height: 28),
+                  if (_codeStep)
+                    ..._codeFields(context)
+                  else ...[
                   TextFormField(
                     key: const Key('login-email'),
                     controller: _email,
@@ -183,9 +371,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   const SizedBox(height: 24),
                   FilledButton(
                     key: const Key('login-submit'),
-                    onPressed: _busy ? null : _submit,
+                    onPressed: _busy ? null : () => _submit(),
                     child: _busy ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white)) : const Text('Masuk'),
                   ),
+                  ],
                   const SizedBox(height: 12),
                   const Text('Belum punya akun? Akun dibuat oleh pemilik usaha atau admin Infois Anda.', key: Key('login-no-account'), textAlign: TextAlign.center, style: TextStyle(fontSize: 13)),
                 ]),

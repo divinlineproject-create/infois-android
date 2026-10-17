@@ -241,7 +241,10 @@ class SessionController extends AsyncNotifier<SessionState> {
 
   ApiClient _api({String? token}) => ref.read(apiFactoryProvider)(_current.serverUrl, token, null, () => null);
 
-  Future<void> login({required String email, required String password, required String deviceName}) async {
+  /// Masuk. Akun dengan verifikasi dua langkah: tanpa [code] server menjawab
+  /// 401 `butuh_kode_2fa` (+ `metode_2fa`; kode email dikirim saat itu), lalu
+  /// login diulang dengan [code] (6 angka atau kode pemulihan).
+  Future<void> login({required String email, required String password, required String deviceName, String? code}) async {
     final response = await _api().post('auth/login', data: {
       'email': email.trim(),
       'password': password,
@@ -249,6 +252,7 @@ class SessionController extends AsyncNotifier<SessionState> {
       'device_uid': await _storage.deviceUid(),
       'platform': Platform.isAndroid ? 'android' : Platform.operatingSystem,
       'app_version': AppConfig.version,
+      if (code != null && code.trim().isNotEmpty) 'code': code.trim(),
     });
     final token = response['token'] as String;
     final user = SessionUser.fromJson(Map<String, dynamic>.from(response['user'] as Map));

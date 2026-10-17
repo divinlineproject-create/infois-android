@@ -75,14 +75,27 @@ class AiApi {
   /// Setujui usulan; [edits] = isian yang diubah pengguna (hanya key di
   /// `editable_fields`). Melempar [ApiException] `ditolak` (usulan tetap
   /// menunggu) atau `sudah_diproses`.
-  Future<({AiProposal proposal, String message})> approve(int id, {Map<String, dynamic>? edits}) async {
+  /// `message` = kalimat hasil, `details` = rinciannya (mis. "Kas bertambah
+  /// Rp … · saldo Rp …", "📎 2 bukti transaksi dilampirkan"). Gagal → 422
+  /// `ditolak` dengan `message` "Gagal dicatat: …", `reason`, dan `proposal`.
+  Future<({AiProposal proposal, String message, List<String> details})> approve(int id, {Map<String, dynamic>? edits}) async {
     final response = await client.post('ai/proposals/$id/approve', data: edits == null || edits.isEmpty ? null : {'edits': edits}, timeout: const Duration(seconds: 90));
-    return (proposal: AiProposal.fromJson(Map<String, dynamic>.from(response['proposal'] as Map)), message: response['message']?.toString() ?? 'Tercatat');
+    return _decision(response, 'Tercatat');
   }
 
-  Future<({AiProposal proposal, String message})> reject(int id) async {
+  Future<({AiProposal proposal, String message, List<String> details})> reject(int id) async {
     final response = await client.post('ai/proposals/$id/reject');
-    return (proposal: AiProposal.fromJson(Map<String, dynamic>.from(response['proposal'] as Map)), message: response['message']?.toString() ?? 'Usulan ditolak');
+    return _decision(response, 'Usulan ditolak');
+  }
+
+  static ({AiProposal proposal, String message, List<String> details}) _decision(Map<String, dynamic> response, String fallback) {
+    final proposal = AiProposal.fromJson(Map<String, dynamic>.from(response['proposal'] as Map));
+    final message = (response['message']?.toString() ?? '').trim();
+    return (
+      proposal: proposal,
+      message: message.isNotEmpty ? message : (proposal.resultMessage ?? fallback),
+      details: [for (final line in (response['details'] as List? ?? proposal.resultDetails)) if (line.toString().trim().isNotEmpty) line.toString()],
+    );
   }
 
   /// Isi lampiran (foto, voice note, PDF) dengan header token + X-Tenant.

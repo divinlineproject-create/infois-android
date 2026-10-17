@@ -4,7 +4,7 @@ Kontrak API antara aplikasi HP (Flutter, folder `android/`) dan `backoffice` (La
 Semua endpoint ada di bawah **`/api/v1`**, berformat JSON, pesan galat dalam Bahasa Indonesia.
 
 - Kode: `backoffice/routes/api.php`, `app/Http/Controllers/Api/V1/*`, `app/Services/Mobile/*`.
-- Tes: `backoffice/tests/Feature/Mobile/*` (Tim AI: `MobileAiTest.php`, Laporan: `MobileReportsTest.php`, Catatan: `MobileRecordsTest.php`); uji langsung dari sisi HP ke server sungguhan: `android/test_live/ai_live_test.dart`, `android/test_live/records_live_test.dart` (lihat komentar di atas file untuk cara menjalankan).
+- Tes: `backoffice/tests/Feature/Mobile/*` (Tim AI: `MobileAiTest.php`, Laporan: `MobileReportsTest.php`, Catatan: `MobileRecordsTest.php`, Pusat Bantuan: `MobileHelpApiTest.php`); uji langsung dari sisi HP ke server sungguhan: `android/test_live/ai_live_test.dart`, `android/test_live/records_live_test.dart` (lihat komentar di atas file untuk cara menjalankan).
 
 ## 1. Aturan umum
 
@@ -37,7 +37,10 @@ Semua endpoint ada di bawah **`/api/v1`**, berformat JSON, pesan galat dalam Bah
 | 403 | `perangkat_tidak_dikenal` | Token bukan token HP (tanpa `device_uid`) |
 | 403 | `tidak_berhak` | Tidak punya permission untuk aksi itu |
 | 422 | — | Validasi: `{ "message": "...", "errors": { "field": ["..."] } }` |
+| 401 | `butuh_kode_2fa` / `kode_2fa_salah` | Login akun dengan verifikasi dua langkah tanpa kode / kode salah (lihat §3 `POST /auth/login`) |
+| 429 | `kode_2fa_terlalu_sering` | Kode verifikasi salah > 5 kali (dikunci ±5 menit, pesan menyebut detiknya) |
 | 429 | — | Terlalu sering (login: 10/menit; API: 240/menit) |
+| 503 | `kanal_pemeliharaan` | Aplikasi HP dimatikan sementara oleh admin Infois (Administrator › Kanal Tim AI). Semua rute kecuali `GET /ping` dan `POST /auth/logout`; header `Retry-After: 300`; `message` dari admin atau kalimat bawaan. **Bukan** alasan keluar: aplikasi menampilkan spanduk "Aplikasi sedang pemeliharaan" + pesannya, transaksi tetap di antrean HP (tanpa menambah hitungan percobaan) dan dikirim saat kanal dibuka lagi (coba ulang tiap 5 menit / tombol Coba lagi; sinkron latar juga berhenti dengan hasil `maintenance`). |
 
 ## 2. Sistem
 
@@ -93,6 +96,12 @@ Login ulang dengan `device_uid` yang sama mengganti token lama HP itu. `device_n
 }
 ```
 Galat: 422 `login_gagal` ("Email atau kata sandi salah."), 403 `tanpa_perusahaan` (akun belum terdaftar di perusahaan mana pun), 403 `akses_hp_tidak_tersedia` (punya perusahaan tetapi tidak ada yang boleh memakai aplikasi HP; **tidak ada token yang dibuat**).
+
+**Verifikasi dua langkah** (diaktifkan di web, Profil): login tanpa `code` → 401 `butuh_kode_2fa` dengan cara yang aktif; untuk cara `email`, kode 6 angka **dikirim ke email saat itu juga** (paling banyak 2× per menit, berlaku 10 menit):
+```json
+{ "message": "Akun ini memakai verifikasi dua langkah. Kami sudah mengirim kode ke email Anda. Masukkan kode itu untuk masuk.", "code": "butuh_kode_2fa", "metode_2fa": ["aplikasi", "email"] }
+```
+Aplikasi lalu mengulang login yang sama + `"code"`: 6 angka dari aplikasi autentikator, salah satu **kode pemulihan** (format `XXXXXXXXXX-XXXXXXXXXX`, huruf/angka, sekali pakai; hanya untuk cara `aplikasi`), atau kode email. Kode salah → 401 `kode_2fa_salah`; lebih dari 5 kali → 429 `kode_2fa_terlalu_sering`. "Kirim ulang kode" = login lagi **tanpa** `code`. Aplikasi (≥ 1.2.0): langkah kode dengan papan angka, petunjuk sesuai cara (`aplikasi` / `email`), tombol "Pakai kode pemulihan", "Kirim ulang kode ke email" (jeda 30 detik), dan "Kembali".
 
 ### `POST /auth/logout`
 Mencabut token HP ini. `{ "ok": true }`
@@ -178,6 +187,7 @@ Tanpa `since` = tarikan penuh. Dengan `since` = barang/pelanggan yang berubah se
 - `stock_quantity` = stok di gudang HP (diatur di web, default gudang utama); `null` untuk barang tanpa stok.
 - `stock_source`: `"own"` = stok barang itu sendiri; `"recipe"` = produk resep tanpa stok sendiri (menu/paket, "Kelola stok" mati) — `stock_quantity` dihitung dari stok bahan di gudang HP (porsi yang bisa dibuat, dibulatkan ke bawah; `0` bila salah satu bahan habis) dan `track_inventory` dikirim `true` supaya lencana stok & redup "Habis" tampil; `null` = tidak dikelola stok. Saat dijual, server tetap mengurangi bahannya, bukan produk resepnya. Tarikan `since` ikut mengirim ulang produk resep yang stok/data salah satu bahannya berubah.
 - Hanya barang dengan **Tampilkan di POS** aktif yang dikirim (`items` dan `ids`). Barang yang dimatikan (mis. bahan baku) tidak ada di `ids`, sehingga HP menghapusnya di tarikan berikutnya; bila dinyalakan lagi, barang terkirim lagi karena `updated_at`-nya berubah. Penjualan dari HP lama yang masih memuat barang itu tetap diterima.
+- `type` hanya `product` | `service` (yang dikenal aplikasi lama). **Bahan baku** dikirim sebagai `type: "product"` (barang berstok, stok selalu dikelola) dengan jenis aslinya di **`kind`** (`product` | `service` | `raw_material`) dan **`kind_label`** ("Barang" | "Jasa" | "Bahan baku"). Bawaannya bahan baku tidak "Tampilkan di POS" sehingga tidak dikirim; yang dicentang tampil di kasir dengan label "Bahan baku" (aplikasi ≥ 1.2.0).
 - `receipt.show_qr` sudah memperhitungkan modul Verify dan pengaturan branding. QR offline = `verify_base_url + "/" + client_uuid` (server memakai `client_uuid` sebagai UID verifikasi saat nota diterbitkan).
 - `logo_url` diunduh dengan header yang sama (token + `X-Tenant`).
 
@@ -384,10 +394,13 @@ Proses berjalan di antrean server; HP **polling `GET /ai/runs/{run_id}` tiap ~2 
   "payload": { "customer_id": 5, "customer_name": null, "date": "2026-03-10", "paid": false, "payment_method": null, "cash_account_id": null, "due_days": 14,
                "items": [ { "product_id": 10, "description": "Kopi susu", "quantity": "2.000000", "unit": "pcs", "unit_factor": "1.000000", "unit_price": "15000.00", "discount_percent": "0.00", "tax_rate": "0.00", "total": "30000.00" } ] },
   "preview": { "contact": "Pak Budi", "new_contact": false, "lines": [ { …sama dengan items… } ], "totals": { "subtotal": "30000.00", "tax_total": "0.00", "total": "30000.00" }, "payment": "Belum dibayar, ditagih ke pelanggan nanti", "warnings": [] },
-  "error": null, "result_label": null, "result_url": null, "print_links": [],
+  "proof_files": ["nota.jpg"], "mockup_files": [],
+  "error": null, "result_label": null, "result_message": null, "result_details": [], "result_url": null, "print_links": [],
   "decided_at": null, "created_at": "…"
 }
 ```
+- `proof_files` (hanya saat `pending`): nama foto/PDF dari chat yang **akan dilampirkan** sebagai bukti transaksi saat disetujui → aplikasi menampilkan "Bukti: nota.jpg akan dilampirkan". `mockup_files` (hanya `sales_order` yang `pending`): desain yang **akan ditambahkan** sebagai mockup pesanan → "Mockup: desain.png akan ditambahkan".
+- `result_message` + `result_details` (setelah diputuskan; `null`/`[]` saat `pending`): kalimat hasil dan rinciannya, sama dengan balasan Setujui/Tolak (mis. "Penjualan INV-0012 untuk Toko A berhasil dicatat sebesar Rp 1.500.000 · lunas." + `["Kas bertambah Rp 1.500.000 · saldo Rp 7.250.000", "📎 2 bukti transaksi dilampirkan"]`). Aplikasi menampilkannya di kartu usulan yang sudah tercatat/ditolak.
 - `status`: `pending` (Menunggu persetujuan) | `executed` (Tercatat) | `rejected` (Ditolak) | `failed` (Gagal). Setelah `executed`: `result_label` ("INV-0001 · Rp 30.000, lunas"), `result_url` (halaman web dokumen, bisa null), `print_links` `[ { "label": "Cetak invoice", "url": "…" }, { "label": "Cetak nota termal", "url": "…" } ]` untuk invoice yang sudah terbit.
 - `type` dan isi `preview` yang perlu ditampilkan (sama dengan kartu di web):
 
@@ -414,11 +427,12 @@ Body opsional `{ "edits": { … } }` — isian formulir yang diubah pengguna, ha
 | `products` | `items[]` (`name`, `type` `product`\|`service`, `unit`, `sku`, `sale_price`, `cost_price`, `opening_stock`, `units[]`, `recipe[]`, `tiers[]`) |
 | `delivery` | `lines[]` (`sales_order_item_id`, `quantity`) |
 
-→ 200 `{ "proposal": { …status executed… }, "message": "Tercatat: INV-0001 · Rp 30.000, lunas" }`.
+→ 200 `{ "proposal": { …status executed… }, "message": "Penjualan INV-0001 untuk Pak Budi berhasil dicatat sebesar Rp 30.000 · lunas.", "details": ["Kas bertambah Rp 30.000 · saldo Rp 1.230.000", "📎 2 bukti transaksi dilampirkan"] }` — `message` = kalimat utama, `details` = baris rincian (dampak kas/bank, bukti/mockup yang dilampirkan). Aplikasi menampilkan keduanya di snackbar dan di kartu usulan.
+Gagal dicatat → 422 `{ "message": "Gagal dicatat: Harga \"Kopi susu\" belum diisi.", "reason": "Harga \"Kopi susu\" belum diisi.", "details": [], "code": "ditolak", "proposal": { …tetap pending, error = reason… } }`.
 Penjualan wajib memakai barang Katalog (`items[].product_id`); tanpa itu → 422 `ditolak` "… belum ada di Katalog Barang". 422 `ditolak` juga untuk hak akses ("Anda tidak punya hak menginput tagihan pemasok."), harga/nominal kosong, stok kurang, periode tutup buku — usulan tetap `pending` dengan `proposal.error` supaya pengguna memperbaiki lalu mencoba lagi. 409 `sudah_diproses` bila sudah diputuskan.
 
 ### `POST /ai/proposals/{id}/reject`
-→ `{ "proposal": { …status rejected… }, "message": "Usulan ditolak" }`. Usulan `failed` juga boleh ditolak (= "Abaikan").
+→ `{ "proposal": { …status rejected… }, "message": "…", "details": [] }`. Usulan `failed` juga boleh ditolak (= "Abaikan").
 
 ### `GET /ai/attachments/{message_id}/{index}`
 File lampiran pesan (lihat `attachments[].url`). Header token + `X-Tenant`; 404 bila bukan pemilik percakapan. `Cache-Control: private, max-age=86400`.
@@ -751,6 +765,62 @@ Kode: `lib/data/reports_api.dart`, `lib/data/records_api.dart`, model `lib/domai
 | Batal / retur | Tombol **Batalkan penjualan** hanya bila `can.void` true (alasan wajib); retur selalu diarahkan ke website. |
 | Offline | Laporan & Catatan menampilkan "… butuh internet"; data terakhir yang sudah tampil tetap terlihat sampai dimuat ulang. |
 
+## 8b. Pusat Bantuan
+
+Panduan pemakaian Infois (isi milik platform, ditulis superadmin di Administrator; sama untuk semua perusahaan). **Cukup token** (`auth:sanctum`) — **tanpa** `X-Tenant`, tidak dicek paket/perusahaan, sehingga tetap terbuka walau perusahaan aktif belum dipilih. Ikut saklar pemeliharaan (503 `kanal_pemeliharaan`). Hanya artikel **terbit** (status terbit, tanggal terbit sudah lewat) dari kategori **aktif**. Kode: `HelpController`, `HelpCenterQueries` (query yang sama dengan halaman web Services › Pusat Bantuan), `HelpAppContent`.
+
+**Kebijakan Google Play** (`HelpAppContent`): kategori berikon `heroicon-o-credit-card` ("Langganan & pembayaran") atau bernama langganan/koin, dan artikel yang judul/slug/kata kuncinya menyebut langganan, dompet koin, isi/beli/top up koin, upgrade, ganti/pilih/harga paket, midtrans, **tidak dikirim** (404 bila dibuka langsung). Di HTML artikel, tautan ke halaman pembelian (`/langganan`, `/dompet-koin`, `/billing`, `checkout`, `upgrade`, `harga`, `pricing`, midtrans, situs infois.ai selain halaman hukum) dan ke panel dashboard (`/app/...` selain Hapus akun, beranda dashboard) diganti teks biasa. Tautan artikel bantuan (`/bantuan/{slug}`, `/app/{perusahaan}/pusat-bantuan/artikel/{slug}`) diberi `data-help-article="{slug}"`. Aplikasi juga menyembunyikan paragraf/butir yang mengajak membeli paket/koin.
+
+### `GET /help`
+```json
+{
+  "categories": [ { "id": 1, "name": "Penjualan", "slug": "penjualan", "description": "Invoice & kasir", "icon": "heroicon-o-shopping-cart", "article_count": 4 } ],
+  "featured": [ { "id": 7, "slug": "cara-membuat-invoice", "title": "Cara membuat invoice", "summary": "Panduan singkat untuk pemula.", "category": { "id": 1, "name": "Penjualan", "slug": "penjualan", "icon": "heroicon-o-shopping-cart" }, "reading_minutes": 2, "is_featured": true, "cover_url": "https://dashboard.infois.ai/api/v1/help/media/covers/sampul.png", "updated_at": "…" } ],
+  "popular": [ …kartu artikel, paling sering dibaca di luar artikel pilihan… ],
+  "min_search_length": 2
+}
+```
+- `icon` = nama Heroicon pilihan admin (`heroicon-o-book-open`, `rocket-launch`, `document-text`, `shopping-cart`, `shopping-bag`, `archive-box`, `banknotes`, `calculator`, `chart-bar`, `receipt-percent`, `sparkles`, `device-phone-mobile`, `credit-card`, `users`, `cog-6-tooth`, `shield-check`, `question-mark-circle`, `wrench-screwdriver`); aplikasi memetakan ke ikon Material (`helpCategoryIcon`), lainnya = buku.
+- `article_count` = artikel yang tampil di aplikasi; kategori tanpa artikel tidak dikirim. `summary` = ringkasan admin atau potongan isi (160 huruf). `cover_url` null bila tanpa sampul.
+
+### `GET /help/search?q=`
+Sama dengan pencarian web: setiap kata (≥ 2 huruf, maks. 6 kata) harus ada di judul, ringkasan, kata kunci, atau isi (tanpa beda huruf besar/kecil); kata di judul dulu, lalu artikel pilihan dan paling sering dibaca; maks. 30. `q` < 2 huruf → `results: []`, `too_short: true`.
+```json
+{ "query": "stok", "too_short": false, "results": [ …kartu artikel… ] }
+```
+
+### `GET /help/categories/{slug}`
+`{ "category": { …kategori… }, "articles": [ …kartu artikel (pilihan dulu, lalu urutan admin, judul)… ] }`. Kategori nonaktif / tidak ada → 404 `tidak_ditemukan`.
+
+### `GET /help/articles/{slug}`
+```json
+{
+  "article": {
+    …kartu artikel…,
+    "published_at": "…", "view_count": 12, "my_vote": null,
+    "html": "<h2 id=\"bagian-langkah-1\">Langkah 1</h2><p>…</p><p><img loading=\"lazy\" src=\"https://dashboard.infois.ai/api/v1/help/media/images/langkah-1.png\" alt=\"…\"></p><figure class=\"help-media help-media-video\"><a class=\"help-video\" data-video=\"upload\" href=\"https://dashboard.infois.ai/api/v1/help/media/videos/demo.mp4\">Putar video</a><figcaption>Demo invoice</figcaption></figure><aside class=\"help-callout help-callout-warning\"><p class=\"help-callout-title\">Penting</p><p>…</p></aside>",
+    "headings": [ { "id": "bagian-langkah-1", "text": "Langkah 1", "level": 2 } ],
+    "videos": [ { "kind": "upload", "url": "https://dashboard.infois.ai/api/v1/help/media/videos/demo.mp4", "caption": "Demo invoice" }, { "kind": "youtube", "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ", "caption": null } ]
+  },
+  "related": [ …kartu artikel lain di kategori yang sama (maks. 5)… ]
+}
+```
+- `html` = render yang sama dengan web (`HelpContent::render`, sudah disanitasi: tanpa skrip/atribut event/`javascript:`), dengan perbedaan untuk aplikasi: gambar & sampul lewat `GET /help/media/...` (perlu token), dan **video diganti kartu tautan** `<a class="help-video" data-video="upload|youtube|vimeo" href="…">` (tanpa `<video>`/`<iframe>`); YouTube/Vimeo memakai alamat tonton biasa (`youtube.com/watch?v=`, `vimeo.com/{id}`). Daftar yang sama ada di `videos`.
+- Unsur HTML yang dipakai: `h2`/`h3` (dengan `id` untuk daftar isi = `headings`), `p`, `strong`/`em`/`u`/`s`/`code`, `a`, `ul`/`ol`/`li`, `blockquote`, `pre`, `hr`, `img`, `figure`/`figcaption`, `table`, `aside.help-callout-{tip|info|warning}` (kotak tips; judul di `p.help-callout-title`).
+- `view_count` bertambah **sekali per pengguna per artikel per hari** (`HelpArticleStats::recordUserView`, penanda di cache sampai akhir hari; API tanpa sesi, jadi bukan "sekali per sesi" seperti web). Membuka ulang di HP lain pada hari yang sama tidak menambah hitungan. Penghitung tidak mengubah `updated_at`.
+- `my_vote`: `true` (membantu) | `false` | `null` (belum menjawab).
+
+### `POST /help/articles/{slug}/feedback`
+Body `{ "helpful": true }` → `{ "my_vote": true, "message": "Terima kasih! Senang bisa membantu." }` (`false` → "Terima kasih atas masukannya, kami akan memperbaiki artikel ini."). Satu jawaban per pengguna (boleh diganti; penghitung ya/tidak disesuaikan), sama dengan web. 422 bila `helpful` kosong.
+
+### `GET /help/media/{path}`
+Gambar/video artikel dengan token (`path` relatif di folder Pusat Bantuan, mis. `images/langkah-1.png`, `videos/demo.mp4`, `covers/sampul.png`). Aturannya sama dengan route web `/bantuan/media/{path}` (`HelpMediaResponse::published`): hanya file yang dipakai artikel terbit, path aneh (`..`) → 404. Mendukung **HTTP Range** (`Range: bytes=0-1023` → 206 + `Content-Range`, di luar ukuran → 416) supaya video bisa digeser; `Cache-Control: private, max-age=3600`, `X-Content-Type-Options: nosniff`.
+
+### Aplikasi (≥ 1.2.0)
+- **Akun › Pusat Bantuan** (juga ikon ? di laci Riwayat Tim AI): kotak cari (jeda 350 ms), kategori, artikel pilihan & paling sering dibaca, "Belum menemukan jawaban? Tanya Tim AI" (bila Tim AI terbuka).
+- Pembaca artikel: HTML diurai sendiri (paket `html`) menjadi widget; daftar isi (ikon di bilah atas + "Daftar isi" di atas artikel) melompat ke bagian; gambar diunduh dengan token (ketuk untuk memperbesar); video unggahan diunduh sekali dengan token lalu diputar pemutar video HP; YouTube/Vimeo dibuka di luar aplikasi setelah konfirmasi; "Apakah artikel ini membantu? Ya / Tidak"; artikel terkait.
+- Tautan bantuan dari jawaban Tim AI (`https://dashboard…/bantuan/{slug}` atau `/app/{perusahaan}/pusat-bantuan/artikel/{slug}`) dibuka di layar artikel aplikasi; halaman panel lain tetap tidak dibuka.
+
 ## 9. Web terkait
 - **Tim & Akses › Perangkat** (`/app/{tenant}/tim/perangkat`, permission `manage-members`): daftar HP, kode kasir, pengguna, gudang, terakhir sinkron, transaksi tertunda di HP, **Cabut akses / Izinkan lagi**, atur nama & gudang.
 - **Tim & Akses › Perlu Ditinjau (Kasir HP)** (`/tim/perlu-ditinjau`, permission `issue-invoice`): penjualan `perlu_ditinjau` → **Proses ulang** (boleh ganti tanggal, mis. periode tutup buku) atau **Tandai selesai**.
@@ -768,5 +838,7 @@ RUN=$(curl -s -X POST http://localhost:8000/api/v1/ai/messages -H "Authorization
 curl -s http://localhost:8000/api/v1/ai/runs/$RUN -H "Authorization: Bearer $TOKEN" -H 'X-Tenant: 1' -H 'Accept: application/json' | jq '.status, .proposals[].title'
 curl -s 'http://localhost:8000/api/v1/records/sales?status=outstanding&limit=5' -H "Authorization: Bearer $TOKEN" -H 'X-Tenant: 1' -H 'Accept: application/json' | jq '.data[].number, .next_cursor'
 curl -s http://localhost:8000/api/v1/records/sales/1/pdf -H "Authorization: Bearer $TOKEN" -H 'X-Tenant: 1' -o invoice.pdf
+curl -s 'http://localhost:8000/api/v1/help/search?q=struk' -H "Authorization: Bearer $TOKEN" -H 'Accept: application/json' | jq '.results[].title'
+curl -s http://localhost:8000/api/v1/help/media/videos/demo.mp4 -H "Authorization: Bearer $TOKEN" -H 'Range: bytes=0-1023' -o /dev/null -w '%{http_code}\n'
 curl -s 'http://localhost:8000/api/v1/records/cash?from=2026-10-01&to=2026-10-31' -H "Authorization: Bearer $TOKEN" -H 'X-Tenant: 1' -H 'Accept: application/json' | jq '.accounts, .data[0]'
 ```

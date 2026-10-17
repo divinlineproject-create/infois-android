@@ -25,6 +25,10 @@ enum BackgroundSyncResult {
 
   /// 403 `bukan_anggota`: aplikasi yang memastikan lewat `GET /me` saat dibuka.
   notMember,
+
+  /// 503 `kanal_pemeliharaan`: aplikasi HP dimatikan sementara; antrean
+  /// tetap di HP dan dikirim pada tugas berikutnya.
+  maintenance,
 }
 
 /// Sinkron latar tiap ±15 menit (Android WorkManager): kirim outbox dan
@@ -85,6 +89,9 @@ Future<BackgroundSyncResult> runBackgroundSync({
       if (error.notMember) {
         // Selesai tanpa galat: WorkManager tidak mengulang terus.
         return BackgroundSyncResult.notMember;
+      }
+      if (error.maintenance) {
+        return BackgroundSyncResult.maintenance;
       }
       rethrow;
     }

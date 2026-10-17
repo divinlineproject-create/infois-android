@@ -136,6 +136,10 @@ class _AiHomeScreenState extends ConsumerState<AiHomeScreen> {
                         _closeHistory();
                         this.context.push('/sync');
                       },
+                      onHelp: () {
+                        _closeHistory();
+                        this.context.push('/bantuan');
+                      },
                     ),
                     onNew: _newChat,
                     onOpen: _openConversation,
@@ -593,10 +597,13 @@ class _HistoryTile extends StatelessWidget {
 
 /// Nama usaha + status sinkron (Online / Menyinkron / Offline) di laci.
 class _DrawerStatus extends StatelessWidget {
-  const _DrawerStatus({required this.tenantName, required this.onSync});
+  const _DrawerStatus({required this.tenantName, required this.onSync, this.onHelp});
 
   final String? tenantName;
   final VoidCallback onSync;
+
+  /// Buka Pusat Bantuan.
+  final VoidCallback? onHelp;
 
   @override
   Widget build(BuildContext context) {
@@ -605,6 +612,7 @@ class _DrawerStatus extends StatelessWidget {
         Expanded(child: Text(tenantName ?? 'Infois', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13, color: mutedText(context)))),
         const SizedBox(width: 8),
         SyncStatusBadge(onTap: onSync),
+        if (onHelp != null) IconButton(key: const Key('drawer-help'), tooltip: 'Pusat Bantuan', visualDensity: VisualDensity.compact, onPressed: onHelp, icon: const Icon(Icons.help_outline_rounded)),
       ],
     );
   }
