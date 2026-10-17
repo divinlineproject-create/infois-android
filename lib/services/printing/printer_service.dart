@@ -29,7 +29,11 @@ class BluetoothPrinterTransport implements PrinterTransport {
     if (!Platform.isAndroid) {
       return true;
     }
-    final statuses = await [Permission.bluetoothConnect, Permission.bluetoothScan, Permission.locationWhenInUse].request();
+    // Hanya printer yang sudah dipasangkan (tanpa memindai): lokasi tidak
+    // perlu. BLUETOOTH_SCAN tetap diminta (Android 12+) karena plugin
+    // memanggil cancelDiscovery() sebelum menyambung. Android 11 ke bawah:
+    // keduanya dianggap diizinkan oleh permission_handler.
+    final statuses = await [Permission.bluetoothConnect, Permission.bluetoothScan].request();
     final connect = statuses[Permission.bluetoothConnect];
     // Android 11 ke bawah tidak punya izin BLUETOOTH_CONNECT (dianggap diizinkan).
     return connect == null || connect.isGranted || connect.isLimited || await PrintBluetoothThermal.isPermissionBluetoothGranted;

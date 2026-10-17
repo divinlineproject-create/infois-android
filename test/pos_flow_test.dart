@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:infois/app.dart';
+import 'package:infois/core/store_policy.dart';
 import 'package:infois/data/app_storage.dart';
 import 'package:infois/data/local_db.dart';
 import 'package:infois/data/outbox_store.dart';
@@ -18,6 +19,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'support/fakes.dart';
+import 'support/play_policy.dart';
 
 /// Alur kasir lengkap di layar (offline): buka kasir, pilih barang, ubah
 /// jumlah, bayar tunai dengan nominal cepat, struk tercetak, outbox terisi.
@@ -175,8 +177,9 @@ void main() {
     // melepas perusahaan dari HP. Satu-satunya perusahaan → layar Masuk + alasan.
     expect(find.text('Masuk ke Infois'), findsOneWidget);
     expect(find.byKey(const Key('access-notice')), findsOneWidget);
-    expect(find.textContaining('Langganan perusahaan ini sedang tidak aktif'), findsOneWidget);
-    expect(find.text('Lihat paket'), findsOneWidget);
+    expect(find.text(companyInactiveMessage), findsOneWidget);
+    expect(find.text('Lihat paket'), findsNothing, reason: 'Kebijakan Google Play: tanpa tautan ke halaman Langganan.');
+    expect(purchaseTextOnScreen(tester), isEmpty);
     expect(find.text('Mengunduh data barang…'), findsNothing);
     await tester.pumpWidget(const SizedBox());
   });

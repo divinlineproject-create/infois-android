@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:infois/app.dart';
+import 'package:infois/core/store_policy.dart';
 import 'package:infois/data/app_storage.dart';
 import 'package:infois/domain/ai_models.dart';
 import 'package:infois/domain/models.dart';
@@ -22,6 +23,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'support/fakes.dart';
+import 'support/play_policy.dart';
 import 'support/file_fakes.dart';
 
 /// Layar Tim AI: ringkasan tim & jatah, kirim pesan + polling proses,
@@ -111,13 +113,14 @@ void main() {
     expect(find.byKey(const Key('ai-send')), findsOneWidget);
     expect(server.requests.where((request) => request.path == 'ai/messages'), isEmpty, reason: 'Saran hanya mengisi, tidak langsung mengirim.');
 
-    // Tim (gembok untuk paket lebih tinggi).
+    // Tim (gembok, tanpa nama paket yang membukanya: kebijakan Google Play).
     await tester.tap(find.byKey(const Key('ai-teams-row')));
     await settle(tester);
     expect(find.text('Tim yang bekerja untuk Anda'), findsOneWidget);
     expect(find.text('Tim Penjualan'), findsOneWidget);
     expect(find.text('Tim Analis'), findsOneWidget);
-    expect(find.text('Tersedia di paket Growth'), findsOneWidget);
+    expect(find.text(aiTeamLockedLabel), findsOneWidget);
+    expect(purchaseTextOnScreen(tester), isEmpty);
     expect(find.byIcon(Icons.lock), findsWidgets);
     await tester.tapAt(const Offset(10, 10));
     await settle(tester);
@@ -402,7 +405,7 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('trial / paket tanpa HP: tab Tim AI menjelaskan paket yang membukanya, tanpa chat', (tester) async {
+  testWidgets('trial / paket tanpa HP: tab Tim AI terkunci dengan pesan netral (tanpa nama paket / tempat beli), tanpa chat', (tester) async {
     final server = FakeServer(aiHandler(
       overview: {
         'enabled': false,
@@ -414,8 +417,9 @@ void main() {
     await openAiTab(tester);
 
     expect(find.byKey(const Key('ai-channel-locked')), findsOneWidget);
-    expect(find.text('Tim AI lewat HP belum termasuk paket'), findsOneWidget);
-    expect(find.textContaining('mulai paket Starter'), findsWidgets);
+    expect(find.text(aiChannelLockedTitle), findsOneWidget);
+    expect(find.text(aiChannelLockedMessage), findsOneWidget);
+    expect(purchaseTextOnScreen(tester), isEmpty, reason: 'Pesan server yang menyebut paket Starter tidak ditampilkan.');
     expect(find.byKey(const Key('new-conversation')), findsNothing, reason: 'Tidak ada tombol percakapan baru.');
     expect(find.text('Tim yang bekerja untuk Anda'), findsNothing);
     await tester.pumpWidget(const SizedBox());

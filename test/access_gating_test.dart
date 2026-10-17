@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:infois/app.dart';
+import 'package:infois/core/store_policy.dart';
 import 'package:infois/data/api_client.dart';
 import 'package:infois/data/app_storage.dart';
 import 'package:infois/domain/models.dart';
@@ -18,6 +19,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'support/fakes.dart';
+import 'support/play_policy.dart';
 import 'support/file_fakes.dart';
 
 /// Kontrak "Tolak total": aplikasi HP hanya untuk perusahaan dengan paket
@@ -89,24 +91,25 @@ void main() {
     await settle(tester);
   }
 
-  testWidgets('masuk ditolak (403 akses_hp_tidak_tersedia): pesan + alasan per perusahaan + Lihat paket, tanpa token', (tester) async {
+  testWidgets('masuk ditolak (403 akses_hp_tidak_tersedia): pesan netral + alasan per perusahaan, tanpa tautan beli paket, tanpa token', (tester) async {
     final server = FakeServer((options, _) => options.path == 'auth/login' ? deniedLogin() : null);
     final storage = await pumpApp(tester, server: server, loggedIn: false);
     await submitLogin(tester);
 
     expect(find.text('Masuk ke Infois'), findsOneWidget);
     expect(find.byKey(const Key('access-notice')), findsOneWidget);
-    expect(find.textContaining('masih masa trial'), findsWidgets);
-    expect(find.text('• PT Kopi Senja: masih masa trial.'), findsOneWidget);
-    expect(find.text('• CV Roti Pagi: paketnya belum termasuk aplikasi HP (mulai paket Starter).'), findsOneWidget);
+    // Kebijakan Google Play: tanpa nama paket, harga, atau tempat membeli.
+    expect(find.text(mobileAccessMessage), findsOneWidget);
+    expect(find.text('• PT Kopi Senja: masih masa coba; aplikasi HP belum aktif.'), findsOneWidget);
+    expect(find.text('• CV Roti Pagi: aplikasi HP belum aktif.'), findsOneWidget);
+    expect(find.byKey(const Key('access-notice-plans')), findsNothing);
+    expect(purchaseTextOnScreen(tester), isEmpty);
     expect(await storage.token(), isNull);
     expect(storage.session(), isNull);
 
-    await tester.tap(find.byKey(const Key('access-notice-plans')));
+    await tester.tap(find.byKey(const Key('access-notice')));
     await settle(tester);
-    final base = storage.serverUrl.replaceAll(RegExp(r'/+$'), '');
-    // Halaman Langganan selalu per perusahaan (/app/langganan = 404 di web).
-    expect(files.urls.single.toString(), '$base/app/kopi-senja/langganan');
+    expect(files.urls, isEmpty, reason: 'Tidak ada tautan ke halaman Langganan.');
     await tester.pumpWidget(const SizedBox());
   });
 
@@ -164,16 +167,16 @@ void main() {
 
     expect(find.text('Pilih perusahaan'), findsOneWidget);
     expect(find.byKey(const Key('access-notice')), findsOneWidget);
-    expect(find.textContaining('belum termasuk aplikasi HP'), findsWidgets);
+    expect(find.text(mobileAccessMessage), findsOneWidget);
+    expect(purchaseTextOnScreen(tester), isEmpty);
     expect(find.text('CV Roti Pagi'), findsOneWidget);
     expect(find.text('PT Kopi Senja'), findsNothing, reason: 'Perusahaan yang ditolak hilang dari daftar.');
     expect(storage.session()!.tenants.map((tenant) => tenant.id), [2]);
     expect(storage.tenantId, isNull);
     expect(await storage.token(), 'token-tes', reason: 'Masih bisa memakai perusahaan lain.');
 
-    await tester.tap(find.byKey(const Key('access-notice-plans')));
-    await settle(tester);
-    expect(files.urls.single.path, '/app/kopi-senja/langganan', reason: 'Langganan perusahaan yang ditolak (slug dari daftar perusahaan di HP).');
+    expect(find.byKey(const Key('access-notice-plans')), findsNothing);
+    expect(files.urls, isEmpty);
     await tester.pumpWidget(const SizedBox());
   });
 
@@ -185,7 +188,8 @@ void main() {
 
     expect(find.text('Masuk ke Infois'), findsOneWidget);
     expect(find.byKey(const Key('access-notice')), findsOneWidget);
-    expect(find.textContaining('masih masa trial'), findsOneWidget);
+    expect(find.text(mobileAccessMessage), findsOneWidget);
+    expect(purchaseTextOnScreen(tester), isEmpty);
     expect(await storage.token(), isNull);
     expect(server.requests.where((request) => request.path == 'auth/logout'), hasLength(1), reason: 'Token HP dicabut di server.');
 
@@ -226,7 +230,7 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 50));
 
     expect(container.read(sessionProvider).value!.loggedIn, isFalse);
-    expect(container.read(sessionProvider).value!.notice?.message, deniedMessage);
+    expect(container.read(sessionProvider).value!.notice?.message, mobileAccessMessage, reason: 'Pesan server yang menyebut paket/Langganan diganti kalimat netral.');
     expect(await storage.token(), isNull);
     expect(server.requests.map((request) => request.path), containsAllInOrder(['me', 'auth/logout']));
     expect(tokens.last, 'token-tes', reason: 'Token lama dicabut supaya HP tidak tetap terdaftar aktif di Tim & Akses.');

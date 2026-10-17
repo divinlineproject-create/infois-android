@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12+: tidak ada cadangan cloud maupun pindah-perangkat untuk data
+     Infois. Token login (flutter_secure_storage, terikat Keystore HP ini) dan
+     database transaksi offline tidak boleh dipulihkan ke HP lain: pulihan
+     token tidak bisa dibuka, dan transaksi bisa terkirim dua kali. Data tetap
+     aman di server; di HP baru cukup masuk lagi. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" />
+        <exclude domain="file" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="external" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" />
+        <exclude domain="file" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="external" />
+    </device-transfer>
+</data-extraction-rules>

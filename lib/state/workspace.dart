@@ -107,6 +107,9 @@ final workspaceProvider = FutureProvider<Workspace?>((ref) async {
   api.onError = (error) {
     if (error.mobileAccessDenied && !workspace.disposed) {
       unawaited(controller.dropTenant(tenant.id, error));
+    } else if (error.companyClosed && !workspace.disposed) {
+      // Perusahaan ditutup (dari rute mana pun): pesan + lepas perusahaan.
+      unawaited(controller.companyGone(tenant.id, reason: GoneReason.closed, message: error.message, local: local));
     }
   };
   try {

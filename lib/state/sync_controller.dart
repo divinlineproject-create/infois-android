@@ -266,12 +266,25 @@ class SyncController extends Notifier<SyncState> {
         await ref.read(sessionProvider.notifier).expire();
         return;
       }
+      if (error.companyClosed) {
+        // Perusahaan ditutup pemiliknya: pesan + jumlah belum terkirim, lalu
+        // lepas perusahaan ini (sinkron berhenti, tidak dicoba ulang). Data
+        // HP dihapus setelah pengguna menekan "Mengerti".
+        state = state.copyWith(syncing: false, connection: ConnectionStatus.online, clearMessage: true);
+        await ref.read(sessionProvider.notifier).companyGone(workspace.tenant.id, reason: GoneReason.closed, message: error.message, local: workspace.local);
+        return;
+      }
       state = state.copyWith(syncing: false, connection: error.offline ? ConnectionStatus.offline : ConnectionStatus.online, message: error.message);
       if (error.mobileAccessDenied) {
         // Perusahaan ini sudah dilepas lewat ApiClient.onError (lihat workspace).
         return;
       }
-      if (error.code == 'perangkat_dicabut' || error.code == 'bukan_anggota') {
+      if (error.notMember) {
+        // Dipastikan lewat GET /me: hilang dari daftar = dikeluarkan / ditutup
+        // (pesan + hapus setelah Mengerti); masih ada / gagal = dicek lagi pada
+        // sinkron berikutnya, tanpa timer coba ulang.
+        await ref.read(sessionProvider.notifier).refreshMe(notMemberOf: workspace.tenant.id, local: workspace.local);
+      } else if (error.code == 'perangkat_dicabut') {
         await ref.read(sessionProvider.notifier).refreshMe();
       } else {
         _scheduleRetry(workspace);

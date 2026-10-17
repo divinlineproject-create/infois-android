@@ -11,6 +11,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../core/store_policy.dart';
 import '../data/api_client.dart';
 import '../state/workspace.dart';
 
@@ -298,6 +299,17 @@ void showSavedFile(ScaffoldMessengerState messenger, FileDownloads downloads, Sa
 /// tautannya disalin supaya tetap bisa dibuka manual.
 Future<bool> openExternalLink(BuildContext context, WidgetRef ref, String url) async {
   final messenger = ScaffoldMessenger.of(context);
+  // Kebijakan Google Play: halaman pembelian paket/koin tidak dibuka (dan
+  // tautannya tidak disalin) dari aplikasi.
+  if (isPurchaseUrl(url)) {
+    messenger.showSnackBar(const SnackBar(content: Text('Halaman ini tidak tersedia di aplikasi. Hubungi pemilik usaha atau admin Infois Anda.')));
+    return false;
+  }
+  // Panel dashboard (menu sampingnya memuat Langganan & Dompet Koin).
+  if (isWebPanelUrl(url)) {
+    messenger.showSnackBar(const SnackBar(content: Text(blockedLinkMessage)));
+    return false;
+  }
   final uri = Uri.tryParse(url);
   if (uri != null && await ref.read(filePlatformProvider).openUrl(uri)) {
     return true;

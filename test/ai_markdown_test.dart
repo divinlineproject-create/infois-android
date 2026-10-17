@@ -110,9 +110,14 @@ Penjualan **Rp 1.250.000** dari _12 transaksi_, naik `8%`.
   });
 
   test('tautan: hanya http/https; situs di luar Infois atau teks yang menyamar dikonfirmasi dulu', () {
-    expect(aiLinkAction('https://dashboard.infois.ai/app/reports', label: 'Buka laporan'), AiLinkAction.open);
+    // Panel dashboard memuat menu pembelian (Langganan/Dompet Koin): tidak dibuka dari aplikasi Play Store.
+    expect(aiLinkAction('https://dashboard.infois.ai/app/reports', label: 'Buka laporan'), AiLinkAction.block);
     expect(aiLinkAction('https://wa.me/6281234', label: 'Chat WhatsApp'), AiLinkAction.open);
-    expect(aiLinkAction('https://infois.ai', label: 'infois.ai'), AiLinkAction.open);
+    expect(aiLinkAction('https://infois.ai/kebijakan-privasi', label: 'Kebijakan privasi'), AiLinkAction.open);
+    // Kebijakan Google Play: halaman harga/pembelian tidak dibuka dari aplikasi.
+    expect(aiLinkAction('https://infois.ai', label: 'infois.ai'), AiLinkAction.block);
+    expect(aiLinkAction('https://dashboard.infois.ai/app/kopi-senja/langganan', label: 'Langganan'), AiLinkAction.block);
+    expect(aiLinkAction('https://dashboard.infois.ai/app/kopi-senja/dompet-koin'), AiLinkAction.block);
     expect(aiLinkAction('https://evil.example/login', label: 'dashboard.infois.ai'), AiLinkAction.confirm, reason: 'Teks menyebut alamat lain dari tujuan aslinya.');
     expect(aiLinkAction('https://dashboard.infois.ai/x', label: 'https://bank.example'), AiLinkAction.confirm);
     expect(aiLinkAction('https://toko.example/promo', label: 'promo'), AiLinkAction.confirm);

@@ -7,12 +7,25 @@ import '../data/api_client.dart';
 import '../data/app_storage.dart';
 import '../data/local_db.dart';
 import '../data/outbox_store.dart';
+import '../state/session.dart' show GoneReason, SessionController;
 import 'sync_engine.dart';
 
 const backgroundSyncTask = 'infois-sync';
 
 /// Hasil satu kali sinkron latar.
-enum BackgroundSyncResult { skippedNoSession, skippedForeground, offline, synced }
+enum BackgroundSyncResult {
+  skippedNoSession,
+  skippedForeground,
+  offline,
+  synced,
+
+  /// 403 `perusahaan_ditutup`: dicatat untuk pesan di aplikasi, perusahaan
+  /// aktif dikosongkan (tugas berikutnya dilewati).
+  companyGone,
+
+  /// 403 `bukan_anggota`: aplikasi yang memastikan lewat `GET /me` saat dibuka.
+  notMember,
+}
 
 /// Sinkron latar tiap ±15 menit (Android WorkManager): kirim outbox dan
 /// tarik data master untuk perusahaan yang sedang aktif.
@@ -62,7 +75,19 @@ Future<BackgroundSyncResult> runBackgroundSync({
     if (!(await engine.ping()).ok) {
       return BackgroundSyncResult.offline;
     }
-    await engine.run();
+    try {
+      await engine.run();
+    } on ApiException catch (error) {
+      if (error.companyClosed) {
+        await SessionController.recordGone(storage, userId: session.user.id, tenantId: tenantId, reason: GoneReason.closed, message: error.message, local: local);
+        return BackgroundSyncResult.companyGone;
+      }
+      if (error.notMember) {
+        // Selesai tanpa galat: WorkManager tidak mengulang terus.
+        return BackgroundSyncResult.notMember;
+      }
+      rethrow;
+    }
     return BackgroundSyncResult.synced;
   } finally {
     await local.close();

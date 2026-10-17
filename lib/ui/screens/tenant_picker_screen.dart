@@ -5,6 +5,7 @@ import '../../domain/models.dart';
 import '../../state/session.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import '../widgets/gone_company_notice.dart';
 import 'akun_screen.dart' show logoutWarning;
 import 'login_screen.dart' show AccessNoticeCard;
 
@@ -83,6 +84,11 @@ class _TenantPickerScreenState extends ConsumerState<TenantPickerScreen> {
     final tenants = session?.tenants ?? const <TenantSummary>[];
     final notice = session?.notice;
     final noticeCard = notice == null ? null : AccessNoticeCard(notice: notice, onClose: () => ref.read(sessionProvider.notifier).clearNotice());
+    // Pesan di atas daftar: perusahaan ditutup / dikeluarkan, lalu akses HP.
+    final headers = <Widget>[
+      if (session?.goneNotices.isNotEmpty ?? false) const GoneCompanyNotices(),
+      if (noticeCard != null) noticeCard,
+    ];
     return Scaffold(
       appBar: AppBar(
         title: const Text('Pilih perusahaan'),
@@ -94,25 +100,23 @@ class _TenantPickerScreenState extends ConsumerState<TenantPickerScreen> {
         onRefresh: () => ref.read(sessionProvider.notifier).refreshMe(),
         child: tenants.isEmpty
             ? ListView(padding: const EdgeInsets.all(16), children: [
-                if (noticeCard != null) noticeCard,
-                const SizedBox(height: 80),
+                for (final header in headers) Padding(padding: const EdgeInsets.only(bottom: 10), child: header),
+                const SizedBox(height: 70),
                 const EmptyState(
                   icon: Icons.storefront_outlined,
                   title: 'Belum ada perusahaan',
-                  message: 'Aplikasi HP bisa dipakai perusahaan dengan paket berbayar yang aktif. Minta pemilik usaha menambahkan Anda sebagai anggota tim, atau kelola paket lewat website Infois.',
+                  message: 'Aplikasi HP belum aktif untuk akun ini. Hubungi pemilik usaha atau admin Infois Anda untuk ditambahkan sebagai anggota tim.',
                 ),
               ])
             : ListView.separated(
                 padding: const EdgeInsets.all(16),
-                itemCount: tenants.length + (noticeCard == null ? 0 : 1),
+                itemCount: tenants.length + headers.length,
                 separatorBuilder: (_, __) => const SizedBox(height: 10),
                 itemBuilder: (context, index) {
-                  if (noticeCard != null) {
-                    if (index == 0) {
-                      return noticeCard;
-                    }
-                    index--;
+                  if (index < headers.length) {
+                    return headers[index];
                   }
+                  index -= headers.length;
                   final tenant = tenants[index];
                   return Card(
                     child: ListTile(
@@ -122,11 +126,11 @@ class _TenantPickerScreenState extends ConsumerState<TenantPickerScreen> {
                         child: Text(tenant.name.isEmpty ? '?' : tenant.name[0].toUpperCase(), style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w700)),
                       ),
                       title: Text(tenant.name, style: const TextStyle(fontWeight: FontWeight.w600)),
-                      subtitle: Text(tenant.active ? (tenant.roleLabel ?? 'Anggota') : 'Langganan tidak aktif · kelola lewat website', style: TextStyle(color: tenant.active ? null : warningText(context))),
+                      subtitle: Text(tenant.active ? (tenant.roleLabel ?? 'Anggota') : 'Sedang tidak aktif · hubungi pemilik usaha', style: TextStyle(color: tenant.active ? null : warningText(context))),
                       trailing: const Icon(Icons.chevron_right),
                       onTap: () {
                         if (!tenant.active) {
-                          showMessage(context, 'Langganan ${tenant.name} sedang tidak aktif. Pemilik dapat mengelola paket lewat website Infois.', error: true);
+                          showMessage(context, '${tenant.name} sedang tidak aktif. Hubungi pemilik usaha atau admin Infois Anda.', error: true);
                           return;
                         }
                         ref.read(sessionProvider.notifier).selectTenant(tenant.id);

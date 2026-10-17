@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 
 import '../core/config.dart';
+import '../core/store_policy.dart';
 
 /// Galat API dengan pesan yang bisa langsung ditampilkan ke pengguna.
 class ApiException implements Exception {
@@ -27,6 +28,16 @@ class ApiException implements Exception {
 
   static const mobileAccessDeniedCode = 'akses_hp_tidak_tersedia';
   static const subscriptionInactiveCode = 'langganan_tidak_aktif';
+
+  /// Perusahaan ini sudah ditutup pemiliknya (server baru, aplikasi ≥ 1.1.0).
+  bool get companyClosed => status == 403 && code == companyClosedCode;
+
+  /// User bukan anggota perusahaan ini (dikeluarkan, atau ditutup untuk
+  /// aplikasi lama). Dipastikan lewat `GET /me` sebelum data HP dihapus.
+  bool get notMember => status == 403 && code == notMemberCode;
+
+  static const companyClosedCode = 'perusahaan_ditutup';
+  static const notMemberCode = 'bukan_anggota';
 
   @override
   String toString() => message;
@@ -160,6 +171,9 @@ class ApiClient {
     if (response.statusCode == 429 && code == null) {
       message = 'Terlalu banyak percobaan. Tunggu sebentar lalu coba lagi.';
     }
+    // Aplikasi Play Store tidak boleh mengarahkan ke pembelian paket/koin di
+    // web: pesan server yang menyebut paket/Langganan diganti kalimat netral.
+    message = storeSafeServerMessage(code, message);
     return ApiException(message, code: code, status: response.statusCode, data: data is Map ? Map<String, dynamic>.from(data) : null);
   }
 }

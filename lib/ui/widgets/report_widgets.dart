@@ -238,7 +238,7 @@ class _BarPainter extends CustomPainter {
   /// [maxWidth] membatasi lebar teks; posisi dijepit ke lebar kanvas supaya
   /// label pertama/terakhir tidak keluar tepi.
   void _text(Canvas canvas, String value, Offset at, {required TextAlign align, required double maxWidth, required double canvasWidth}) {
-    final painter = TextPainter(text: TextSpan(text: value, style: TextStyle(fontSize: 10, color: text)), textDirection: TextDirection.ltr, textAlign: align)..layout(maxWidth: maxWidth);
+    final painter = TextPainter(text: TextSpan(text: value, style: TextStyle(fontFamily: 'Poppins', fontSize: 10, color: text)), textDirection: TextDirection.ltr, textAlign: align)..layout(maxWidth: maxWidth);
     final dx = switch (align) {
       TextAlign.right => at.dx - painter.width,
       TextAlign.center => at.dx - painter.width / 2,
@@ -369,7 +369,7 @@ class ReportProblem extends ConsumerWidget {
     }
     final (icon, title) = switch (api?.code) {
       'tidak_berhak' => (Icons.lock_outline, 'Belum punya akses'),
-      'langganan_tidak_aktif' => (Icons.card_membership_outlined, 'Langganan belum aktif'),
+      'langganan_tidak_aktif' => (Icons.card_membership_outlined, 'Perusahaan sedang tidak aktif'),
       'perangkat_dicabut' => (Icons.phonelink_erase_outlined, 'Akses HP ini dicabut'),
       'tidak_ditemukan' => (Icons.search_off_outlined, 'Tidak ditemukan'),
       _ => (Icons.error_outline, '$what belum bisa dimuat'),

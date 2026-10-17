@@ -3,13 +3,17 @@
     <!-- Internet & cek status jaringan (Online/Offline). -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <!-- Printer struk Bluetooth. Android 12+: BLUETOOTH_SCAN/CONNECT; Android 11 ke bawah butuh lokasi untuk memindai. -->
+    <!-- Printer struk Bluetooth: hanya printer yang sudah dipasangkan di pengaturan
+         Bluetooth HP (tidak memindai perangkat baru), jadi lokasi tidak diminta.
+         Android 12+: BLUETOOTH_CONNECT untuk daftar & sambungan, BLUETOOTH_SCAN
+         (neverForLocation) karena plugin printer memanggil cancelDiscovery()
+         sebelum menyambung. Android 11 ke bawah: BLUETOOTH/BLUETOOTH_ADMIN. -->
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="30" />
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" tools:node="remove" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" tools:node="remove" />
     <uses-feature android:name="android.hardware.bluetooth" android:required="false" />
     <!-- Tim AI: voice note (mikrofon) dan foto nota (kamera lewat image_picker). -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
@@ -23,13 +27,22 @@
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" tools:node="remove" />
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" tools:node="remove" />
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" tools:node="remove" />
+    <!-- Dari plugin workmanager / WorkManager tetapi tidak dipakai: Infois tidak
+         menampilkan notifikasi dan sinkron latar tidak memakai layanan foreground.
+         Dibuang supaya Play Console tidak meminta deklarasi izin yang tidak perlu. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" tools:node="remove" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" tools:node="remove" />
 
     <application
         android:label="Infois"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher"
-        android:usesCleartextTraffic="${usesCleartextTraffic}">
+        android:usesCleartextTraffic="${usesCleartextTraffic}"
+        android:allowBackup="false"
+        android:fullBackupContent="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        tools:replace="android:allowBackup">
         <activity
             android:name=".MainActivity"
             android:exported="true"

@@ -8,6 +8,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import '../../core/format.dart';
+import '../../core/store_policy.dart';
 import '../../data/ai_api.dart';
 import '../../data/api_client.dart';
 import '../../domain/ai_models.dart';
@@ -790,25 +791,27 @@ class ProposalCard extends StatelessWidget {
                 ),
               ),
             // Cetak invoice / rincian lengkap: dibuka di browser (website Infois).
-            if (proposal.executed && (proposal.printLinks.isNotEmpty || proposal.resultUrl != null))
+            // Halaman panel dashboard (menu sampingnya memuat Langganan &
+            // Dompet Koin) tidak ditautkan dari aplikasi Play Store.
+            if (proposal.executed && (proposal.printLinks.isNotEmpty || _openableResultUrl(proposal) != null))
               Consumer(
                 builder:
                     (context, ref, _) => Wrap(
                       spacing: 4,
                       children: [
                         for (final link in proposal.printLinks)
-                          if (link['url'] != null)
+                          if (link['url'] != null && !isBlockedInAppUrl(link['url'].toString()))
                             TextButton.icon(
                               style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
                               onPressed: () => openExternalLink(context, ref, link['url'].toString()),
                               icon: const Icon(Icons.open_in_new, size: 16),
                               label: Text(link['label']?.toString() ?? 'Buka di web'),
                             ),
-                        if (proposal.resultUrl != null)
+                        if (_openableResultUrl(proposal) case final resultUrl?)
                           TextButton.icon(
                             key: Key('result-link-${proposal.id}'),
                             style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
-                            onPressed: () => openExternalLink(context, ref, proposal.resultUrl!),
+                            onPressed: () => openExternalLink(context, ref, resultUrl),
                             icon: const Icon(Icons.open_in_new, size: 16),
                             label: const Text('Lihat di web'),
                           ),
@@ -1148,4 +1151,11 @@ class _NewChatPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_NewChatPainter oldDelegate) => oldDelegate.color != color;
+}
+
+/// "Lihat di web" untuk hasil usulan: hanya bila alamatnya boleh dibuka dari
+/// aplikasi Play Store (panel dashboard tidak; lihat [isWebPanelUrl]).
+String? _openableResultUrl(AiProposal proposal) {
+  final url = proposal.resultUrl;
+  return url == null || isBlockedInAppUrl(url) ? null : url;
 }

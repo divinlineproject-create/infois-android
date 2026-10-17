@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:infois/app.dart';
+import 'package:infois/core/store_policy.dart';
 import 'package:infois/data/app_storage.dart';
 import 'package:infois/data/local_db.dart';
 import 'package:infois/data/outbox_store.dart';
@@ -24,6 +25,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'support/fakes.dart';
 import 'support/file_fakes.dart';
+import 'support/play_policy.dart';
 
 /// Akun: tombol Keluar (online, offline, 401, database tertutup, transaksi
 /// belum terkirim), Tampilan terang/gelap, dan Buka Infois di web.
@@ -347,17 +349,51 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('Buka Infois di web dan Paket & langganan membuka browser ke alamat server', (tester) async {
+  testWidgets('Akun (kebijakan Google Play): tanpa tautan paket/langganan/web dasbor; kebijakan privasi bisa dibuka', (tester) async {
+    await pumpApp(tester, server: offlineServer());
+    await openAkun(tester);
+    await reveal(tester, find.byKey(const Key('akun-logout')));
+    expect(find.byKey(const Key('akun-open-plan')), findsNothing);
+    expect(find.byKey(const Key('akun-open-web')), findsNothing, reason: 'Dasbor web memuat menu Langganan: tidak ditautkan dari aplikasi.');
+    expect(purchaseTextOnScreen(tester), isEmpty);
+    expect(find.byKey(const Key('akun-web-info')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('akun-web-info')));
+    await settle(tester);
+    expect(files.urls, isEmpty, reason: 'Info web hanya teks, bukan tautan.');
+
+    await tester.tap(find.byKey(const Key('akun-privacy')));
+    await settle(tester);
+    expect(files.urls.map((uri) => uri.toString()), [privacyPolicyUrl]);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('Hapus akun: menjelaskan yang dihapus lalu membuka halaman hapus akun di web', (tester) async {
     final (storage, _) = await pumpApp(tester, server: offlineServer());
     await openAkun(tester);
-    await reveal(tester, find.byKey(const Key('akun-open-plan')));
-    await tester.tap(find.byKey(const Key('akun-open-web')));
+    await reveal(tester, find.byKey(const Key('akun-delete-account')));
+    await tester.tap(find.byKey(const Key('akun-delete-account')));
     await settle(tester);
-    await tester.tap(find.byKey(const Key('akun-open-plan')));
+
+    expect(find.byKey(const Key('delete-account-sheet')), findsOneWidget);
+    expect(find.text('Yang dihapus'), findsOneWidget);
+    expect(find.text('Yang tetap disimpan'), findsOneWidget);
+    expect(find.textContaining('tidak bisa dibatalkan'), findsOneWidget);
+    expect(files.urls, isEmpty, reason: 'Belum dibuka sebelum pengguna menekan tombolnya.');
+
+    // Batal: tidak membuka apa-apa.
+    await tester.tap(find.text('Batal'));
+    await settle(tester);
+    expect(files.urls, isEmpty);
+
+    await tester.tap(find.byKey(const Key('akun-delete-account')));
+    await settle(tester);
+    await tester.ensureVisible(find.byKey(const Key('delete-account-open')));
+    await settle(tester);
+    await tester.tap(find.byKey(const Key('delete-account-open')));
     await settle(tester);
     final base = storage.serverUrl.replaceAll(RegExp(r'/+$'), '');
-    // Rute web selalu memakai slug perusahaan (/app/langganan = 404).
-    expect(files.urls.map((uri) => uri.toString()), ['$base/app/warung-tes', '$base/app/warung-tes/langganan']);
+    expect(files.urls.map((uri) => uri.toString()), ['$base/app/hapus-akun']);
     await tester.pumpWidget(const SizedBox());
   });
 }

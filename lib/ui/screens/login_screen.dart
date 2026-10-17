@@ -1,24 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/store_policy.dart';
 import '../../data/api_client.dart';
-import '../../services/file_downloads.dart';
 import '../../state/session.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import '../widgets/gone_company_notice.dart';
 
-/// Pesan "aplikasi HP tidak tersedia" + alasan per perusahaan + tombol
-/// Lihat paket (website › Langganan).
-class AccessNoticeCard extends ConsumerWidget {
+/// Pesan "aplikasi HP tidak tersedia" + alasan per perusahaan. Sesuai
+/// kebijakan Google Play tidak ada nama paket, harga, atau tautan ke halaman
+/// pembelian; pengguna diminta menghubungi pemilik usaha / admin Infois.
+class AccessNoticeCard extends StatelessWidget {
   const AccessNoticeCard({super.key, required this.notice, this.onClose});
 
   final AccessNotice notice;
   final VoidCallback? onClose;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final color = warningText(context);
-    final server = ref.watch(sessionProvider).valueOrNull;
+    final message = purchasePattern.hasMatch(notice.message) || notice.message.trim().isEmpty ? mobileAccessMessage : notice.message;
     return Card(
       key: const Key('access-notice'),
       color: color.withValues(alpha: 0.08),
@@ -33,24 +35,16 @@ class AccessNoticeCard extends ConsumerWidget {
             if (onClose != null) IconButton(visualDensity: VisualDensity.compact, tooltip: 'Tutup', icon: const Icon(Icons.close, size: 18), onPressed: onClose),
           ]),
           const SizedBox(height: 6),
-          Padding(padding: const EdgeInsets.only(right: 8), child: Text(notice.message, style: const TextStyle(fontSize: 13.5))),
+          Padding(padding: const EdgeInsets.only(right: 8), child: Text(message, style: const TextStyle(fontSize: 13.5))),
           if (notice.tenants.isNotEmpty) ...[
             const SizedBox(height: 8),
             for (final tenant in notice.tenants)
               Padding(
                 padding: const EdgeInsets.only(bottom: 4, right: 8),
-                child: Text('• ${tenant.name}: ${tenant.reasonLabel}.', key: Key('access-notice-tenant-${tenant.id ?? tenant.name}'), style: const TextStyle(fontSize: 13)),
+                child: Text('• ${tenant.name}: ${deniedReasonLabel(tenant.reason)}.', key: Key('access-notice-tenant-${tenant.id ?? tenant.name}'), style: const TextStyle(fontSize: 13)),
               ),
           ],
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton.icon(
-              key: const Key('access-notice-plans'),
-              onPressed: server == null ? null : () => openExternalLink(context, ref, server.webUrl(billingPath(notice.billingSlug))),
-              icon: const Icon(Icons.open_in_new, size: 18),
-              label: const Text('Lihat paket'),
-            ),
-          ),
+          const SizedBox(height: 6),
         ]),
       ),
     );
@@ -135,6 +129,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   Text('Masuk ke Infois', textAlign: TextAlign.center, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700)),
                   const SizedBox(height: 6),
                   const Text('Pakai akun yang sama dengan website.', textAlign: TextAlign.center),
+                  if (session?.goneNotices.isNotEmpty ?? false) ...[
+                    const SizedBox(height: 20),
+                    const GoneCompanyNotices(),
+                  ],
                   if (notice != null) ...[
                     const SizedBox(height: 20),
                     AccessNoticeCard(
@@ -189,7 +187,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     child: _busy ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white)) : const Text('Masuk'),
                   ),
                   const SizedBox(height: 12),
-                  const Text('Belum punya akun? Daftarkan usaha lewat website Infois.', textAlign: TextAlign.center, style: TextStyle(fontSize: 13)),
+                  const Text('Belum punya akun? Akun dibuat oleh pemilik usaha atau admin Infois Anda.', key: Key('login-no-account'), textAlign: TextAlign.center, style: TextStyle(fontSize: 13)),
                 ]),
               ),
             ),

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/config.dart';
 import '../../core/format.dart';
+import '../../core/store_policy.dart';
 import '../../services/file_downloads.dart';
 import '../../services/pos_service.dart';
 import '../../state/pos_state.dart';
@@ -32,8 +33,75 @@ String logoutWarning({required int pending, int pendingElsewhere = 0, required i
   return parts.join('\n\n');
 }
 
-/// Akun: profil, ganti perusahaan, printer, status sinkron, tampilan, web,
-/// keluar.
+/// Penjelasan "Hapus akun" (wajib Google Play): apa yang dihapus dan yang
+/// tetap disimpan, lalu membuka halaman hapus akun di web Infois. Penghapusan
+/// sendiri dilakukan di web (konfirmasi kata sandi / kode email).
+Future<void> showDeleteAccountSheet(BuildContext context, WidgetRef ref, String url, {int pending = 0}) async {
+  final open = await showModalBottomSheet<bool>(
+    context: context,
+    isScrollControlled: true,
+    showDragHandle: true,
+    builder: (sheet) {
+      final muted = mutedText(sheet);
+      Widget point(String text) => Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('•  '),
+              Expanded(child: Text(text, style: const TextStyle(fontSize: 13.5, height: 1.4))),
+            ]),
+          );
+      return SafeArea(
+        child: SingleChildScrollView(
+          key: const Key('delete-account-sheet'),
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+            Text('Hapus akun Infois', style: Theme.of(sheet).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 8),
+            const Text('Akun dihapus lewat halaman Hapus akun di web Infois. Masuk dengan akun ini, ketik HAPUS AKUN, lalu konfirmasi dengan kata sandi (akun Google: kode yang dikirim ke email).', style: TextStyle(fontSize: 13.5, height: 1.4)),
+            const SizedBox(height: 14),
+            const Text('Yang dihapus', style: TextStyle(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 6),
+            point('Akun Anda dinonaktifkan dan tidak bisa dipakai masuk lagi, di web maupun di HP. Percakapan Tim AI pribadi, sesi masuk, dan perangkat Anda dihapus.'),
+            point('Perusahaan milik Anda (yang Anda pegang sebagai pemilik) ditutup dan seluruh datanya dihapus permanen: transaksi, barang, pelanggan, catatan, foto nota, file, dan percakapan Tim AI.'),
+            point('Dari perusahaan tempat Anda hanya anggota, Anda dikeluarkan. Data perusahaan itu tetap milik pemiliknya.'),
+            point('Sisa koin Tim AI dan masa aktif perusahaan yang ditutup hangus, tanpa pengembalian dana.'),
+            const SizedBox(height: 8),
+            const Text('Yang tetap disimpan', style: TextStyle(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 6),
+            point('Catatan tagihan dan pembayaran, sesuai kewajiban pajak dan hukum.'),
+            point('Nama, email, dan nomor telepon akun dalam keadaan nonaktif, sebagai bagian dari catatan tagihan dan untuk mencegah penyalahgunaan.'),
+            if (pending > 0) ...[
+              const SizedBox(height: 8),
+              Text('Ada $pending transaksi di HP ini yang belum terkirim. Sinkronkan dulu bila masih diperlukan, karena setelah akun dihapus transaksi itu tidak bisa dikirim lagi.',
+                  key: const Key('delete-account-pending'), style: TextStyle(fontSize: 13, color: dangerText(sheet))),
+            ],
+            const SizedBox(height: 8),
+            Text('Penghapusan tidak bisa dibatalkan.', style: TextStyle(fontSize: 13, color: muted)),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                key: const Key('delete-account-open'),
+                style: FilledButton.styleFrom(backgroundColor: dangerText(sheet)),
+                onPressed: () => Navigator.pop(sheet, true),
+                icon: const Icon(Icons.open_in_new, size: 18),
+                label: const Text('Buka halaman Hapus akun'),
+              ),
+            ),
+            const SizedBox(height: 6),
+            SizedBox(width: double.infinity, child: TextButton(onPressed: () => Navigator.pop(sheet, false), child: const Text('Batal'))),
+          ]),
+        ),
+      );
+    },
+  );
+  if (open == true && context.mounted) {
+    await openExternalLink(context, ref, url);
+  }
+}
+
+/// Akun: profil, ganti perusahaan, printer, status sinkron, tampilan,
+/// kebijakan privasi, hapus akun, keluar.
 class AkunScreen extends ConsumerStatefulWidget {
   const AkunScreen({super.key});
 
@@ -277,23 +345,37 @@ class _AkunScreenState extends ConsumerState<AkunScreen> {
         ]),
       ),
       const SizedBox(height: 12),
+      // Kebijakan Google Play: tidak ada tautan ke web untuk paket/koin. Web
+      // hanya disebut sebagai tempat pengaturan lengkap (tanpa tautan).
       Card(
         child: Column(children: [
           ListTile(
-            key: const Key('akun-open-web'),
-            leading: const Icon(Icons.open_in_browser),
-            title: const Text('Buka Infois di web'),
-            subtitle: const Text('Laporan lengkap, pengaturan, dan tim'),
-            trailing: const Icon(Icons.open_in_new, size: 20),
-            onTap: session == null ? null : () => openExternalLink(context, ref, session.webUrl(tenantWebPath(tenant?.slug))),
+            key: const Key('akun-web-info'),
+            leading: const Icon(Icons.computer_outlined),
+            title: const Text('Infois versi web'),
+            subtitle: Text('Laporan lengkap, pengaturan, dan tim ada di ${session == null ? 'dashboard.infois.ai' : Uri.parse(session.serverUrl.trim()).host}.'),
           ),
           ListTile(
-            key: const Key('akun-open-plan'),
-            leading: const Icon(Icons.workspace_premium_outlined),
-            title: const Text('Paket & langganan'),
-            subtitle: const Text('Kelola paket dan koin lewat website'),
+            key: const Key('akun-privacy'),
+            leading: const Icon(Icons.privacy_tip_outlined),
+            title: const Text('Kebijakan privasi'),
             trailing: const Icon(Icons.open_in_new, size: 20),
-            onTap: session == null ? null : () => openExternalLink(context, ref, session.webUrl(billingPath(tenant?.slug))),
+            onTap: () => openExternalLink(context, ref, privacyPolicyUrl),
+          ),
+          ListTile(
+            key: const Key('akun-terms'),
+            leading: const Icon(Icons.description_outlined),
+            title: const Text('Syarat & ketentuan'),
+            trailing: const Icon(Icons.open_in_new, size: 20),
+            onTap: () => openExternalLink(context, ref, termsUrl),
+          ),
+          ListTile(
+            key: const Key('akun-delete-account'),
+            leading: Icon(Icons.person_remove_outlined, color: dangerText(context)),
+            title: Text('Hapus akun', style: TextStyle(color: dangerText(context))),
+            subtitle: const Text('Hapus akun Infois dan data Anda'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: session == null ? null : () => showDeleteAccountSheet(context, ref, session.webUrl(deleteAccountPath), pending: sync.pending),
           ),
         ]),
       ),

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/store_policy.dart';
 import '../../data/api_client.dart';
 import '../../domain/ai_models.dart';
 import '../../state/ai_state.dart';
@@ -383,7 +384,7 @@ class _AiChatViewState extends ConsumerState<AiChatView> {
                                   Text(team.name, style: TextStyle(fontWeight: FontWeight.w600, color: team.locked ? mutedText(context) : null)),
                                   if (team.role.isNotEmpty) Text(team.role, style: TextStyle(fontSize: 12.5, color: mutedText(context))),
                                   if (team.locked)
-                                    Text('Tersedia di paket ${team.unlockPlan ?? 'lebih tinggi'}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: warningText(context))),
+                                    Text(aiTeamLockedLabel, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: warningText(context))),
                                 ],
                               ),
                             ),

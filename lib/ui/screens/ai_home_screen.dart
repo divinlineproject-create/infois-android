@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/store_policy.dart';
 import '../../data/api_client.dart';
 import '../../domain/ai_models.dart';
 import '../../state/ai_state.dart';
@@ -232,7 +233,7 @@ class _AiHomeScreenState extends ConsumerState<AiHomeScreen> {
       final code = error is ApiException ? error.code : null;
       final (icon, title) = switch (code) {
         'tidak_berhak' => (Icons.lock_outline, 'Belum punya akses Tim AI'),
-        'langganan_tidak_aktif' => (Icons.card_membership_outlined, 'Langganan belum aktif'),
+        'langganan_tidak_aktif' => (Icons.card_membership_outlined, 'Perusahaan sedang tidak aktif'),
         'perangkat_dicabut' => (Icons.phonelink_erase_outlined, 'Akses HP ini dicabut'),
         _ => (Icons.error_outline, 'Tim AI belum bisa dibuka'),
       };
@@ -242,7 +243,8 @@ class _AiHomeScreenState extends ConsumerState<AiHomeScreen> {
       return const Center(child: CircularProgressIndicator());
     }
     if (data.channelLocked) {
-      // Trial atau paket tanpa aplikasi HP: jelaskan paketnya, jangan tampilkan chat.
+      // Trial atau paket tanpa aplikasi HP: kalimat netral tanpa nama paket /
+      // tempat membeli (kebijakan Google Play), jangan tampilkan chat.
       return RefreshIndicator(
         onRefresh: _refresh,
         child: ListView(
@@ -251,18 +253,8 @@ class _AiHomeScreenState extends ConsumerState<AiHomeScreen> {
             EmptyState(
               key: const Key('ai-channel-locked'),
               icon: Icons.lock_outline,
-              title: 'Tim AI lewat HP belum termasuk paket',
-              message:
-                  data.channels.message ??
-                  'Tersedia di paket berbayar${data.channels.unlockPlan == null ? '' : ' mulai paket ${data.channels.unlockPlan}'}. Sementara ini, Tim AI tetap bisa dipakai lewat web.',
-              action:
-                  data.channels.unlockPlan == null
-                      ? null
-                      : Text(
-                        'Pilih paket ${data.channels.unlockPlan} di menu Langganan (web) untuk membuka Tim AI di HP.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 13, color: mutedText(context)),
-                      ),
+              title: aiChannelLockedTitle,
+              message: aiChannelLockedMessage,
             ),
           ],
         ),

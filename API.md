@@ -29,7 +29,8 @@ Semua endpoint ada di bawah **`/api/v1`**, berformat JSON, pesan galat dalam Bah
 |---|---|---|
 | 401 | `unauthenticated` | Token tidak ada/dicabut → login ulang. Pesan: "Sesi berakhir. Silakan masuk lagi." |
 | 400 | `perusahaan_belum_dipilih` | Header `X-Tenant` kosong |
-| 403 | `bukan_anggota` | User bukan anggota perusahaan itu |
+| 403 | `bukan_anggota` | User bukan anggota perusahaan itu (dikeluarkan, atau perusahaannya ditutup dan aplikasinya versi lama / tanpa bukti tutup). Lihat §3 "Perusahaan ditutup atau dikeluarkan" |
+| 403 | `perusahaan_ditutup` | Perusahaan sudah ditutup pemiliknya ("Tutup perusahaan" / Hapus akun). Hanya untuk aplikasi `X-App-Version` ≥ `infois.mobile.closed_code_min_version` (aplikasi pertama yang menanganinya: **1.1.0**); aplikasi lebih lama mendapat `bukan_anggota`. Lihat §3 |
 | 403 | `langganan_tidak_aktif` | Langganan ditangguhkan/dibatalkan (isi jawaban sama dengan `akses_hp_tidak_tersedia`, `reason: langganan_tidak_aktif`) |
 | 403 | `akses_hp_tidak_tersedia` | Perusahaan tidak boleh memakai aplikasi HP: trial, tanpa paket, atau paketnya tidak termasuk aplikasi HP (lihat §3) |
 | 403 | `perangkat_dicabut` | HP dicabut aksesnya di web (Tim & Akses › Perangkat) |
@@ -112,6 +113,22 @@ Pemetaan menu (PLAN-MOBILE §7.1):
 | `records` (Catatan) | `ViewAny:Invoice` atau `stock` atau `cash_journal` |
 | `add_customer` | `Create:Customer` |
 | `printer` | `pos` atau `ai` |
+
+### Perusahaan ditutup atau dikeluarkan (aplikasi ≥ 1.1.0)
+Satu perusahaan bisa hilang dari HP tanpa login ikut berakhir: pemilik menutupnya (web › Pengaturan › Tutup perusahaan, atau Hapus akun) atau user dikeluarkan dari tim. Data lokal perusahaan itu (database `infois_u{user}_t{tenant}.db`, termasuk outbox) tidak bisa lagi dikirim, jadi aplikasi **memberi tahu lalu menghapusnya setelah pengguna menekan "Mengerti, hapus dari HP"**, dan tidak pernah mencoba ulang terus-menerus.
+
+| Kejadian | Bukti yang dipakai aplikasi | Sikap aplikasi |
+|---|---|---|
+| 403 `perusahaan_ditutup` dari rute 🏢 mana pun (sinkron, Laporan, Tim AI, …) | Kode itu sendiri | Dicatat "ditutup" |
+| 403 `bukan_anggota` dari sinkron (kirim/tarik) | Lalu `GET /me` berhasil dan perusahaan itu **tidak ada** di `tenants` (atau `GET /me` 403 `akses_hp_tidak_tersedia` dan perusahaan itu **tidak ada** di `tenants` daftar tolak) | Dicatat "dikeluarkan" |
+| 403 `bukan_anggota`, tetapi `GET /me` masih memuat perusahaan itu / gagal / offline | Tidak cukup | Tidak ada yang dihapus; dicek lagi pada sinkron berikutnya (15 menit / dibuka lagi / setelah penjualan), tanpa timer coba ulang |
+| Perusahaan hilang dari `GET /me` tanpa `bukan_anggota` | Tidak cukup (bisa karena paket tanpa aplikasi HP, data tetap disimpan) | Tidak ada perubahan |
+
+Saat dicatat: perusahaan dilepas dari daftar dan dari perusahaan aktif (kembali ke Pilih perusahaan, atau layar Masuk bila `GET /me` tidak menyisakan perusahaan), sinkron perusahaan itu berhenti (`sync/push` tidak menaikkan `attempts` outbox dan tidak menjadwalkan coba ulang), lalu kartu pesan tampil di Pilih perusahaan dan layar Masuk: "{perusahaan} sudah ditutup" / "Anda tidak lagi menjadi anggota {perusahaan}", pesan server (bila ada), dan jumlah **transaksi belum terkirim** (outbox `pending`) serta **pesanan tersimpan** yang ikut terhapus. Catatan disimpan di HP (`SharedPreferences` kunci `gone_companies`), jadi tetap tampil setelah aplikasi ditutup-buka; bila perusahaan itu muncul lagi di `GET /me` (diundang lagi), catatan dibatalkan tanpa menghapus data. Keluar (Logout) tetap menghapus semua data user di HP, termasuk catatan ini.
+
+Sinkron latar (WorkManager): 403 `perusahaan_ditutup` → dicatat dengan jumlah belum terkirim, perusahaan aktif dikosongkan sehingga tugas berikutnya dilewati; 403 `bukan_anggota` → tugas selesai tanpa galat (WorkManager tidak mengulang) dan aplikasi yang memastikannya lewat `GET /me` saat dibuka.
+
+**Urutan rilis (versi):** aplikasi 1.1.0 (penanganan ini) dirilis dulu. Server baru boleh menjawab `perusahaan_ditutup` bila `X-App-Version` ≥ `config('infois.mobile.closed_code_min_version')` = `1.1.0` **dan** ada bukti tutup (cache `closed-member:{tenant}:{user}`, 30 hari); selain itu tetap `bukan_anggota`. Setelah masa adopsi, naikkan `INFOIS_MOBILE_MIN_VERSION` ke `1.1.0` supaya aplikasi lama diminta memperbarui. Kode: `android/lib/state/session.dart` (`GoneCompany`, `companyGone`, `acknowledgeGone`, `refreshMe(notMemberOf:)`), `android/lib/state/sync_controller.dart`, `android/lib/services/background_sync.dart`; tes `android/test/closed_company_test.dart`.
 
 ### Tim AI di Telegram (catatan, bukan endpoint HP)
 Akun Telegram dihubungkan ke satu perusahaan dengan dua cara: (1) di bot tekan **Bagikan nomor saya** — hanya nomor milik pengirim sendiri yang diterima, nomornya harus sama dengan **Nomor HP (untuk Telegram)** di profil web (`/app/profile`, kolom `users.phone`; awalan +62/62/0, spasi, dan tanda hubung disamakan); bila user punya beberapa perusahaan yang paketnya membuka Telegram dan ia punya akses Tim AI, bot menampilkan tombol pilih perusahaan; nomor yang dipakai lebih dari satu akun ditolak; (2) kode sekali pakai dari Tim AI web › Saluran Telegram › Hubungkan. Hak akses di Telegram = role user itu di perusahaan tersebut (sama dengan web). Aplikasi HP cukup mengarahkan pengguna ke cara ini bila ditanya; tidak ada endpoint API-nya.

@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:infois/core/store_policy.dart';
 import 'package:infois/data/ai_api.dart';
 import 'package:infois/domain/ai_models.dart';
 import 'package:infois/state/ai_state.dart';
@@ -105,8 +106,9 @@ void main() {
     await controller.send('kopi susu 2');
 
     final message = scope.read(aiChatProvider(0)).messages.single;
-    expect(message.sendError, contains('website Infois'));
-    expect(message.sendError, isNot(contains('Services')));
+    // Kebijakan Google Play: tanpa ajakan isi ulang koin / menu Dompet Koin.
+    expect(message.sendError, aiQuotaExhaustedMessage);
+    expect(message.sendError, isNot(contains('Dompet Koin')));
     expect(controller.canRetry(message.localId!), isFalse);
   });
 

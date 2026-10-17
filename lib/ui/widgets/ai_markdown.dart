@@ -2,6 +2,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/store_policy.dart';
 import '../../services/file_downloads.dart';
 import '../theme.dart';
 
@@ -271,6 +272,12 @@ AiLinkAction aiLinkAction(String url, {String? label}) {
   if (uri == null || !const {'http', 'https'}.contains(uri.scheme.toLowerCase()) || uri.host.isEmpty) {
     return AiLinkAction.block;
   }
+  // Halaman pembelian paket/koin (Langganan, Dompet Koin, harga) dan panel
+  // dashboard (menu sampingnya memuat keduanya) tidak dibuka dari aplikasi
+  // Play Store. Hapus akun & dokumen cetak tetap boleh.
+  if (isBlockedInAppUrl(url)) {
+    return AiLinkAction.block;
+  }
   final host = uri.host.toLowerCase();
   final trusted = host == 'infois.ai' || host.endsWith('.infois.ai') || host == 'wa.me';
   final shown = label == null ? null : _hostLike.firstMatch(label.trim())?.group(1)?.toLowerCase();
@@ -318,6 +325,9 @@ class _AiMarkdownState extends ConsumerState<AiMarkdown> {
     }
     switch (aiLinkAction(url, label: label)) {
       case AiLinkAction.block:
+        if (isWebPanelUrl(url) && !isPurchaseUrl(url)) {
+          ScaffoldMessenger.maybeOf(context)?.showSnackBar(const SnackBar(content: Text(blockedLinkMessage)));
+        }
         return;
       case AiLinkAction.open:
         break;
@@ -426,7 +436,8 @@ class _AiMarkdownState extends ConsumerState<AiMarkdown> {
     final base = (theme.textTheme.bodyMedium ?? const TextStyle()).merge(widget.style ?? const TextStyle(fontSize: 15, height: 1.5));
     final size = base.fontSize ?? 15;
     final muted = mutedText(context);
-    final blocks = parseMarkdown(widget.text);
+    // Kebijakan Google Play: kalimat ajakan membeli paket/koin tidak tampil.
+    final blocks = parseMarkdown(storeSafeAiText(widget.text));
     final children = <Widget>[];
     for (var b = 0; b < blocks.length; b++) {
       final block = blocks[b];

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/format.dart';
 import '../../data/outbox_store.dart';
+import '../../services/permission_gate.dart';
 import '../../services/printing/printer_service.dart';
 import '../../state/printer_controller.dart';
 import '../../state/session.dart';
@@ -26,6 +27,10 @@ class _PrinterSettingsScreenState extends ConsumerState<PrinterSettingsScreen> {
   late int _width = ref.read(printerProvider).printer?.width ?? ref.read(masterDataProvider).valueOrNull?.receipt.width ?? 58;
 
   Future<void> _scan() async {
+    // Jelaskan dulu kenapa izin Bluetooth (Perangkat sekitar) diminta.
+    if (!await explainPermission(context, ref, AppPermission.bluetoothPrinter) || !mounted) {
+      return;
+    }
     setState(() => _scanning = true);
     try {
       final devices = await ref.read(printerProvider.notifier).scan();

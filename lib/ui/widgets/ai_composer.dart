@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/ai_models.dart';
 import '../../services/ai_media.dart';
+import '../../services/permission_gate.dart';
 import '../theme.dart';
 import 'common.dart';
 
@@ -171,6 +172,11 @@ class AiComposerState extends ConsumerState<AiComposer> {
     final press = ++_micPress;
     _micPressed = true;
     _slide = 0;
+    // Pertama kali: jelaskan dulu kegunaan mikrofon sebelum jendela izin
+    // sistem. Setelah itu tekan-tahan lagi untuk merekam.
+    if (!await explainPermission(context, ref, AppPermission.microphone) || !mounted) {
+      return;
+    }
     final recorder = ref.read(voiceRecorderProvider);
     bool ok;
     try {

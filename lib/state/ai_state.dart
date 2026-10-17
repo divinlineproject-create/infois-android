@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
+import '../core/store_policy.dart';
 import '../data/ai_api.dart';
 import '../data/api_client.dart';
 import '../domain/ai_models.dart';
@@ -498,7 +499,7 @@ class AiChatController extends AutoDisposeFamilyNotifier<AiChatState, int> {
 
   /// Pesan galat kirim dalam bahasa pengguna HP (menu web tidak ada di HP).
   static String _sendErrorText(ApiException error) => switch (error.code) {
-        'koin_habis' => 'Koin Tim AI bulan ini habis. Minta pemilik usaha mengisi ulang koin lewat website Infois.',
+        'koin_habis' => aiQuotaExhaustedMessage,
         _ => error.message,
       };
 

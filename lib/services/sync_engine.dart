@@ -91,6 +91,11 @@ class SyncEngine {
         final response = await api.post('sync/push', data: {'items': [for (final item in items) item.toPush()]}, timeout: pushTimeout);
         results = [for (final result in (response['results'] as List? ?? const [])) Map<String, dynamic>.from(result as Map)];
       } on ApiException catch (error) {
+        if (error.companyClosed || error.notMember) {
+          // Bukan galat per transaksi: perusahaan ditutup / user dikeluarkan.
+          // Pemanggil yang memutuskan (pesan + hapus data), tanpa coba ulang.
+          rethrow;
+        }
         await outbox.markAttemptFailed(items, error.message);
         return PushSummary(sent: sent, review: review, rejected: rejected, failed: true, error: error.message);
       }
