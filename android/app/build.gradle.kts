@@ -34,8 +34,8 @@ android {
 
     defaultConfig {
         applicationId = "id.infois.infois"
-        // flutter_secure_storage & printer Bluetooth butuh Android 6+.
-        minSdk = 23
+        // Android 7+: syarat Play automatic protection (minSdk 24).
+        minSdk = 24
         manifestPlaceholders["usesCleartextTraffic"] = "false"
         targetSdk = 36
         versionCode = flutter.versionCode
