@@ -244,25 +244,42 @@ class LocalDb {
     return [for (final row in rows) Product.fromJson(Map<String, dynamic>.from(jsonDecode(row['data'] as String) as Map))];
   }
 
-  Future<Product?> productBySku(String sku) async {
-    final rows = await db.query('products', where: 'LOWER(sku) = ?', whereArgs: [sku.toLowerCase()], orderBy: 'is_active DESC', limit: 1);
-    return rows.isEmpty ? null : Product.fromJson(Map<String, dynamic>.from(jsonDecode(rows.first['data'] as String) as Map));
+  /// Barang dengan id tertentu (aktif maupun nonaktif), mis. hasil Input AI.
+  Future<Map<int, Product>> productsByIds(Iterable<int> ids) async {
+    final unique = ids.toSet().toList();
+    if (unique.isEmpty) {
+      return const {};
+    }
+    final rows = await db.query('products', where: 'id IN (${List.filled(unique.length, '?').join(',')})', whereArgs: unique);
+    return {
+      for (final row in rows) row['id'] as int: Product.fromJson(Map<String, dynamic>.from(jsonDecode(row['data'] as String) as Map)),
+    };
   }
 
-  /// Barang untuk kode hasil scan / ketik: barcode dulu, lalu SKU (sama
-  /// dengan pencocokan server saat penjualan dikirim). Huruf besar/kecil
-  /// tidak dibedakan; barang aktif didahulukan.
-  Future<Product?> productByCode(String code) async {
-    final text = code.trim();
+  /// Barang untuk kode hasil scan / ketik: barcode dulu, lalu SKU (huruf
+  /// besar/kecil tidak dibedakan). Barang aktif selalu didahulukan (barcode
+  /// aktif → SKU aktif); kode yang hanya cocok dengan barang nonaktif tidak
+  /// dijual ([CodeLookup.inactive]). Server tetap menerima penjualan offline
+  /// lama yang memuat barang nonaktif (dengan peringatan).
+  Future<CodeLookup> lookupCode(String code) async {
+    final text = code.trim().toLowerCase();
     if (text.isEmpty) {
-      return null;
+      return CodeLookup.none;
     }
-    final rows = await db.query('products', where: 'LOWER(barcode) = ?', whereArgs: [text.toLowerCase()], orderBy: 'is_active DESC', limit: 1);
-    if (rows.isNotEmpty) {
-      return Product.fromJson(Map<String, dynamic>.from(jsonDecode(rows.first['data'] as String) as Map));
+    Product decode(Map<String, Object?> row) => Product.fromJson(Map<String, dynamic>.from(jsonDecode(row['data'] as String) as Map));
+    final byBarcode = await db.query('products', where: 'LOWER(barcode) = ?', whereArgs: [text], orderBy: 'is_active DESC, id');
+    final bySku = await db.query('products', where: 'LOWER(sku) = ?', whereArgs: [text], orderBy: 'is_active DESC, id');
+    for (final row in [...byBarcode, ...bySku]) {
+      if (row['is_active'] == 1) {
+        return CodeLookup(product: decode(row));
+      }
     }
-    return productBySku(text);
+    final inactive = [...byBarcode, ...bySku].firstOrNull;
+    return inactive == null ? CodeLookup.none : CodeLookup(inactive: decode(inactive));
   }
+
+  /// Barang AKTIF untuk kode scan/ketik (lihat [lookupCode]), atau null.
+  Future<Product?> productByCode(String code) async => (await lookupCode(code)).product;
 
   // ---------------------------------------------------------- categories
 

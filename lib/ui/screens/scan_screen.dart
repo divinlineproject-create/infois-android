@@ -50,6 +50,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
   int _added = 0;
   Product? _last;
   String? _notFound;
+  bool _inactive = false;
   String? _seenCode;
   DateTime _seenAt = DateTime.fromMillisecondsSinceEpoch(0);
 
@@ -83,13 +84,17 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
   Future<void> _handle(String code) async {
     _busy = true;
     try {
-      final product = await ref.read(posActionsProvider).addByCode(code);
+      final found = await ref.read(posActionsProvider).addByCode(code);
+      final product = found.product;
       if (!mounted) {
         return;
       }
       if (product == null) {
         HapticFeedback.heavyImpact();
-        setState(() => _notFound = code);
+        setState(() {
+          _notFound = code;
+          _inactive = found.isInactive;
+        });
         return;
       }
       HapticFeedback.mediumImpact();
@@ -98,6 +103,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
         _added++;
         _last = product;
         _notFound = null;
+        _inactive = false;
       });
       if (!_continuous) {
         _close();
@@ -263,11 +269,19 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
           Icon(Icons.search_off, color: dangerText(context)),
           const SizedBox(width: Space.m),
           Expanded(
-            child: Text.rich(TextSpan(children: [
-              const TextSpan(text: 'Kode '),
-              TextSpan(text: _notFound, style: const TextStyle(fontWeight: FontWeight.w700)),
-              const TextSpan(text: ' tidak ada di katalog HP ini. Cek barcode/SKU barang di web, lalu sinkron.'),
-            ]), style: TextStyle(color: dangerText(context), fontSize: 13.5)),
+            child: Text.rich(
+                TextSpan(
+                    children: _inactive
+                        ? [
+                            const TextSpan(text: inactiveCodeMessage, style: TextStyle(fontWeight: FontWeight.w700)),
+                            TextSpan(text: ' Kode $_notFound tidak dimasukkan ke pesanan.'),
+                          ]
+                        : [
+                            const TextSpan(text: 'Kode '),
+                            TextSpan(text: _notFound, style: const TextStyle(fontWeight: FontWeight.w700)),
+                            const TextSpan(text: ' tidak ada di katalog HP ini. Cek barcode/SKU barang di web, lalu sinkron.'),
+                          ]),
+                style: TextStyle(color: dangerText(context), fontSize: 13.5)),
           ),
         ]),
       );
@@ -303,7 +317,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
         ]),
       );
     }
-    return AnimatedSwitcher(duration: const Duration(milliseconds: 180), child: KeyedSubtree(key: ValueKey('${_notFound ?? ''}|$_added'), child: child));
+    return AnimatedSwitcher(duration: const Duration(milliseconds: 180), child: KeyedSubtree(key: ValueKey('${_notFound ?? ''}|$_inactive|$_added'), child: child));
   }
 }
 

@@ -79,7 +79,7 @@ final permissionGateProvider = Provider<PermissionGate>((ref) => const DevicePer
 (String, String) permissionRationale(AppPermission permission) => switch (permission) {
       AppPermission.microphone => (
           'Izinkan mikrofon',
-          'Infois memakai mikrofon hanya saat Anda menekan tombol voice note di Tim AI. Rekaman dikirim ke server Infois dan penyedia AI kami untuk diubah menjadi teks lalu diproses Tim AI. Infois tidak merekam di luar itu.',
+          'Infois memakai mikrofon hanya saat Anda menekan tombol voice note di Tim AI atau menahan tombol Suara di Input AI kasir. Rekaman dikirim ke server Infois dan penyedia AI kami untuk diubah menjadi teks lalu diproses. Infois tidak merekam di luar itu.',
         ),
       AppPermission.bluetoothPrinter => (
           'Izinkan Bluetooth',

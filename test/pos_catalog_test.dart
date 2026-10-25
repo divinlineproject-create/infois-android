@@ -392,6 +392,38 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     });
 
+    testWidgets('barang nonaktif: scan kamera, scanner keyboard, dan kode diketik ditolak dengan pesan jelas', (tester) async {
+      phone(tester);
+      final (local, scanner, _) = await pumpKasir(tester, rationale: false);
+      await tester.runAsync(() => local.upsertProducts([const Product(id: 9, name: 'Kopi lama', unit: 'gelas', price: '9000.00', sku: 'KL-9', barcode: '8880009', isActive: false)]));
+
+      // Kamera (scan terus): banner "sudah dinonaktifkan", tidak masuk pesanan.
+      await tap(tester, find.byKey(const Key('scan-button')));
+      await tap(tester, find.byKey(const Key('scan-continuous')));
+      scanner.emit('8880009');
+      await settle(tester);
+      expect(find.byKey(const Key('scan-not-found')), findsOneWidget);
+      expect(find.textContaining(inactiveCodeMessage, findRichText: true), findsOneWidget);
+      expect(find.byKey(const Key('scan-count')), findsNothing);
+      await tap(tester, find.byKey(const Key('scan-done')));
+
+      // Scanner keyboard (Bluetooth/USB).
+      for (final key in [LogicalKeyboardKey.keyK, LogicalKeyboardKey.keyL, LogicalKeyboardKey.minus, LogicalKeyboardKey.digit9]) {
+        await tester.sendKeyEvent(key);
+      }
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await settle(tester);
+      expect(find.text(inactiveCodeMessage), findsOneWidget);
+
+      // Kode diketik di kotak cari + Enter.
+      await tester.enterText(find.byKey(const Key('kasir-search')), '8880009');
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await settle(tester);
+      expect(find.text(inactiveCodeMessage), findsWidgets);
+      expect(find.byKey(const Key('open-cart')), findsNothing, reason: 'Keranjang tetap kosong.');
+      await tester.pumpWidget(const SizedBox());
+    });
+
     testWidgets('kamera ditolak: pesan jelas + ketik kode tetap bisa', (tester) async {
       phone(tester);
       final (_, scanner, _) = await pumpKasir(tester, rationale: false);
@@ -499,9 +531,9 @@ void main() {
 
     test('nama aplikasi & versi', () {
       expect(AppConfig.name, 'Infois POS');
-      expect(AppConfig.version, '1.0.0');
+      expect(AppConfig.version, '1.1.0');
       final pubspec = File('pubspec.yaml').readAsStringSync();
-      expect(pubspec, contains('version: 1.0.0+1'));
+      expect(pubspec, contains('version: 1.1.0+2'), reason: 'versionCode harus lebih tinggi dari build 1 yang sudah diunggah ke Play.');
       expect(File('android/app/src/main/AndroidManifest.xml').readAsStringSync(), contains('android:label="Infois POS"'));
     });
   });

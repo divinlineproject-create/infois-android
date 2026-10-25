@@ -24,6 +24,9 @@ const String aiChannelLockedMessage = 'Tim AI belum aktif di aplikasi HP untuk p
 /// Jatah Tim AI bulan ini habis.
 const String aiQuotaExhaustedMessage = 'Jatah Tim AI bulan ini sudah habis. Hubungi pemilik usaha atau admin Infois Anda.';
 
+/// Koin perusahaan tidak cukup untuk Input AI di kasir.
+const String posAiCoinsShortMessage = 'Koin perusahaan tidak cukup untuk Input AI. Hubungi pemilik usaha atau admin Infois Anda.';
+
 /// Satu tim Tim AI yang terkunci.
 const String aiTeamLockedLabel = 'Belum aktif untuk perusahaan ini';
 

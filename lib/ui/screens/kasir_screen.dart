@@ -17,6 +17,7 @@ import '../widgets/pos_product_tile.dart';
 import 'cart_sheet.dart';
 import 'pos_held_orders.dart';
 import 'pos_item_sheet.dart';
+import 'pos_ai_sheet.dart';
 import 'pos_order_panel.dart';
 import 'scan_screen.dart';
 import 'shift_screens.dart';
@@ -78,8 +79,17 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
     if (text.isEmpty) {
       return;
     }
-    final product = await ref.read(posActionsProvider).addByCode(text);
-    if (!mounted || product == null) {
+    final found = await ref.read(posActionsProvider).addByCode(text);
+    final product = found.product;
+    if (!mounted) {
+      return;
+    }
+    if (found.isInactive) {
+      HapticFeedback.heavyImpact();
+      showMessage(context, inactiveCodeMessage, error: true);
+      return;
+    }
+    if (product == null) {
       return;
     }
     HapticFeedback.mediumImpact();
@@ -92,13 +102,14 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
   bool _scannerActive() => mounted && TabActive.read(context) && (ModalRoute.of(context)?.isCurrent ?? true);
 
   Future<void> _onHardwareCode(String code) async {
-    final product = await ref.read(posActionsProvider).addByCode(code);
+    final found = await ref.read(posActionsProvider).addByCode(code);
+    final product = found.product;
     if (!mounted) {
       return;
     }
     if (product == null) {
       HapticFeedback.heavyImpact();
-      showMessage(context, 'Kode "$code" tidak ada di katalog HP ini.', error: true);
+      showMessage(context, found.isInactive ? inactiveCodeMessage : 'Kode "$code" tidak ada di katalog HP ini.', error: true);
       return;
     }
     HapticFeedback.mediumImpact();
@@ -116,6 +127,12 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
       return;
     }
     showMessage(context, outcome.added == 1 ? '${outcome.last!.name} masuk pesanan.' : '${outcome.added} barang masuk pesanan.');
+  }
+
+  /// Input AI (online saja): pesanan diketik/diucapkan/difoto langsung ke keranjang.
+  void _openAiInput() {
+    dismissKeyboard();
+    showPosAiSheet(context);
   }
 
   void _openCart() => showCartSheet(context);
@@ -170,6 +187,7 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
 
   Widget _toolbar(bool twoPane) {
     final held = ref.watch(heldOrdersProvider).valueOrNull?.length ?? 0;
+    final online = ref.watch(syncProvider.select((state) => state.connection == ConnectionStatus.online));
     return Padding(
       padding: const EdgeInsets.fromLTRB(Space.l, Space.m, Space.s, Space.xs),
       child: Row(children: [
@@ -190,6 +208,14 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
                   onPressed: _scanWithCamera,
                   icon: Icon(Icons.qr_code_scanner, color: Theme.of(context).colorScheme.primary),
                 ),
+                // Input AI butuh internet: tombol disembunyikan saat offline.
+                if (online)
+                  IconButton(
+                    key: const Key('ai-input-button'),
+                    tooltip: 'Input AI: ketik, ucapkan, atau foto pesanan',
+                    onPressed: _openAiInput,
+                    icon: Icon(Icons.auto_awesome, color: Theme.of(context).colorScheme.primary),
+                  ),
               ]),
             ),
             onChanged: _onSearch,

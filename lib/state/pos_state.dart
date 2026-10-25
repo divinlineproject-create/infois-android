@@ -4,8 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../core/money.dart';
+import '../data/pos_ai_api.dart';
 import '../domain/cart.dart';
 import '../domain/models.dart';
+import '../domain/pos_ai.dart';
 import '../services/file_downloads.dart' show whatsappUri;
 import '../services/pos_service.dart';
 import '../services/printing/receipt_builder.dart';
@@ -35,6 +37,40 @@ class CartController extends Notifier<Cart> {
       return;
     }
     state = state.copyWith(lines: [...state.lines, CartLine.fromProduct(PosService.newUuid(), product, unit: unitName, quantity: quantity, note: cleaned)]);
+  }
+
+  /// Hasil Input AI: setiap barang masuk lewat [add], persis seperti ketuk
+  /// barang (satuan, harga grosir, gabung baris yang sama). Barang yang tidak
+  /// ada / tidak aktif di katalog HP ini menjadi "tidak ditemukan"; saran
+  /// hanya barang aktif. Sama dengan `applyAiInput` kasir web.
+  PosAiApplied applyAi(PosAiResult result, Map<int, Product> products) {
+    Product? sellable(int id) {
+      final product = products[id];
+      return product != null && product.isActive ? product : null;
+    }
+
+    final added = <PosAiAdded>[];
+    final unmatched = [...result.unmatched];
+    for (final item in result.items) {
+      final product = sellable(item.productId);
+      if (product == null) {
+        unmatched.add(PosAiUnmatched(said: item.said.isEmpty ? item.name : item.said, quantity: item.quantity, unit: item.unit, note: item.note));
+        continue;
+      }
+      add(product, unit: item.unit, quantity: item.quantity, note: item.note);
+      added.add(PosAiAdded(name: product.name, quantity: item.quantity, unit: product.optionFor(item.unit).name));
+    }
+    return PosAiApplied(
+      added: added,
+      unmatched: [for (final row in unmatched) row.copyWith(suggestions: row.suggestions.where((suggestion) => sellable(suggestion.id) != null).toList())],
+    );
+  }
+
+  /// Saran "tidak ditemukan" yang diketuk kasir: jumlah & catatan dari
+  /// pesanan, satuan bila barang punya satuan itu.
+  PosAiAdded addAiSuggestion(Product product, PosAiUnmatched row) {
+    add(product, unit: row.unit, quantity: row.quantity, note: row.note);
+    return PosAiAdded(name: product.name, quantity: row.quantity, unit: product.optionFor(row.unit).name);
   }
 
   void update(String key, CartLine Function(CartLine line) change) {
@@ -80,6 +116,12 @@ class CartController extends Notifier<Cart> {
 }
 
 final cartProvider = NotifierProvider<CartController, Cart>(CartController.new);
+
+/// Klien Input AI kasir untuk perusahaan aktif (null bila belum ada perusahaan).
+final posAiApiProvider = Provider<PosAiApi?>((ref) {
+  final workspace = ref.watch(workspaceProvider).valueOrNull;
+  return workspace == null ? null : PosAiApi(workspace.api);
+});
 
 final posServiceProvider = FutureProvider<PosService?>((ref) async {
   final workspace = await ref.watch(workspaceProvider.future);
@@ -145,22 +187,47 @@ class PosActions {
   }
 
   /// Barang untuk kode hasil scan kamera / scanner / ketik: barcode dulu,
-  /// lalu SKU (sama dengan pencocokan server).
-  Future<Product?> productByCode(String code) async {
+  /// lalu SKU; barang nonaktif tidak dijual (lihat [LocalDb.lookupCode]).
+  Future<CodeLookup> lookupCode(String code) async {
     final workspace = await ref.read(workspaceProvider.future);
     if (workspace == null || !workspace.usable) {
-      return null;
+      return CodeLookup.none;
     }
-    return workspace.local.productByCode(code);
+    return workspace.local.lookupCode(code);
   }
 
-  /// Tambahkan barang dengan kode [code] ke pesanan; null bila tidak ada di katalog HP.
-  Future<Product?> addByCode(String code) async {
-    final product = await productByCode(code);
+  /// Tambahkan barang aktif dengan kode [code] ke pesanan. Kode yang tidak
+  /// ada atau hanya cocok dengan barang nonaktif tidak menambah apa pun.
+  Future<CodeLookup> addByCode(String code) async {
+    final found = await lookupCode(code);
+    final product = found.product;
     if (product != null) {
       ref.read(cartProvider.notifier).add(product);
     }
-    return product;
+    return found;
+  }
+
+  /// Kirim pesanan ke Input AI lalu masukkan hasilnya ke keranjang.
+  Future<(PosAiResult, PosAiApplied)> aiInput(PosAiMode mode, {String? text, String? path, String? name, int? seconds}) async {
+    final api = ref.read(posAiApiProvider);
+    final workspace = await ref.read(workspaceProvider.future);
+    if (api == null || workspace == null || !workspace.usable) {
+      throw const CheckoutException('Data kasir belum siap.');
+    }
+    final result = await api.send(mode, text: text, path: path, name: name, seconds: seconds);
+    final products = await workspace.local.productsByIds([
+      for (final item in result.items) item.productId,
+      for (final row in result.unmatched)
+        for (final suggestion in row.suggestions) suggestion.id,
+    ]);
+    return (result, ref.read(cartProvider.notifier).applyAi(result, products));
+  }
+
+  /// Barang aktif dengan id [id] di katalog HP, atau null.
+  Future<Product?> activeProduct(int id) async {
+    final workspace = await ref.read(workspaceProvider.future);
+    final product = workspace == null ? null : (await workspace.local.productsByIds([id]))[id];
+    return product != null && product.isActive ? product : null;
   }
 
   Future<HeldOrderStore?> _heldStore() async {

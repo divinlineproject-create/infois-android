@@ -291,6 +291,33 @@ Buka shift saat online (offline: item `shift_open` di outbox). Idempoten per `cl
 ```
 → `{ "shift": { …, "expected_cash": "120000.00", "difference": "-1000.00", "summary": { … } }, "status": "ok" }`. Shift harus milik HP ini.
 
+### `POST /pos/ai-input` (multipart/form-data, online saja)
+Input AI kasir: pesanan diketik, diucapkan, atau difoto → barang kasir. Hak sama dengan menu Kasir
+(`menus.pos`); setiap pemakaian memakai koin perusahaan (perkiraan ≈0,2–0,5 teks, ≈1 suara, ≈4 foto).
+Maks. 10 per menit per pengguna + HP.
+
+| Field | Isi |
+|---|---|
+| `mode` | `text` \| `voice` \| `photo` |
+| `text` | pesanan (mode `text`, maks. 500 huruf), mis. `kopsus 2, nasduk 1` |
+| `file` | rekaman (`voice`, m4a/aac/ogg/webm, maks. 2 menit) atau foto (`photo`, JPG/PNG/WEBP) |
+| `seconds` | durasi rekaman (petunjuk koin audio) |
+
+→ 200
+```json
+{
+  "items": [{ "product_id": 1, "name": "Kopi Susu", "quantity": "2.000000", "unit": "gelas", "note": "tanpa gula", "said": "kopsus 2 tanpa gula" }],
+  "unmatched": [{ "said": "martabak 1", "quantity": "1.000000", "unit": null, "note": null, "suggestions": [{ "id": 7, "name": "Martabak Manis", "unit": "pcs" }] }],
+  "heard": "transkrip suara / baris foto, atau null",
+  "message": null,
+  "coins_used": "0.165", "coins_used_label": "0,2", "coins_left": "49,8"
+}
+```
+`items` hanya barang **aktif** "Tampilkan di POS" dengan nama satuan persis seperti katalog; HP
+memasukkannya dengan aturan tambah barang yang sama (harga satuan/grosir). Barang yang tidak ada /
+nonaktif di katalog HP diperlakukan sebagai `unmatched`. Galat: 422 `koin_habis`, 429
+`terlalu_sering`, 503 `ai_tidak_tersedia`, 422 `tidak_valid`/`katalog_kosong`, 403 `tidak_berhak`.
+
 ### `GET /branding/logo`
 File logo perusahaan (untuk dicetak hitam-putih di struk). 404 bila tidak ada.
 

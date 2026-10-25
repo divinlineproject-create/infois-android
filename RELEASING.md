@@ -56,6 +56,11 @@ kalau tidak aplikasi menampilkan "Versi aplikasi ini sudah lama".
 
 Contoh rilis berikutnya: ubah ke `1.0.1+2`, lalu `AppConfig.version = '1.0.1'`.
 
+**1.1.0+2** (2026-10-25, untuk uji tertutup setelah 1.0.0+1): **Input AI** di kasir (ketik, tahan untuk
+bicara, atau foto pesanan → langsung masuk keranjang; online saja, memakai koin perusahaan) dan kode
+scan/ketik yang hanya cocok dengan barang nonaktif ditolak ("Barang ini sudah dinonaktifkan.").
+Server harus sudah punya `POST /api/v1/pos/ai-input` sebelum build ini dirilis.
+
 ## 3. Membangun AAB
 
 ```bash

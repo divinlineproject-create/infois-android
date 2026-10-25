@@ -1,5 +1,5 @@
 {
-    "_comment": "Fixture paritas hitung keranjang kasir HP vs InvoiceCalculator & ProductService::priceFor (backoffice). Dibuat dari PHP; dicek oleh tests/Feature/Mobile/PosCartParityTest.php dan android/test/cart_parity_test.dart.",
+    "_comment": "Fixture paritas hitung keranjang kasir HP vs InvoiceCalculator & ProductService::priceFor (backoffice). Dibuat dari PHP; dicek oleh tests/Feature/Mobile/PosCartParityTest.php dan android/test/cart_parity_test.dart. `code_products` + `codes`: kode scan/ketik (barcode aktif → SKU aktif; kode yang hanya cocok dengan barang nonaktif ditolak), dicek oleh tests/js/cart_parity.test.mjs dan android/test/cart_parity_test.dart.",
     "lines": [
         {
             "input": {
@@ -9363,6 +9363,114 @@
             "unit": "unknown",
             "quantity": "3",
             "expected": "25000.00"
+        }
+    ],
+    "code_products": [
+        {
+            "id": 1,
+            "name": "Es Kopi Susu",
+            "sku": "KS-1",
+            "barcode": "899001",
+            "is_active": true
+        },
+        {
+            "id": 2,
+            "name": "Roti Bakar",
+            "sku": "899001",
+            "barcode": null,
+            "is_active": true
+        },
+        {
+            "id": 3,
+            "name": "Kopi Lama",
+            "sku": "OLD",
+            "barcode": "777",
+            "is_active": false
+        },
+        {
+            "id": 4,
+            "name": "Teh Manis",
+            "sku": "TEH",
+            "barcode": "777",
+            "is_active": true
+        },
+        {
+            "id": 5,
+            "name": "Gula Lama",
+            "sku": "GL-9",
+            "barcode": "555",
+            "is_active": false
+        },
+        {
+            "id": 6,
+            "name": "Gula Pasir",
+            "sku": "555",
+            "barcode": null,
+            "is_active": true
+        },
+        {
+            "id": 7,
+            "name": "Sirup Lama",
+            "sku": "SRP",
+            "barcode": "123",
+            "is_active": false
+        }
+    ],
+    "codes": [
+        {
+            "code": "899001",
+            "product_id": 1,
+            "inactive_id": null
+        },
+        {
+            "code": " ks-1 ",
+            "product_id": 1,
+            "inactive_id": null
+        },
+        {
+            "code": "777",
+            "product_id": 4,
+            "inactive_id": null
+        },
+        {
+            "code": "555",
+            "product_id": 6,
+            "inactive_id": null
+        },
+        {
+            "code": "old",
+            "product_id": null,
+            "inactive_id": 3
+        },
+        {
+            "code": "OLD",
+            "product_id": null,
+            "inactive_id": 3
+        },
+        {
+            "code": "123",
+            "product_id": null,
+            "inactive_id": 7
+        },
+        {
+            "code": "srp",
+            "product_id": null,
+            "inactive_id": 7
+        },
+        {
+            "code": "gl-9",
+            "product_id": null,
+            "inactive_id": 5
+        },
+        {
+            "code": "tidak-ada",
+            "product_id": null,
+            "inactive_id": null
+        },
+        {
+            "code": "",
+            "product_id": null,
+            "inactive_id": null
         }
     ]
 }

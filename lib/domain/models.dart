@@ -213,6 +213,23 @@ class Product {
 }
 
 /// Kategori barang dari Katalog web (chip Kategori di kasir).
+/// Pesan saat kode scan/ketik hanya cocok dengan barang yang sudah dinonaktifkan.
+const String inactiveCodeMessage = 'Barang ini sudah dinonaktifkan.';
+
+/// Hasil mencocokkan kode scan/ketik: [product] = barang aktif yang dijual,
+/// atau null. [inactive] = barang nonaktif yang cocok (tidak dijual; kasir
+/// melihat [inactiveCodeMessage]). Sama dengan `lookupCode` kasir web.
+class CodeLookup {
+  const CodeLookup({this.product, this.inactive});
+
+  static const CodeLookup none = CodeLookup();
+
+  final Product? product;
+  final Product? inactive;
+
+  bool get isInactive => product == null && inactive != null;
+}
+
 class ProductCategory {
   const ProductCategory({required this.id, required this.name, this.sort = 0});
 
