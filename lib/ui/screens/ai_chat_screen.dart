@@ -485,7 +485,25 @@ class _AiChatViewState extends ConsumerState<AiChatView> {
     Widget dock(BoxConstraints constraints) => ConstrainedBox(
       key: _dockKey,
       constraints: BoxConstraints(maxHeight: math.max(AiComposerState.toolbarHeight + 62, constraints.maxHeight * 0.6)),
-      child: SafeArea(top: false, left: false, right: false, child: Padding(padding: const EdgeInsets.fromLTRB(12, 4, 12, 10), child: composer)),
+      child: SafeArea(
+        top: false,
+        left: false,
+        right: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 4, 12, 10),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(child: composer),
+              // Disembunyikan saat keyboard terbuka supaya Kirim tetap terlihat di layar kecil.
+              if (View.of(context).viewInsets.bottom == 0) ...[
+                const SizedBox(height: 4),
+                Text('AI dapat membuat kesalahan, periksa sebelum melakukan keputusan!', key: const Key('ai-disclaimer'), textAlign: TextAlign.center, style: TextStyle(fontSize: 11, color: mutedText(context))),
+              ],
+            ],
+          ),
+        ),
+      ),
     );
 
     final content = LayoutBuilder(

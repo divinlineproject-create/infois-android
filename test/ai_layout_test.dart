@@ -116,6 +116,8 @@ void main() {
   testWidgets('layar awal: saran disembunyikan selama kotak tulis berisi, muncul lagi saat dikosongkan', (tester) async {
     await pumpApp(tester, size: const Size(360, 780));
     expect(find.byKey(const Key('ai-suggestions')), findsOneWidget);
+    expect(find.text('AI dapat membuat kesalahan, periksa sebelum melakukan keputusan!'), findsOneWidget);
+    expect(tester.getRect(find.byKey(const Key('ai-disclaimer'))).top, greaterThanOrEqualTo(tester.getRect(find.byKey(const Key('ai-composer'))).bottom), reason: 'Catatan di bawah kotak tulis.');
     final composerBefore = tester.getRect(find.byKey(const Key('ai-composer')));
 
     await tester.enterText(find.byKey(const Key('ai-text')), 'Catat faktur ini');
