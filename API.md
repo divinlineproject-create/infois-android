@@ -38,7 +38,7 @@ Semua endpoint ada di bawah **`/api/v1`**, berformat JSON, pesan galat dalam Bah
 | 403 | `tidak_berhak` | Tidak punya permission untuk aksi itu |
 | 422 | — | Validasi: `{ "message": "...", "errors": { "field": ["..."] } }` |
 | 401 | `butuh_kode_2fa` / `kode_2fa_salah` | Login akun dengan verifikasi dua langkah tanpa kode / kode salah (lihat §3 `POST /auth/login`) |
-| 429 | `kode_2fa_terlalu_sering` | Kode verifikasi salah > 5 kali (dikunci ±5 menit, pesan menyebut detiknya) |
+| 429 | `kode_2fa_terlalu_sering` | Kode verifikasi salah > 5 kali (dikunci ±5 menit), atau email kode diminta terlalu cepat/terlalu sering (lihat §3 `POST /auth/login`). Selalu dengan `retry_after` (detik) + header `Retry-After`; pesan menyebut waktunya |
 | 429 | — | Terlalu sering (login: 10/menit; API: 240/menit) |
 | 503 | `kanal_pemeliharaan` | Aplikasi HP dimatikan sementara oleh admin Infois (Administrator › Kanal Tim AI). Semua rute kecuali `GET /ping` dan `POST /auth/logout`; header `Retry-After: 300`; `message` dari admin atau kalimat bawaan. **Bukan** alasan keluar: aplikasi menampilkan spanduk "Aplikasi sedang pemeliharaan" + pesannya, transaksi tetap di antrean HP (tanpa menambah hitungan percobaan) dan dikirim saat kanal dibuka lagi (coba ulang tiap 5 menit / tombol Coba lagi; sinkron latar juga berhenti dengan hasil `maintenance`). |
 
@@ -97,11 +97,19 @@ Login ulang dengan `device_uid` yang sama mengganti token lama HP itu. `device_n
 ```
 Galat: 422 `login_gagal` ("Email atau kata sandi salah."), 403 `tanpa_perusahaan` (akun belum terdaftar di perusahaan mana pun), 403 `akses_hp_tidak_tersedia` (punya perusahaan tetapi tidak ada yang boleh memakai aplikasi HP; **tidak ada token yang dibuat**).
 
-**Verifikasi dua langkah** (diaktifkan di web, Profil): login tanpa `code` → 401 `butuh_kode_2fa` dengan cara yang aktif; untuk cara `email`, kode 6 angka **dikirim ke email saat itu juga** (paling banyak 2× per menit, berlaku 10 menit):
+**Verifikasi dua langkah** (wajib; kode email untuk semua akun, atau aplikasi autentikator bila dipasang di web › Profil): login tanpa `code` → 401 `butuh_kode_2fa` dengan cara yang aktif; untuk cara `email`, kode 6 angka **dikirim ke email saat itu juga** (berlaku 10 menit) dan jawabannya memuat `resend_available_in` = detik sampai "Kirim ulang kode" boleh diketuk:
 ```json
-{ "message": "Akun ini memakai verifikasi dua langkah. Kami sudah mengirim kode ke email Anda. Masukkan kode itu untuk masuk.", "code": "butuh_kode_2fa", "metode_2fa": ["aplikasi", "email"] }
+{ "message": "Demi keamanan akun, kami mengirim kode masuk 6 angka ke email Anda. Masukkan kode itu untuk masuk.", "code": "butuh_kode_2fa", "metode_2fa": ["email"], "resend_available_in": 60 }
 ```
-Aplikasi lalu mengulang login yang sama + `"code"`: 6 angka dari aplikasi autentikator, salah satu **kode pemulihan** (format `XXXXXXXXXX-XXXXXXXXXX`, huruf/angka, sekali pakai; hanya untuk cara `aplikasi`), atau kode email. Kode salah → 401 `kode_2fa_salah`; lebih dari 5 kali → 429 `kode_2fa_terlalu_sering`. "Kirim ulang kode" = login lagi **tanpa** `code`. Aplikasi (≥ 1.2.0): langkah kode dengan papan angka, petunjuk sesuai cara (`aplikasi` / `email`), tombol "Pakai kode pemulihan", "Kirim ulang kode ke email" (jeda 30 detik), dan "Kembali".
+Aplikasi lalu mengulang login yang sama + `"code"`: 6 angka dari aplikasi autentikator, salah satu **kode pemulihan** (format `XXXXXXXXXX-XXXXXXXXXX`, huruf/angka, sekali pakai; hanya untuk cara `aplikasi`), atau kode email. Kode salah → 401 `kode_2fa_salah`; lebih dari 5 kali → 429 `kode_2fa_terlalu_sering` + `retry_after`.
+
+**Kirim ulang kode** = login lagi **tanpa** `code` + `"resend": true`. Email kode dibatasi server per akun (web & aplikasi berbagi batas, kode otomatis saat login ikut dihitung): **1 email per 60 detik**, 10 per jam, dan 30 per jam per alamat IP untuk semua akun. Terlalu cepat → email **tidak** dikirim:
+```json
+{ "message": "Tunggu 45 detik sebelum mengirim ulang.", "code": "kode_2fa_terlalu_sering", "metode_2fa": ["email"], "retry_after": 45 }
+```
+(batas per jam: `"Terlalu banyak permintaan kode. Coba lagi dalam 50 menit."`, `retry_after` > 60). Login tanpa `code` dan tanpa `resend` (aplikasi lama, atau kembali ke layar masuk) dalam jeda 60 detik tidak mengirim email baru — kode sebelumnya masih berlaku — dan tetap 401 `butuh_kode_2fa` dengan sisa `resend_available_in`. Berhasil masuk membuka jedanya (login berikutnya langsung dapat kode baru). Email gagal terkirim → 503 `kode_2fa_gagal_kirim` (boleh langsung dicoba lagi).
+
+Aplikasi (≥ 1.2.0): langkah kode dengan papan angka, petunjuk sesuai cara (`aplikasi` / `email`), tombol "Pakai kode pemulihan", "Kirim ulang kode ke email" dan "Kembali". Tombol kirim ulang nonaktif dengan hitung mundur dari server — "Kirim ulang kode ke email (59)", atau menit:detik bila lebih dari 60 detik — memakai `resend_available_in` (server lama tanpa isian ini: 60 detik), dan `retry_after` bila 429 (pesannya ditampilkan, kode yang sudah diketik tetap).
 
 ### `POST /auth/logout`
 Mencabut token HP ini. `{ "ok": true }`

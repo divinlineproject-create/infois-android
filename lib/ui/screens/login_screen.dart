@@ -80,9 +80,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   String? _codeError;
   bool _useRecovery = false;
 
-  /// Detik sebelum "Kirim ulang kode" boleh diketuk lagi.
+  /// Detik sebelum "Kirim ulang kode" boleh diketuk lagi (dari server:
+  /// `resend_available_in` / `retry_after`).
   int _resendIn = 0;
   Timer? _resendTimer;
+
+  /// Jeda bawaan bila server lama tidak menyebut sisa jedanya.
+  static const _defaultResendSeconds = 60;
 
   static final _sixDigits = RegExp(r'^\d{6}$');
   static final _recoveryCode = RegExp(r'^[A-Za-z0-9]{10}-[A-Za-z0-9]{10}$');
@@ -99,9 +103,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   bool get _codeStep => _methods != null;
 
-  void _startResendCooldown() {
+  void _startResendCooldown(int seconds) {
     _resendTimer?.cancel();
-    setState(() => _resendIn = 30);
+    setState(() => _resendIn = seconds < 0 ? 0 : seconds);
+    if (seconds <= 0) {
+      return;
+    }
     _resendTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted || _resendIn <= 1) {
         timer.cancel();
@@ -113,6 +120,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       setState(() => _resendIn--);
     });
   }
+
+  /// "59" (sampai 60 detik) atau "12:05" (menit:detik).
+  static String resendCountdown(int seconds) => seconds <= 60 ? '$seconds' : '${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}';
 
   /// Kembali ke langkah email & kata sandi.
   void _backToPassword() => setState(_resetCodeStep);
@@ -161,7 +171,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     });
     ref.read(sessionProvider.notifier).clearNotice();
     try {
-      await ref.read(sessionProvider.notifier).login(email: _email.text, password: _password.text, deviceName: _deviceName.text, code: code);
+      await ref.read(sessionProvider.notifier).login(email: _email.text, password: _password.text, deviceName: _deviceName.text, code: code, resend: resend);
     } on ApiException catch (error) {
       if (!mounted) {
         return;
@@ -176,11 +186,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           }
         });
         if (_methods!.contains('email')) {
-          _startResendCooldown();
+          _startResendCooldown(error.resendAvailableIn ?? _defaultResendSeconds);
           if (resend || wasCodeStep) {
             showMessage(context, 'Kode baru sudah dikirim ke email Anda.');
           }
         }
+        return;
+      }
+      if (resend && error.status == 429) {
+        // Kirim ulang terlalu cepat: email tidak dikirim, hitung mundur
+        // mengikuti sisa jeda dari server; kode yang sudah diketik tetap.
+        final wait = error.retryAfter;
+        if (wait != null && wait > 0) {
+          _startResendCooldown(wait);
+        }
+        showMessage(context, error.message);
         return;
       }
       setState(() {
@@ -290,7 +310,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         TextButton(
           key: const Key('login-2fa-resend'),
           onPressed: _busy || _resendIn > 0 ? null : () => _submit(resend: true),
-          child: Text(_resendIn > 0 ? 'Kirim ulang kode ke email ($_resendIn)' : 'Kirim ulang kode ke email'),
+          child: Text(_resendIn > 0 ? 'Kirim ulang kode ke email (${resendCountdown(_resendIn)})' : 'Kirim ulang kode ke email'),
         ),
       TextButton(key: const Key('login-2fa-back'), onPressed: _busy ? null : _backToPassword, child: const Text('Kembali')),
     ];

@@ -47,6 +47,15 @@ class ApiException implements Exception {
   /// Cara verifikasi akun ini dari `metode_2fa`: `aplikasi` dan/atau `email`.
   List<String> get twoFactorMethods => [for (final method in (data?['metode_2fa'] as List? ?? const [])) method.toString()];
 
+  /// Detik sampai "Kirim ulang kode" boleh diketuk (`resend_available_in`
+  /// pada 401 `butuh_kode_2fa`); null = server lama.
+  int? get resendAvailableIn => _seconds(data?['resend_available_in']);
+
+  /// Detik yang harus ditunggu pada 429 (`retry_after`).
+  int? get retryAfter => _seconds(data?['retry_after']);
+
+  static int? _seconds(Object? value) => value is num ? value.toInt() : int.tryParse(value?.toString() ?? '');
+
   /// Aplikasi HP sedang dimatikan sementara oleh admin Infois (503
   /// `kanal_pemeliharaan`). Sesi tetap; transaksi tetap di antrean HP.
   bool get maintenance => code == maintenanceCode;

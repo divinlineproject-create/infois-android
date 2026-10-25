@@ -18,7 +18,8 @@ import 'support/file_fakes.dart';
 
 /// Masuk dengan verifikasi dua langkah (API.md › Login): 401
 /// `butuh_kode_2fa` → langkah kode (6 angka / kode pemulihan / kode email),
-/// kode salah, terlalu sering, dan kirim ulang kode email.
+/// kode salah, terlalu sering, dan kirim ulang kode email dengan hitung
+/// mundur dari server (`resend_available_in` / 429 `retry_after`).
 void main() {
   setUpAll(() async {
     await initializeDateFormatting('id_ID');
@@ -38,8 +39,13 @@ void main() {
 
   /// Server: [methods] = `metode_2fa` akun ini; kode benar 123456 atau
   /// kode pemulihan ABCDEFGHIJ-klmnopqrst; [throttleAfter] kode salah → 429.
-  ({FakeServer server, List<Map<String, dynamic>?> logins}) twoFactorServer(List<String> methods, {int throttleAfter = 99}) {
+  /// [resendWaits]: jawaban server untuk kirim ulang berturut-turut — angka
+  /// > 0 = 429 `retry_after` (masih dalam jeda), 0 = terkirim.
+  /// [resendAvailableIn]: `resend_available_in` saat kode terkirim (null =
+  /// server lama tanpa isian itu).
+  ({FakeServer server, List<Map<String, dynamic>?> logins}) twoFactorServer(List<String> methods, {int throttleAfter = 99, List<int> resendWaits = const [], int? resendAvailableIn = 60}) {
     final logins = <Map<String, dynamic>?>[];
+    final waits = [...resendWaits];
     var wrong = 0;
     final server = FakeServer((RequestOptions options, Map<String, dynamic>? body) {
       if (options.path != 'auth/login') {
@@ -48,10 +54,21 @@ void main() {
       logins.add(body);
       final code = body?['code']?.toString();
       if (code == null) {
+        final wait = body?['resend'] == true && waits.isNotEmpty ? waits.removeAt(0) : 0;
+        if (wait > 0) {
+          return {
+            '_status': 429,
+            'code': 'kode_2fa_terlalu_sering',
+            'metode_2fa': methods,
+            'retry_after': wait,
+            'message': wait <= 60 ? 'Tunggu $wait detik sebelum mengirim ulang.' : 'Terlalu banyak permintaan kode. Coba lagi dalam ${(wait / 60).ceil()} menit.',
+          };
+        }
         return {
           '_status': 401,
           'code': 'butuh_kode_2fa',
           'metode_2fa': methods,
+          if (methods.contains('email') && resendAvailableIn != null) 'resend_available_in': resendAvailableIn,
           'message': methods.contains('email') ? 'Akun ini memakai verifikasi dua langkah. Kami sudah mengirim kode ke email Anda.' : 'Akun ini memakai verifikasi dua langkah. Masukkan kode 6 angka.',
         };
       }
@@ -159,25 +176,33 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
+  Future<void> waitSeconds(WidgetTester tester, int seconds) async {
+    for (var i = 0; i < seconds; i++) {
+      await tester.pump(const Duration(seconds: 1));
+    }
+  }
+
+  TextButton resendButton(WidgetTester tester) => tester.widget<TextButton>(find.byKey(const Key('login-2fa-resend')));
+
   testWidgets('kode email: petunjuk email, kirim ulang = login tanpa kode, terlalu sering, Kembali', (tester) async {
     final (:server, :logins) = twoFactorServer(['email'], throttleAfter: 1);
     final container = await pumpLogin(tester, server);
 
     expect(find.textContaining('Kami mengirim kode 6 angka ke rani@kopisenja.example'), findsOneWidget);
     expect(find.byKey(const Key('login-2fa-recovery')), findsNothing, reason: 'Kode pemulihan hanya untuk aplikasi autentikator.');
-    expect(find.text('Kirim ulang kode ke email (30)'), findsOneWidget, reason: 'Jeda sebelum kirim ulang.');
-    expect(tester.widget<TextButton>(find.byKey(const Key('login-2fa-resend'))).onPressed, isNull);
+    expect(find.text('Kirim ulang kode ke email (60)'), findsOneWidget, reason: 'Jeda dari server (resend_available_in).');
+    expect(resendButton(tester).onPressed, isNull);
 
-    for (var i = 0; i < 31; i++) {
-      await tester.pump(const Duration(seconds: 1));
-    }
+    await waitSeconds(tester, 61);
     expect(find.text('Kirim ulang kode ke email'), findsOneWidget);
     await tester.ensureVisible(find.byKey(const Key('login-2fa-resend')));
     await tester.tap(find.byKey(const Key('login-2fa-resend')));
     await settle(tester);
     expect(logins, hasLength(2));
     expect(logins.last!.containsKey('code'), isFalse, reason: 'Kirim ulang = login lagi tanpa kode.');
+    expect(logins.last!['resend'], isTrue);
     expect(find.text('Kode baru sudah dikirim ke email Anda.'), findsOneWidget);
+    expect(find.text('Kirim ulang kode ke email (60)'), findsOneWidget);
 
     await tester.enterText(find.byKey(const Key('login-2fa-code')), '000000');
     await settle(tester);
@@ -193,9 +218,56 @@ void main() {
     await settle(tester);
     expect(find.byKey(const Key('login-email')), findsOneWidget);
     expect(find.byKey(const Key('login-2fa-code')), findsNothing);
-    for (var i = 0; i < 31; i++) {
-      await tester.pump(const Duration(seconds: 1));
-    }
+    await waitSeconds(tester, 61);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('kirim ulang terlalu cepat: 429 retry_after → pesan, hitung mundur dari server, kode tetap', (tester) async {
+    final (:server, :logins) = twoFactorServer(['email'], resendWaits: [25, 3000]);
+    await pumpLogin(tester, server);
+
+    // Jam HP lebih cepat dari server: tombol aktif, tetapi server masih menahan.
+    await waitSeconds(tester, 61);
+    await tester.enterText(find.byKey(const Key('login-2fa-code')), '12');
+    await tester.ensureVisible(find.byKey(const Key('login-2fa-resend')));
+    await tester.tap(find.byKey(const Key('login-2fa-resend')));
+    await settle(tester);
+    expect(logins.last!['resend'], isTrue);
+    expect(find.text('Tunggu 25 detik sebelum mengirim ulang.'), findsOneWidget);
+    expect(find.text('Kirim ulang kode ke email (25)'), findsOneWidget);
+    expect(resendButton(tester).onPressed, isNull);
+    expect(tester.widget<TextField>(find.byKey(const Key('login-2fa-code'))).controller!.text, '12', reason: 'Kode yang sudah diketik tidak dihapus.');
+    expect(find.byKey(const Key('login-2fa-title')), findsOneWidget);
+
+    await waitSeconds(tester, 10);
+    expect(find.text('Kirim ulang kode ke email (15)'), findsOneWidget);
+    expect(resendButton(tester).onPressed, isNull);
+    await tester.tap(find.byKey(const Key('login-2fa-resend')), warnIfMissed: false);
+    await settle(tester);
+    expect(logins, hasLength(2), reason: 'Tombol nonaktif selama hitung mundur.');
+
+    // Batas per jam: hitung mundur dalam menit:detik.
+    await waitSeconds(tester, 16);
+    expect(resendButton(tester).onPressed, isNotNull);
+    await tester.tap(find.byKey(const Key('login-2fa-resend')));
+    await settle(tester);
+    expect(find.text('Terlalu banyak permintaan kode. Coba lagi dalam 50 menit.'), findsOneWidget);
+    expect(find.text('Kirim ulang kode ke email (50:00)'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('login-2fa-back')));
+    await settle(tester);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('server lama tanpa resend_available_in: jeda bawaan 60 detik', (tester) async {
+    final (:server, logins: _) = twoFactorServer(['email'], resendAvailableIn: null);
+    await pumpLogin(tester, server);
+
+    expect(find.text('Kirim ulang kode ke email (60)'), findsOneWidget);
+    await waitSeconds(tester, 59);
+    expect(find.text('Kirim ulang kode ke email (1)'), findsOneWidget);
+    await waitSeconds(tester, 1);
+    expect(find.text('Kirim ulang kode ke email'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
 }
