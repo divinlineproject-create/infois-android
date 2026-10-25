@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -162,9 +161,7 @@ void main() {
     await tester.tap(find.byKey(const Key('ai-input-button')));
     await settle(tester);
     expect(find.byType(PosAiSheet), findsOneWidget);
-    expect(find.text('≈0,2–0,5 koin'), findsOneWidget);
-    expect(find.text('≈1 koin'), findsOneWidget);
-    expect(find.text('≈4 koin'), findsOneWidget);
+    expect(find.textContaining('koin'), findsNothing, reason: 'Perkiraan & pemakaian koin tidak ditampilkan.');
 
     await tester.enterText(find.byKey(const Key('pos-ai-text')), 'kopsus 2 tanpa gula, gula sekarung, kopi lama, roti 3');
     await tester.tap(find.byKey(const Key('pos-ai-send')));
@@ -185,7 +182,7 @@ void main() {
     expect(find.text('“kopi lama”'), findsOneWidget, reason: 'Barang nonaktif tidak dimasukkan.');
     expect(find.text('“roti 3”'), findsOneWidget);
     expect(find.byKey(const Key('pos-ai-suggestion-9')), findsNothing, reason: 'Barang nonaktif tidak disarankan.');
-    expect(find.text('Memakai 0,3 koin · sisa 49,7 koin'), findsOneWidget);
+    expect(find.textContaining('koin'), findsNothing);
     expect(find.textContaining('token'), findsNothing);
 
     await tester.tap(find.byKey(const Key('pos-ai-suggestion-2')));
@@ -259,14 +256,16 @@ void main() {
     await settle(tester);
     await tester.tap(find.byKey(const Key('pos-ai-mode-voice')));
     await settle(tester);
-    expect(find.text('Tahan untuk bicara'), findsOneWidget);
+    expect(find.text('Ketuk untuk mulai bicara'), findsOneWidget);
 
-    final gesture = await tester.startGesture(tester.getCenter(find.byKey(const Key('pos-ai-mic'))));
-    await tester.pump(kLongPressTimeout + const Duration(milliseconds: 100));
-    await settle(tester);
+    await tester.tap(find.byKey(const Key('pos-ai-mic')));
+    for (var i = 0; i < 3; i++) {
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 20)));
+      await settle(tester);
+    }
     expect(recorder.started, 1);
     expect(find.textContaining('Merekam'), findsOneWidget);
-    await gesture.up();
+    await tester.tap(find.byKey(const Key('pos-ai-mic')));
     for (var i = 0; i < 4; i++) {
       await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 20)));
       await settle(tester);

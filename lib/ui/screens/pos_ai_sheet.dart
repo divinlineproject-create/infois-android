@@ -15,7 +15,7 @@ import '../../state/session.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 
-/// Input AI di kasir (online saja): pesanan diketik, diucapkan (tahan
+/// Input AI di kasir (online saja): pesanan diketik, diucapkan (ketuk
 /// tombol), atau difoto. Barang langsung masuk keranjang (tanpa Setujui;
 /// keranjang tempat memeriksa). Yang tidak cocok tidak dimasukkan dan bisa
 /// dipilih dari saran. Setiap pemakaian memakai koin perusahaan.
@@ -136,7 +136,8 @@ class _PosAiSheetState extends ConsumerState<PosAiSheet> {
   // ------------------------------------------------------------- suara
 
   Future<void> _startRecording() async {
-    if (_busy || _recording) {
+    // _pressed: masih menunggu izin mikrofon dari ketukan sebelumnya.
+    if (_busy || _recording || _pressed) {
       return;
     }
     final press = ++_press;
@@ -163,10 +164,9 @@ class _PosAiSheetState extends ConsumerState<PosAiSheet> {
       setState(() => _error = 'Izinkan mikrofon untuk memakai Input AI suara.');
       return;
     }
-    // Jari sudah dilepas selagi menunggu izin / perekam siap.
+    // Dibatalkan / sheet berganti selagi menunggu izin / perekam siap.
     if (!_pressed || press != _press) {
       await recorder.cancel().catchError((_) {});
-      setState(() => _hint = 'Tahan tombol sambil bicara, lepas setelah selesai.');
       return;
     }
     HapticFeedback.lightImpact();
@@ -204,7 +204,7 @@ class _PosAiSheetState extends ConsumerState<PosAiSheet> {
         return;
       }
       if (file == null) {
-        setState(() => _hint = 'Rekaman terlalu pendek. Tahan tombol sambil bicara, lepas setelah selesai.');
+        setState(() => _hint = 'Rekaman terlalu pendek. Ketuk mikrofon, bicara, lalu ketuk lagi untuk kirim.');
         return;
       }
       await _send(path: file.path, name: file.name, seconds: file.seconds);
@@ -258,7 +258,7 @@ class _PosAiSheetState extends ConsumerState<PosAiSheet> {
         Text('Input AI', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
         const SizedBox(height: Space.xs),
         Text(
-          'Tulis, ucapkan, atau foto pesanan. Barang langsung masuk keranjang; periksa di keranjang. Setiap pemakaian memakai koin perusahaan.',
+          'Tulis, ucapkan, atau foto pesanan. Barang langsung masuk keranjang; periksa di keranjang.',
           style: TextStyle(color: mutedText(context), fontSize: 13),
         ),
         const SizedBox(height: Space.m),
@@ -290,20 +290,21 @@ class _PosAiSheetState extends ConsumerState<PosAiSheet> {
               const SizedBox(height: Space.s),
               GestureDetector(
                 key: const Key('pos-ai-mic'),
-                onLongPressStart: _busy ? null : (_) => _startRecording(),
-                onLongPressEnd: (_) => _stopRecording(),
-                onLongPressCancel: () => _stopRecording(cancel: true),
+                onTap: _busy ? null : (_recording ? _stopRecording : _startRecording),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 120),
                   width: _recording ? 104 : 96,
                   height: _recording ? 104 : 96,
                   decoration: BoxDecoration(shape: BoxShape.circle, color: _recording ? Brand.danger : (_busy ? scheme.surfaceContainerHighest : scheme.primary)),
-                  child: Icon(Icons.mic, size: 40, color: _recording ? Colors.white : scheme.onPrimary),
+                  child: Icon(_recording ? Icons.stop : Icons.mic, size: 40, color: _recording ? Colors.white : scheme.onPrimary),
                 ),
               ),
               const SizedBox(height: Space.s),
-              Text(_recording ? 'Merekam… $_seconds dtk · lepas untuk kirim' : 'Tahan untuk bicara', key: const Key('pos-ai-mic-label'), style: const TextStyle(fontWeight: FontWeight.w600)),
-              Text('mis. "dua kopi susu, satu nasi uduk"', style: TextStyle(color: mutedText(context), fontSize: 12.5)),
+              Text(_recording ? 'Merekam… $_seconds dtk · ketuk untuk berhenti & kirim' : (_pressed ? 'Menunggu izin mikrofon…' : 'Ketuk untuk mulai bicara'), key: const Key('pos-ai-mic-label'), style: const TextStyle(fontWeight: FontWeight.w600)),
+              if (_recording)
+                TextButton(key: const Key('pos-ai-mic-cancel'), onPressed: () => _stopRecording(cancel: true), child: const Text('Batal'))
+              else
+                Text('mis. "dua kopi susu, satu nasi uduk"', style: TextStyle(color: mutedText(context), fontSize: 12.5)),
             ]),
           PosAiMode.photo => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               Text('Foto catatan pesanan atau nota. Tulisan tangan boleh; foto dekat, terang, dan tegak.', style: TextStyle(color: mutedText(context), fontSize: 13)),
@@ -402,7 +403,6 @@ class _PosAiSheetState extends ConsumerState<PosAiSheet> {
           ),
       ],
       const SizedBox(height: Space.m),
-      Text('Memakai ${result.coinsUsed} koin · sisa ${result.coinsLeft} koin', key: const Key('pos-ai-coins'), style: TextStyle(color: mutedText(context), fontSize: 12.5)),
       const SizedBox(height: Space.s),
       OutlinedButton(onPressed: () => Navigator.of(context).maybePop(), child: const Text('Selesai')),
     ];
@@ -432,7 +432,6 @@ class _ModeButton extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: Space.s, horizontal: Space.xs),
           child: Column(children: [
             Text(mode.label, style: TextStyle(fontWeight: FontWeight.w600, color: foreground)),
-            Text(mode.estimate, style: TextStyle(fontSize: 11.5, color: selected ? foreground : mutedText(context))),
           ]),
         ),
       ),

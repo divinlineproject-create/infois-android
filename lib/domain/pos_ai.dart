@@ -6,17 +6,14 @@ import '../core/money.dart';
 
 /// Cara input.
 enum PosAiMode {
-  text('text', 'Ketik', '≈0,2–0,5 koin'),
-  voice('voice', 'Suara', '≈1 koin'),
-  photo('photo', 'Foto', '≈4 koin');
+  text('text', 'Ketik'),
+  voice('voice', 'Suara'),
+  photo('photo', 'Foto');
 
-  const PosAiMode(this.code, this.label, this.estimate);
+  const PosAiMode(this.code, this.label);
 
   final String code;
   final String label;
-
-  /// Perkiraan koin per pemakaian (sama dengan kasir web).
-  final String estimate;
 }
 
 /// Satu barang yang dipilih AI (barang aktif kasir, satuan persis katalog).
