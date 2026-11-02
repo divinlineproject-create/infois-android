@@ -349,6 +349,7 @@ class SaleDetail {
     this.receiptLink,
     this.pdfLink,
     this.canVoid = false,
+    this.canReceivePayment = false,
     this.canReturn = false,
   });
 
@@ -378,6 +379,7 @@ class SaleDetail {
       receiptLink: links['receipt']?.toString(),
       pdfLink: links['pdf']?.toString(),
       canVoid: _b(can['void']),
+      canReceivePayment: _b(can['receive_payment']),
       canReturn: _b(can['return']),
     );
   }
@@ -405,6 +407,9 @@ class SaleDetail {
   final String? receiptLink;
   final String? pdfLink;
   final bool canVoid;
+
+  /// Boleh mencatat pembayaran pelanggan untuk penjualan yang belum lunas.
+  final bool canReceivePayment;
   final bool canReturn;
 }
 
@@ -484,6 +489,10 @@ class PurchaseDetail {
     this.voidReason,
     this.voidedAt,
     this.attachments = const [],
+    this.canEdit = false,
+    this.canDelete = false,
+    this.canPay = false,
+    this.lockedReason,
   });
 
   factory PurchaseDetail.fromJson(Map<String, dynamic> json) => PurchaseDetail(
@@ -499,7 +508,19 @@ class PurchaseDetail {
         voidReason: json['void_reason']?.toString(),
         voidedAt: _date(json['voided_at']),
         attachments: RecordAttachment.list(json['attachments']),
+        canEdit: json['actions'] is Map && (json['actions'] as Map)['edit'] == true,
+        canDelete: json['actions'] is Map && (json['actions'] as Map)['delete'] == true,
+        canPay: json['actions'] is Map && (json['actions'] as Map)['pay'] == true,
+        lockedReason: json['locked_reason']?.toString(),
       );
+
+  /// Tombol yang berlaku di aplikasi (aturan kunci sama dengan web).
+  final bool canEdit;
+  final bool canDelete;
+  final bool canPay;
+
+  /// Alasan tidak bisa diubah/dihapus (cut off, sudah dibayar, disetujui, ...).
+  final String? lockedReason;
 
   final PurchaseRecord summary;
   final bool isOpening;

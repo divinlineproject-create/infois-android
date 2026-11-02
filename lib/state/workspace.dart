@@ -20,11 +20,18 @@ export 'session.dart' show apiFactoryProvider;
 /// Semua yang dibutuhkan untuk bekerja di satu perusahaan: database lokal,
 /// outbox, klien API, dan mesin sinkron.
 class Workspace {
-  Workspace({required this.storage, required this.user, required this.tenant, required this.local, required this.outbox, required this.api})
-      : engine = SyncEngine(api: api, local: local, outbox: outbox);
+  Workspace({required this.storage, required this.user, required this.tenant, required this.local, required this.outbox, required this.api, int? ownerId})
+      : ownerId = ownerId ?? user.id,
+        engine = SyncEngine(api: api, local: local, outbox: outbox);
 
   final AppStorage storage;
+
+  /// Yang sedang memakai aplikasi (kasir yang mencatat transaksi).
   final SessionUser user;
+
+  /// Pemilik database lokal: pemilik login tablet. Tablet kasir bersama
+  /// memakai satu database untuk semua kasir yang membuka dengan PIN.
+  final int ownerId;
   final TenantSummary tenant;
   final LocalDb local;
   final OutboxStore outbox;
@@ -98,7 +105,7 @@ final workspaceProvider = FutureProvider<Workspace?>((ref) async {
   // Data server lama yang belum terpindah tidak boleh terbuka atas nama login
   // ini (nomor user/perusahaan bisa sama di server lain).
   await storage.ensureServerMigrated();
-  final local = await opener(LocalDb.fileName(user.id, tenant.id));
+  final local = await opener(LocalDb.fileName(session.ownerId ?? user.id, tenant.id));
   if (replaced) {
     // Sesi berubah lagi selama database dibuka: workspace ini tidak dipakai.
     unawaited(local.close());
@@ -106,7 +113,7 @@ final workspaceProvider = FutureProvider<Workspace?>((ref) async {
   }
   late final Workspace workspace;
   final api = apiFactory(session.serverUrl, session.token, tenant.id, () => workspace.pendingCache);
-  workspace = created = Workspace(storage: storage, user: user, tenant: tenant, local: local, outbox: OutboxStore(local), api: api);
+  workspace = created = Workspace(storage: storage, user: user, tenant: tenant, local: local, outbox: OutboxStore(local), api: api, ownerId: session.ownerId);
   // Paket tidak termasuk aplikasi HP / langganan berhenti (403 dari rute
   // mana pun ber-X-Tenant): lepas perusahaan ini dan kembali ke Pilih
   // perusahaan / Masuk dengan pesannya.
@@ -143,7 +150,10 @@ final masterDataProvider = FutureProvider<MasterData?>((ref) async {
   final receiptJson = await local.getJson(MetaKeys.receipt);
   final accountsJson = await local.getJson(MetaKeys.accounts);
   final deviceJson = await local.getJson(MetaKeys.device);
-  final menusJson = await local.getJson(MetaKeys.menus);
+  // Tablet bersama: menu tersimpan milik pengguna yang terakhir menarik data;
+  // untuk pengguna lain dipakai menu dari sesinya sendiri.
+  final pulledBy = await local.getJson(MetaKeys.user);
+  final menusJson = pulledBy == null || pulledBy['id'] == workspace.user.id ? await local.getJson(MetaKeys.menus) : null;
   final logo = await local.getMeta(MetaKeys.logoBytes);
 
   return MasterData(

@@ -123,7 +123,9 @@ class ApiClient {
 
   Future<Map<String, dynamic>> patch(String path, {Object? data}) => _send(() => dio.patch<dynamic>(path, data: data));
 
-  Future<Map<String, dynamic>> delete(String path) => _send(() => dio.delete<dynamic>(path));
+  Future<Map<String, dynamic>> put(String path, {Object? data}) => _send(() => dio.put<dynamic>(path, data: data));
+
+  Future<Map<String, dynamic>> delete(String path, {Object? data}) => _send(() => dio.delete<dynamic>(path, data: data));
 
   /// Unduh isi file dengan token + X-Tenant. [onProgress] (diterima, total
   /// byte; total -1 bila server tidak menyebutkan ukuran).

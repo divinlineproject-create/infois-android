@@ -457,6 +457,7 @@ class Menus {
     this.cashJournal = false,
     this.addCustomer = false,
     this.printer = false,
+    this.operations = false,
   });
 
   factory Menus.fromJson(Map<String, dynamic>? json) {
@@ -472,6 +473,7 @@ class Menus {
       cashJournal: _b(data['cash_journal']),
       addCustomer: _b(data['add_customer']),
       printer: _b(data['printer']),
+      operations: _b(data['operations']),
     );
   }
 
@@ -486,6 +488,9 @@ class Menus {
   final bool addCustomer;
   final bool printer;
 
+  /// Operasional harian: catat biaya, tagihan pemasok, Kas & Bank, pembayaran.
+  final bool operations;
+
   Map<String, dynamic> toJson() => {
         'pos': pos,
         'void_sale': voidSale,
@@ -497,11 +502,12 @@ class Menus {
         'cash_journal': cashJournal,
         'add_customer': addCustomer,
         'printer': printer,
+        'operations': operations,
       };
 }
 
 class TenantSummary {
-  const TenantSummary({required this.id, required this.name, this.slug, this.role, this.roleLabel, this.active = true, this.menus = const Menus(), this.permissions});
+  const TenantSummary({required this.id, required this.name, this.slug, this.role, this.roleLabel, this.active = true, this.menus = const Menus(), this.permissions, this.hasPin = false});
 
   factory TenantSummary.fromJson(Map<String, dynamic> json) => TenantSummary(
         id: _i(json['id'])!,
@@ -512,6 +518,7 @@ class TenantSummary {
         active: json['active'] == null || _b(json['active']),
         menus: Menus.fromJson(json['menus'] == null ? null : Map<String, dynamic>.from(json['menus'] as Map)),
         permissions: json['permissions'] is List ? [for (final item in json['permissions'] as List) item.toString()] : null,
+        hasPin: _b(json['has_pin']),
       );
 
   final int id;
@@ -522,6 +529,12 @@ class TenantSummary {
   final bool active;
   final Menus menus;
 
+  /// User sudah punya PIN aplikasi di perusahaan ini (tablet kasir bersama).
+  final bool hasPin;
+
+  TenantSummary copyWith({Menus? menus, bool? hasPin}) =>
+      TenantSummary(id: id, slug: slug, name: name, role: role, roleLabel: roleLabel, active: active, menus: menus ?? this.menus, permissions: permissions, hasPin: hasPin ?? this.hasPin);
+
   /// Daftar permission web (`ViewAny:Invoice`, `view-reports`, …) dari
   /// login / `GET /me`; null bila sesi lama belum menyimpannya.
   final List<String>? permissions;
@@ -530,7 +543,7 @@ class TenantSummary {
   /// [fallback] (menu yang sudah dipetakan server).
   bool can(String permission, {bool fallback = false}) => permissions == null ? fallback : permissions!.contains(permission);
 
-  Map<String, dynamic> toJson() => {'id': id, 'slug': slug, 'name': name, 'role': role, 'role_label': roleLabel, 'active': active, 'menus': menus.toJson(), 'permissions': permissions};
+  Map<String, dynamic> toJson() => {'id': id, 'slug': slug, 'name': name, 'role': role, 'role_label': roleLabel, 'active': active, 'menus': menus.toJson(), 'permissions': permissions, 'has_pin': hasPin};
 }
 
 class SessionUser {
@@ -545,4 +558,29 @@ class SessionUser {
   final String? avatarUrl;
 
   Map<String, dynamic> toJson() => {'id': id, 'name': name, 'email': email, 'avatar_url': avatarUrl};
+}
+
+/// Anggota yang bisa membuka tablet kasir bersama dengan PIN.
+class PinUser {
+  const PinUser({required this.id, required this.name, this.roleLabel, this.avatarUrl, this.isHost = false});
+
+  factory PinUser.fromJson(Map<String, dynamic> json, {bool isHost = false}) =>
+      PinUser(id: _i(json['id'])!, name: _s(json['name']), roleLabel: json['role_label']?.toString(), avatarUrl: json['avatar_url']?.toString(), isHost: isHost);
+
+  final int id;
+  final String name;
+  final String? roleLabel;
+  final String? avatarUrl;
+
+  /// Pemilik login tablet ini.
+  final bool isHost;
+
+  /// Inisial untuk avatar ("Sri Wahyuni" → "SW").
+  String get initials {
+    final parts = name.trim().split(RegExp(r'\s+')).where((part) => part.isNotEmpty).toList();
+    if (parts.isEmpty) {
+      return '?';
+    }
+    return (parts.length == 1 ? parts.first.substring(0, 1) : '${parts.first[0]}${parts.last[0]}').toUpperCase();
+  }
 }

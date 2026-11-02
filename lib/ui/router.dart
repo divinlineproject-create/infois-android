@@ -12,7 +12,9 @@ import 'screens/catatan_screen.dart';
 import 'screens/help_screens.dart';
 import 'screens/history_screen.dart';
 import 'screens/home_shell.dart';
+import 'screens/lock_screen.dart';
 import 'screens/login_screen.dart';
+import 'screens/ops_screens.dart';
 import 'screens/pay_screen.dart';
 import 'screens/record_detail_screens.dart';
 import 'screens/report_screens.dart';
@@ -51,7 +53,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       if (value.tenant == null) {
         return location == '/perusahaan' ? null : '/perusahaan';
       }
-      if (location == '/masuk' || location == '/perusahaan' || location == '/mulai') {
+      // Tablet kasir bersama terkunci: pilih nama + PIN dulu.
+      if (value.locked) {
+        return location == '/kunci' ? null : '/kunci';
+      }
+      if (location == '/masuk' || location == '/perusahaan' || location == '/mulai' || location == '/kunci') {
         return '/';
       }
       return null;
@@ -71,6 +77,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(path: '/masuk', builder: (_, __) => const LoginScreen()),
       GoRoute(path: '/perusahaan', builder: (_, __) => const TenantPickerScreen()),
+      GoRoute(path: '/kunci', builder: (_, __) => const LockScreen()),
       GoRoute(path: '/', builder: (_, __) => const HomeShell()),
       GoRoute(path: '/bayar', builder: (_, __) => const PayScreen()),
       GoRoute(
@@ -115,6 +122,16 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/catatan/pelanggan/:id', builder: (_, state) => CustomerDetailScreen(id: int.tryParse(state.pathParameters['id'] ?? '') ?? 0)),
       GoRoute(path: '/catatan/pemasok/:id', builder: (_, state) => SupplierDetailScreen(id: int.tryParse(state.pathParameters['id'] ?? '') ?? 0)),
       GoRoute(path: '/catatan/stok/:id', builder: (_, state) => StockItemScreen(productId: int.tryParse(state.pathParameters['id'] ?? '') ?? 0, item: state.extra is StockLevel ? state.extra as StockLevel : null)),
+      // Operasional harian: biaya, tagihan pemasok, Kas & Bank.
+      GoRoute(path: '/ops/biaya', builder: (_, __) => const OpsListScreen(kind: 'biaya')),
+      GoRoute(path: '/ops/biaya/baru', builder: (_, __) => const ExpenseFormScreen()),
+      GoRoute(path: '/ops/biaya/:source/:id', builder: (_, state) => ExpenseFormScreen(source: state.pathParameters['source'], id: int.tryParse(state.pathParameters['id'] ?? ''))),
+      GoRoute(path: '/ops/tagihan/baru', builder: (_, __) => const BillFormScreen()),
+      GoRoute(path: '/ops/tagihan/:id', builder: (_, state) => BillFormScreen(id: int.tryParse(state.pathParameters['id'] ?? ''))),
+      GoRoute(path: '/ops/kas', builder: (_, __) => const OpsListScreen(kind: 'kas')),
+      GoRoute(path: '/ops/kas/baru/:type', builder: (_, state) => CashFormScreen(type: state.pathParameters['type'] ?? 'out')),
+      GoRoute(path: '/ops/kas/:id', builder: (_, state) => CashDetailScreen(id: int.tryParse(state.pathParameters['id'] ?? '') ?? 0)),
+      GoRoute(path: '/ops/kas/:id/ubah', builder: (_, state) => CashFormScreen(type: state.uri.queryParameters['type'] ?? 'out', id: int.tryParse(state.pathParameters['id'] ?? ''))),
       GoRoute(
         path: '/catatan/lampiran',
         builder: (_, state) => AttachmentScreen(attachment: state.extra is RecordAttachment ? state.extra as RecordAttachment : const RecordAttachment(index: 0, name: 'Lampiran')),

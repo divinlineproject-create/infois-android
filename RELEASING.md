@@ -61,6 +61,19 @@ bicara, atau foto pesanan → langsung masuk keranjang; online saja, memakai koi
 scan/ketik yang hanya cocok dengan barang nonaktif ditolak ("Barang ini sudah dinonaktifkan.").
 Server harus sudah punya `POST /api/v1/pos/ai-input` sebelum build ini dirilis.
 
+**1.2.0+3** (2026-11-02, menggantikan 1.1.0+2 sebagai pembaruan pertama setelah rilis Play; isinya
+termasuk semua isi 1.1.0+2):
+- **Tablet kasir bersama (PIN)**: tablet login penuh sekali, lalu tiap kasir membuka dengan pilih nama +
+  PIN 6 angka (Akun › Kunci dengan PIN; kunci otomatis setelah ditinggal). Satu database per tablet:
+  pesanan tersimpan dan antrean kirim dipakai bersama, tiap transaksi tercatat atas nama kasirnya.
+- **Operasional harian** (tombol **Catat** di tab Catatan): catat/ubah/hapus biaya, tagihan pemasok
+  (barang stok + biaya lain, bisa langsung dibayar), uang masuk/keluar/pindah rekening, bayar tagihan,
+  terima pembayaran pelanggan; tombol Ubah/Hapus mengikuti hak akses dan kunci (cut off, disetujui,
+  sudah dibayar) seperti di web.
+- Layar **Masuk** baru: separuh layar panel brand seperti halaman masuk dashboard.
+Server harus sudah punya `/api/v1/pin/*` dan `/api/v1/ops/*` (backoffice main, migrasi
+`2026_11_02_100000_add_mobile_pin`) sebelum build ini dirilis.
+
 ## 3. Membangun AAB
 
 ```bash

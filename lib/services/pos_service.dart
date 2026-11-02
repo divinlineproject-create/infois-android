@@ -162,6 +162,7 @@ class PosService {
       'paid': paid,
       'change': change,
       'cashier': user.name,
+      'cashier_user_id': user.id,
       'tax_name': master.tenant.salesTaxName,
       'prices_include_tax': inclusive,
       'verification_url': receipt.showQr && receipt.verifyBaseUrl != null ? '${receipt.verifyBaseUrl}/$clientUuid' : null,
@@ -218,6 +219,8 @@ class PosService {
         'notes': sale['notes'],
         if (sale['order_type'] != null) 'order_type': sale['order_type'],
         if (sale['order_label'] != null) 'order_label': sale['order_label'],
+        // Tablet kasir bersama: tercatat atas nama kasir yang membuat nota.
+        if (sale['cashier_user_id'] != null) 'cashier_user_id': sale['cashier_user_id'],
         'total': sale['total'],
         'items': [
           for (final item in sale['items'] as List)
@@ -263,6 +266,7 @@ class PosService {
     await local.upsertCustomers([customer]);
     await OutboxStore(local).enqueue('customer', clientUuid, {
       'client_uuid': clientUuid,
+      'cashier_user_id': user.id,
       'name': customer.name,
       if ((customer.phone ?? '').isNotEmpty) 'phone': customer.phone,
       if ((customer.address ?? '').isNotEmpty) 'address': customer.address,
@@ -284,7 +288,7 @@ class PosService {
       'cashier': user.name,
     };
     await local.saveShift(shift);
-    await OutboxStore(local).enqueue('shift_open', clientUuid, {'client_uuid': clientUuid, 'opened_at': openedAt, 'opening_cash': shift['opening_cash']});
+    await OutboxStore(local).enqueue('shift_open', clientUuid, {'client_uuid': clientUuid, 'cashier_user_id': user.id, 'opened_at': openedAt, 'opening_cash': shift['opening_cash']});
     return shift;
   });
 

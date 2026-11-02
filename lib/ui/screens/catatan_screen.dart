@@ -7,10 +7,14 @@ import 'package:go_router/go_router.dart';
 import '../../core/format.dart';
 import '../../core/money.dart';
 import '../../domain/record_models.dart';
+import '../../domain/models.dart';
 import '../../state/records_state.dart';
+import '../../state/session.dart';
+import '../../state/workspace.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 import '../widgets/report_widgets.dart';
+import 'ops_screens.dart';
 
 /// Tab Catatan: Penjualan · Pembayaran · Pembelian · Kas & Bank · Stok ·
 /// Pelanggan · Pemasok, masing-masing tampil hanya bila hak aksesnya ada.
@@ -29,9 +33,34 @@ class _CatatanScreenState extends ConsumerState<CatatanScreen> {
   Widget build(BuildContext context) {
     final sections = ref.watch(recordAccessProvider).sections;
     if (sections.isEmpty) {
-      return const EmptyState(icon: Icons.lock_outline, title: 'Belum punya akses catatan', message: 'Minta pemilik usaha memberi hak lihat penjualan, stok, atau kas di website Infois.');
+      final menus = ref.watch(masterDataProvider).valueOrNull?.menus ?? ref.watch(sessionProvider).valueOrNull?.tenant?.menus ?? const Menus();
+      return EmptyState(
+        icon: Icons.lock_outline,
+        title: 'Belum punya akses catatan',
+        message: 'Minta pemilik usaha memberi hak lihat penjualan, stok, atau kas di website Infois.',
+        action: menus.operations ? FilledButton.icon(key: const Key('catatan-ops'), onPressed: () => showOperationsSheet(context, ref), icon: const Icon(Icons.add), label: const Text('Catat transaksi')) : null,
+      );
     }
     final index = sections.indexWhere((section) => section == _selected).clamp(0, sections.length - 1);
+    final session = ref.watch(sessionProvider).valueOrNull;
+    final menus = ref.watch(masterDataProvider).valueOrNull?.menus ?? session?.tenant?.menus ?? const Menus();
+    return Stack(children: [
+      _sectionsView(context, sections, index),
+      if (menus.operations)
+        Positioned(
+          right: 16,
+          bottom: 16,
+          child: FloatingActionButton.extended(
+            key: const Key('catatan-ops'),
+            onPressed: () => showOperationsSheet(context, ref),
+            icon: const Icon(Icons.add),
+            label: const Text('Catat'),
+          ),
+        ),
+    ]);
+  }
+
+  Widget _sectionsView(BuildContext context, List<RecordSection> sections, int index) {
     return Column(children: [
       SizedBox(
         height: 52,
@@ -659,6 +688,7 @@ class _CashTile extends StatelessWidget {
         ('payment_in', final int id) => '/catatan/pembayaran/in/$id',
         ('purchase', final int id) => '/catatan/pembelian/$id',
         ('payment_out', final int id) => '/catatan/pembayaran/out/$id',
+        ('cash_in' || 'cash_out' || 'transfer', final int id) => '/ops/kas/$id',
         _ => null,
       };
 

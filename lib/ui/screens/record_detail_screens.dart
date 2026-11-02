@@ -8,6 +8,7 @@ import '../../data/ai_api.dart';
 import '../../data/api_client.dart';
 import '../../domain/record_models.dart';
 import '../../services/file_downloads.dart';
+import '../../state/ops_state.dart';
 import '../../state/printer_controller.dart';
 import '../../state/records_state.dart';
 import '../../state/session.dart';
@@ -15,6 +16,7 @@ import '../theme.dart';
 import '../widgets/common.dart';
 import '../widgets/report_widgets.dart';
 import 'catatan_screen.dart';
+import 'ops_screens.dart';
 import 'pay_screen.dart' show printMessage;
 
 /// Kerangka layar rincian: judul, isi dari provider, galat ramah.
@@ -332,6 +334,26 @@ class _SaleDetailScreenState extends ConsumerState<SaleDetailScreen> {
             OutlinedButton.icon(key: const Key('pdf'), onPressed: _busy ? null : () => _pdf(sale), icon: const Icon(Icons.picture_as_pdf_outlined), label: const Text('Unduh PDF nota')),
             if (!hasPrinter) Padding(padding: const EdgeInsets.only(top: 6), child: Text('Belum ada printer. Atur di Akun › Printer.', style: TextStyle(fontSize: 12, color: mutedText(context)))),
             const SizedBox(height: 10),
+            if (sale.canReceivePayment && Money.isPositive(s.balanceDue) && s.status != 'void') ...[
+              FilledButton.icon(
+                key: const Key('receive-payment'),
+                onPressed: _busy
+                    ? null
+                    : () async {
+                        final api = ref.read(opsApiProvider);
+                        if (api == null) {
+                          return;
+                        }
+                        final saved = await showPaymentSheet(context, ref, title: 'Terima pembayaran ${s.number}', balance: s.balanceDue, submit: (data) => api.receivePayment(widget.id, data));
+                        if (saved) {
+                          ref.invalidate(saleDetailProvider(widget.id));
+                        }
+                      },
+                icon: const Icon(Icons.payments_outlined),
+                label: const Text('Terima pembayaran'),
+              ),
+              const SizedBox(height: 10),
+            ],
             if (sale.canVoid)
               OutlinedButton.icon(
                 key: const Key('void-sale'),
@@ -452,7 +474,7 @@ class PurchaseDetailScreen extends ConsumerWidget {
                 for (final note in purchase.debitNotes) AmountRow('${note.number} · ${dateFromIso(note.date)}', rupiah(note.total)),
               ]),
             AttachmentStrip(purchase.attachments),
-            Text('Pembelian dicatat dan diubah lewat website atau Tim AI.', style: TextStyle(fontSize: 12, color: mutedText(context))),
+            _PurchaseActions(id: id, purchase: purchase),
           ]);
         },
       );
@@ -716,5 +738,79 @@ class _AttachmentScreenState extends ConsumerState<AttachmentScreen> {
                   action: FilledButton.icon(onPressed: _busy ? null : _download, icon: const Icon(Icons.download_outlined), label: const Text('Unduh')),
                 ),
     );
+  }
+}
+
+/// Ubah / Bayar / Hapus tagihan pemasok dari aplikasi (aturan kunci sama dengan web).
+class _PurchaseActions extends ConsumerWidget {
+  const _PurchaseActions({required this.id, required this.purchase});
+
+  final int id;
+  final PurchaseDetail purchase;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final s = purchase.summary;
+    final anything = purchase.canEdit || purchase.canDelete || purchase.canPay;
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      if (purchase.lockedReason != null && !purchase.canEdit) LockedNotice(purchase.lockedReason!),
+      if (purchase.canPay)
+        FilledButton.icon(
+          key: const Key('purchase-pay'),
+          onPressed: () async {
+            final api = ref.read(opsApiProvider);
+            if (api == null) {
+              return;
+            }
+            if (await showPaymentSheet(context, ref, title: 'Bayar ${s.number}', balance: s.balanceDue, submit: (data) => api.payBill(id, data))) {
+              ref.invalidate(purchaseDetailProvider(id));
+            }
+          },
+          icon: const Icon(Icons.payments_outlined),
+          label: const Text('Bayar tagihan'),
+        ),
+      if (purchase.canEdit) ...[
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          key: const Key('purchase-edit'),
+          onPressed: () async {
+            final changed = await context.push<bool>('/ops/tagihan/$id');
+            if (changed == true) {
+              ref.invalidate(purchaseDetailProvider(id));
+            }
+          },
+          icon: const Icon(Icons.edit_outlined),
+          label: const Text('Ubah tagihan'),
+        ),
+      ],
+      if (purchase.canDelete) ...[
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          key: const Key('purchase-delete'),
+          style: OutlinedButton.styleFrom(foregroundColor: Brand.danger),
+          onPressed: () async {
+            if (!await confirmOpsDelete(context, 'tagihan ${s.number}')) {
+              return;
+            }
+            try {
+              await ref.read(opsApiProvider)!.deleteBill(id);
+              refreshAfterOps(ref);
+              if (context.mounted) {
+                showMessage(context, 'Tagihan dihapus.');
+                context.pop();
+              }
+            } on ApiException catch (error) {
+              if (context.mounted) {
+                showMessage(context, error.message, error: true);
+              }
+            }
+          },
+          icon: const Icon(Icons.delete_outline),
+          label: const Text('Hapus tagihan'),
+        ),
+      ],
+      if (!anything) Text('Pembelian ini tidak bisa diubah dari aplikasi.', style: TextStyle(fontSize: 12, color: mutedText(context))),
+      const SizedBox(height: 16),
+    ]);
   }
 }

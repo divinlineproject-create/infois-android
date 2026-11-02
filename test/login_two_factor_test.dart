@@ -169,6 +169,7 @@ void main() {
     expect(logins, hasLength(1));
 
     await tester.enterText(find.byKey(const Key('login-2fa-code')), 'ABCDEFGHIJ-klmnopqrst');
+    await tester.ensureVisible(find.byKey(const Key('login-2fa-submit')));
     await tester.tap(find.byKey(const Key('login-2fa-submit')));
     await settle(tester);
     expect(logins.last!['code'], 'ABCDEFGHIJ-klmnopqrst');

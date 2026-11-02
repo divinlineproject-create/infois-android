@@ -77,6 +77,13 @@ class _HomeShellState extends ConsumerState<HomeShell> {
                   Text('Kasir ${master!.deviceCode} · ${session?.user?.name ?? ''}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w400, color: mutedText(context))),
               ]),
               actions: [
+                if (ref.read(storageProvider).pinLock)
+                  IconButton(
+                    key: const Key('shell-lock'),
+                    tooltip: 'Kunci / ganti pengguna',
+                    icon: const Icon(Icons.lock_outline),
+                    onPressed: () => ref.read(sessionProvider.notifier).lock(),
+                  ),
                 Padding(padding: const EdgeInsets.only(right: 12), child: SyncStatusBadge(onTap: () => context.push('/sync'))),
               ],
             ),

@@ -14,6 +14,7 @@ import '../../state/sync_controller.dart';
 import '../../state/workspace.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import 'pin_settings.dart';
 
 enum _LogoutChoice { syncFirst, logout }
 
@@ -44,53 +45,62 @@ Future<void> showDeleteAccountSheet(BuildContext context, WidgetRef ref, String 
     builder: (sheet) {
       final muted = mutedText(sheet);
       Widget point(String text) => Padding(
-            padding: const EdgeInsets.only(bottom: 6),
-            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('•  '),
-              Expanded(child: Text(text, style: const TextStyle(fontSize: 13.5, height: 1.4))),
-            ]),
-          );
+        padding: const EdgeInsets.only(bottom: 6),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('•  '), Expanded(child: Text(text, style: const TextStyle(fontSize: 13.5, height: 1.4)))]),
+      );
       return SafeArea(
         child: SingleChildScrollView(
           key: const Key('delete-account-sheet'),
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-            Text('Hapus akun Infois', style: Theme.of(sheet).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
-            const SizedBox(height: 8),
-            const Text('Akun dihapus lewat halaman Hapus akun di web Infois. Masuk dengan akun ini, ketik HAPUS AKUN, lalu konfirmasi dengan kata sandi (akun Google: kode yang dikirim ke email).', style: TextStyle(fontSize: 13.5, height: 1.4)),
-            const SizedBox(height: 14),
-            const Text('Yang dihapus', style: TextStyle(fontWeight: FontWeight.w700)),
-            const SizedBox(height: 6),
-            point('Akun Anda dinonaktifkan dan tidak bisa dipakai masuk lagi, di web maupun di HP. Percakapan Tim AI pribadi, sesi masuk, dan perangkat Anda dihapus.'),
-            point('Perusahaan milik Anda (yang Anda pegang sebagai pemilik) ditutup dan seluruh datanya dihapus permanen: transaksi, barang, pelanggan, catatan, foto nota, file, dan percakapan Tim AI.'),
-            point('Dari perusahaan tempat Anda hanya anggota, Anda dikeluarkan. Data perusahaan itu tetap milik pemiliknya.'),
-            point('Sisa koin Tim AI dan masa aktif perusahaan yang ditutup hangus, tanpa pengembalian dana.'),
-            const SizedBox(height: 8),
-            const Text('Yang tetap disimpan', style: TextStyle(fontWeight: FontWeight.w700)),
-            const SizedBox(height: 6),
-            point('Catatan tagihan dan pembayaran, sesuai kewajiban pajak dan hukum.'),
-            point('Nama, email, dan nomor telepon akun dalam keadaan nonaktif, sebagai bagian dari catatan tagihan dan untuk mencegah penyalahgunaan.'),
-            if (pending > 0) ...[
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Hapus akun Infois', style: Theme.of(sheet).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
               const SizedBox(height: 8),
-              Text('Ada $pending transaksi di HP ini yang belum terkirim. Sinkronkan dulu bila masih diperlukan, karena setelah akun dihapus transaksi itu tidak bisa dikirim lagi.',
-                  key: const Key('delete-account-pending'), style: TextStyle(fontSize: 13, color: dangerText(sheet))),
-            ],
-            const SizedBox(height: 8),
-            Text('Penghapusan tidak bisa dibatalkan.', style: TextStyle(fontSize: 13, color: muted)),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                key: const Key('delete-account-open'),
-                style: FilledButton.styleFrom(backgroundColor: dangerText(sheet)),
-                onPressed: () => Navigator.pop(sheet, true),
-                icon: const Icon(Icons.open_in_new, size: 18),
-                label: const Text('Buka halaman Hapus akun'),
+              const Text(
+                'Akun dihapus lewat halaman Hapus akun di web Infois. Masuk dengan akun ini, ketik HAPUS AKUN, lalu konfirmasi dengan kata sandi (akun Google: kode yang dikirim ke email).',
+                style: TextStyle(fontSize: 13.5, height: 1.4),
               ),
-            ),
-            const SizedBox(height: 6),
-            SizedBox(width: double.infinity, child: TextButton(onPressed: () => Navigator.pop(sheet, false), child: const Text('Batal'))),
-          ]),
+              const SizedBox(height: 14),
+              const Text('Yang dihapus', style: TextStyle(fontWeight: FontWeight.w700)),
+              const SizedBox(height: 6),
+              point('Akun Anda dinonaktifkan dan tidak bisa dipakai masuk lagi, di web maupun di HP. Percakapan Tim AI pribadi, sesi masuk, dan perangkat Anda dihapus.'),
+              point(
+                'Perusahaan milik Anda (yang Anda pegang sebagai pemilik) ditutup dan seluruh datanya dihapus permanen: transaksi, barang, pelanggan, catatan, foto nota, file, dan percakapan Tim AI.',
+              ),
+              point('Dari perusahaan tempat Anda hanya anggota, Anda dikeluarkan. Data perusahaan itu tetap milik pemiliknya.'),
+              point('Sisa koin Tim AI dan masa aktif perusahaan yang ditutup hangus, tanpa pengembalian dana.'),
+              const SizedBox(height: 8),
+              const Text('Yang tetap disimpan', style: TextStyle(fontWeight: FontWeight.w700)),
+              const SizedBox(height: 6),
+              point('Catatan tagihan dan pembayaran, sesuai kewajiban pajak dan hukum.'),
+              point('Nama, email, dan nomor telepon akun dalam keadaan nonaktif, sebagai bagian dari catatan tagihan dan untuk mencegah penyalahgunaan.'),
+              if (pending > 0) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'Ada $pending transaksi di HP ini yang belum terkirim. Sinkronkan dulu bila masih diperlukan, karena setelah akun dihapus transaksi itu tidak bisa dikirim lagi.',
+                  key: const Key('delete-account-pending'),
+                  style: TextStyle(fontSize: 13, color: dangerText(sheet)),
+                ),
+              ],
+              const SizedBox(height: 8),
+              Text('Penghapusan tidak bisa dibatalkan.', style: TextStyle(fontSize: 13, color: muted)),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  key: const Key('delete-account-open'),
+                  style: FilledButton.styleFrom(backgroundColor: dangerText(sheet)),
+                  onPressed: () => Navigator.pop(sheet, true),
+                  icon: const Icon(Icons.open_in_new, size: 18),
+                  label: const Text('Buka halaman Hapus akun'),
+                ),
+              ),
+              const SizedBox(height: 6),
+              SizedBox(width: double.infinity, child: TextButton(onPressed: () => Navigator.pop(sheet, false), child: const Text('Batal'))),
+            ],
+          ),
         ),
       );
     },
@@ -197,32 +207,33 @@ class _AkunScreenState extends ConsumerState<AkunScreen> {
     }
     return showDialog<_LogoutChoice>(
       context: context,
-      builder: (context) => pending > 0 || held > 0
-          ? AlertDialog(
-              key: const Key('logout-dialog'),
-              title: Text(pending > 0 ? 'Transaksi belum terkirim' : 'Pesanan tersimpan belum dibayar'),
-              content: Text(logoutWarning(pending: pending, pendingElsewhere: elsewhere, held: held, heldElsewhere: heldElsewhere)),
-              actions: [
-                TextButton(onPressed: () => Navigator.pop(context), child: const Text('Batal')),
-                TextButton(
-                  key: const Key('logout-anyway'),
-                  style: TextButton.styleFrom(foregroundColor: dangerText(context)),
-                  onPressed: () => Navigator.pop(context, _LogoutChoice.logout),
-                  child: const Text('Tetap keluar'),
-                ),
-                if (pending > 0)
-                  FilledButton(key: const Key('logout-sync-first'), onPressed: () => Navigator.pop(context, _LogoutChoice.syncFirst), child: const Text('Sinkron dulu')),
-              ],
-            )
-          : AlertDialog(
-              key: const Key('logout-dialog'),
-              title: const Text('Keluar dari aplikasi?'),
-              content: const Text('Data di HP ini akan dihapus. Semua transaksi sudah tersimpan di server.'),
-              actions: [
-                TextButton(onPressed: () => Navigator.pop(context), child: const Text('Batal')),
-                FilledButton(key: const Key('logout-confirm'), onPressed: () => Navigator.pop(context, _LogoutChoice.logout), child: const Text('Keluar')),
-              ],
-            ),
+      builder:
+          (context) =>
+              pending > 0 || held > 0
+                  ? AlertDialog(
+                    key: const Key('logout-dialog'),
+                    title: Text(pending > 0 ? 'Transaksi belum terkirim' : 'Pesanan tersimpan belum dibayar'),
+                    content: Text(logoutWarning(pending: pending, pendingElsewhere: elsewhere, held: held, heldElsewhere: heldElsewhere)),
+                    actions: [
+                      TextButton(onPressed: () => Navigator.pop(context), child: const Text('Batal')),
+                      TextButton(
+                        key: const Key('logout-anyway'),
+                        style: TextButton.styleFrom(foregroundColor: dangerText(context)),
+                        onPressed: () => Navigator.pop(context, _LogoutChoice.logout),
+                        child: const Text('Tetap keluar'),
+                      ),
+                      if (pending > 0) FilledButton(key: const Key('logout-sync-first'), onPressed: () => Navigator.pop(context, _LogoutChoice.syncFirst), child: const Text('Sinkron dulu')),
+                    ],
+                  )
+                  : AlertDialog(
+                    key: const Key('logout-dialog'),
+                    title: const Text('Keluar dari aplikasi?'),
+                    content: const Text('Data di HP ini akan dihapus. Semua transaksi sudah tersimpan di server.'),
+                    actions: [
+                      TextButton(onPressed: () => Navigator.pop(context), child: const Text('Batal')),
+                      FilledButton(key: const Key('logout-confirm'), onPressed: () => Navigator.pop(context, _LogoutChoice.logout), child: const Text('Keluar')),
+                    ],
+                  ),
     );
   }
 
@@ -248,7 +259,9 @@ class _AkunScreenState extends ConsumerState<AkunScreen> {
     }
     showMessage(
       context,
-      sync.connection == ConnectionStatus.offline ? 'Masih offline: $pending transaksi belum terkirim. Sambungkan internet lalu coba lagi.' : '$pending transaksi belum terkirim. ${sync.message ?? 'Coba lagi sebentar lagi.'}',
+      sync.connection == ConnectionStatus.offline
+          ? 'Masih offline: $pending transaksi belum terkirim. Sambungkan internet lalu coba lagi.'
+          : '$pending transaksi belum terkirim. ${sync.message ?? 'Coba lagi sebentar lagi.'}',
       error: true,
     );
   }
@@ -257,19 +270,20 @@ class _AkunScreenState extends ConsumerState<AkunScreen> {
     final current = ref.read(themeModeProvider);
     final chosen = await showDialog<ThemeMode>(
       context: context,
-      builder: (context) => SimpleDialog(
-        title: const Text('Tampilan'),
-        children: [
-          for (final mode in ThemeMode.values)
-            ListTile(
-              key: Key('theme-${mode.name}'),
-              leading: Icon(mode == current ? Icons.radio_button_checked : Icons.radio_button_unchecked, color: mode == current ? Theme.of(context).colorScheme.primary : null),
-              title: Text(themeModeLabel(mode)),
-              subtitle: mode == ThemeMode.system ? const Text('Terang atau gelap mengikuti pengaturan HP') : null,
-              onTap: () => Navigator.pop(context, mode),
-            ),
-        ],
-      ),
+      builder:
+          (context) => SimpleDialog(
+            title: const Text('Tampilan'),
+            children: [
+              for (final mode in ThemeMode.values)
+                ListTile(
+                  key: Key('theme-${mode.name}'),
+                  leading: Icon(mode == current ? Icons.radio_button_checked : Icons.radio_button_unchecked, color: mode == current ? Theme.of(context).colorScheme.primary : null),
+                  title: Text(themeModeLabel(mode)),
+                  subtitle: mode == ThemeMode.system ? const Text('Terang atau gelap mengikuti pengaturan HP') : null,
+                  onTap: () => Navigator.pop(context, mode),
+                ),
+            ],
+          ),
     );
     if (chosen != null) {
       await ref.read(themeModeProvider.notifier).set(chosen);
@@ -286,116 +300,230 @@ class _AkunScreenState extends ConsumerState<AkunScreen> {
     final user = session?.user;
     final tenant = session?.tenant;
 
-    return ListView(padding: const EdgeInsets.all(16), children: [
-      Card(
-        child: ListTile(
-          contentPadding: const EdgeInsets.all(16),
-          leading: CircleAvatar(
-            radius: 26,
-            backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-            child: Text((user?.name ?? '?').characters.first.toUpperCase(), style: TextStyle(color: Theme.of(context).colorScheme.onPrimaryContainer, fontWeight: FontWeight.w700, fontSize: 20)),
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Card(
+          child: ListTile(
+            contentPadding: const EdgeInsets.all(16),
+            leading: CircleAvatar(
+              radius: 26,
+              backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+              child: Text((user?.name ?? '?').characters.first.toUpperCase(), style: TextStyle(color: Theme.of(context).colorScheme.onPrimaryContainer, fontWeight: FontWeight.w700, fontSize: 20)),
+            ),
+            title: Text(user?.name ?? '-', style: const TextStyle(fontWeight: FontWeight.w600)),
+            subtitle: Text('${user?.email ?? ''}\n${tenant?.name ?? ''} · ${tenant?.roleLabel ?? ''}'),
+            isThreeLine: true,
           ),
-          title: Text(user?.name ?? '-', style: const TextStyle(fontWeight: FontWeight.w600)),
-          subtitle: Text('${user?.email ?? ''}\n${tenant?.name ?? ''} · ${tenant?.roleLabel ?? ''}'),
-          isThreeLine: true,
         ),
-      ),
-      const SizedBox(height: 12),
-      Card(
-        child: Column(children: [
-          if ((session?.tenants.length ?? 0) > 1)
-            ListTile(
-              leading: const Icon(Icons.swap_horiz),
-              title: const Text('Ganti perusahaan'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => ref.read(sessionProvider.notifier).selectTenant(null),
+        const SizedBox(height: 12),
+        Card(
+          child: Column(
+            children: [
+              if ((session?.tenants.length ?? 0) > 1 && !(session?.isOperator ?? false))
+                ListTile(
+                  leading: const Icon(Icons.swap_horiz),
+                  title: const Text('Ganti perusahaan'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => ref.read(sessionProvider.notifier).selectTenant(null),
+                ),
+              if (master?.menus.printer ?? tenant?.menus.printer ?? false)
+                ListTile(
+                  leading: const Icon(Icons.print_outlined),
+                  title: const Text('Printer struk'),
+                  subtitle: Text(printer.printer == null ? 'Belum diatur' : '${printer.printer!.name} · ${printer.printer!.width} mm'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => context.push('/printer'),
+                ),
+              ListTile(
+                leading: const Icon(Icons.sync),
+                title: const Text('Status sinkron'),
+                subtitle: Text(
+                  sync.pending > 0
+                      ? '${sync.pending} transaksi menunggu dikirim'
+                      : (sync.lastSyncAt != null || master?.lastSyncAt != null ? 'Terakhir ${dateTimeLabel((sync.lastSyncAt ?? master!.lastSyncAt!).toLocal())}' : 'Belum pernah'),
+                ),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => context.push('/sync'),
+              ),
+              if (master?.menus.pos ?? false)
+                ListTile(leading: const Icon(Icons.history), title: const Text('Riwayat nota'), trailing: const Icon(Icons.chevron_right), onTap: () => context.push('/riwayat')),
+              ListTile(
+                key: const Key('akun-theme'),
+                leading: const Icon(Icons.dark_mode_outlined),
+                title: const Text('Tampilan'),
+                subtitle: Text(themeModeLabel(themeMode)),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: _chooseTheme,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        _SharedTabletCard(session: session),
+        const SizedBox(height: 12),
+        // Kebijakan Google Play: tidak ada tautan ke web untuk paket/koin. Web
+        // hanya disebut sebagai tempat pengaturan lengkap (tanpa tautan).
+        Card(
+          child: Column(
+            children: [
+              ListTile(
+                key: const Key('akun-help'),
+                leading: const Icon(Icons.help_outline),
+                title: const Text('Pusat Bantuan'),
+                subtitle: const Text('Panduan memakai Infois, langkah demi langkah'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => context.push('/bantuan'),
+              ),
+              ListTile(
+                key: const Key('akun-web-info'),
+                leading: const Icon(Icons.computer_outlined),
+                title: const Text('Infois versi web'),
+                subtitle: Text('Laporan lengkap, pengaturan, dan tim ada di ${session == null ? 'dashboard.infois.ai' : Uri.parse(session.serverUrl.trim()).host}.'),
+              ),
+              ListTile(
+                key: const Key('akun-privacy'),
+                leading: const Icon(Icons.privacy_tip_outlined),
+                title: const Text('Kebijakan privasi'),
+                trailing: const Icon(Icons.open_in_new, size: 20),
+                onTap: () => openExternalLink(context, ref, privacyPolicyUrl),
+              ),
+              ListTile(
+                key: const Key('akun-terms'),
+                leading: const Icon(Icons.description_outlined),
+                title: const Text('Syarat & ketentuan'),
+                trailing: const Icon(Icons.open_in_new, size: 20),
+                onTap: () => openExternalLink(context, ref, termsUrl),
+              ),
+              ListTile(
+                key: const Key('akun-delete-account'),
+                leading: Icon(Icons.person_remove_outlined, color: dangerText(context)),
+                title: Text('Hapus akun', style: TextStyle(color: dangerText(context))),
+                subtitle: const Text('Hapus akun Infois dan data Anda'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: session == null ? null : () => showDeleteAccountSheet(context, ref, session.webUrl(deleteAccountPath), pending: sync.pending),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
+        if (session?.isOperator ?? false)
+          OutlinedButton.icon(
+            key: const Key('akun-switch-user'),
+            onPressed: () => ref.read(sessionProvider.notifier).logout(),
+            icon: const Icon(Icons.switch_account_outlined),
+            label: const Text('Ganti pengguna'),
+          )
+        else
+          OutlinedButton.icon(
+            key: const Key('akun-logout'),
+            onPressed: _loggingOut ? null : _logout,
+            icon: _loggingOut ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : Icon(Icons.logout, color: dangerText(context)),
+            label: Text(_loggingOut ? 'Keluar…' : 'Keluar', style: TextStyle(color: dangerText(context))),
+          ),
+        const SizedBox(height: 16),
+        Center(child: Text('${AppConfig.name} ${AppConfig.version} · Kasir ${master?.deviceCode ?? '-'}', style: TextStyle(fontSize: 12, color: mutedText(context)))),
+      ],
+    );
+  }
+}
+
+/// Tablet kasir bersama: PIN sendiri, kunci dengan PIN, kunci otomatis, ganti pengguna.
+class _SharedTabletCard extends ConsumerWidget {
+  const _SharedTabletCard({required this.session});
+
+  final SessionState? session;
+
+  static const _minuteChoices = [0, 1, 5, 15, 30];
+
+  static String minutesLabel(int minutes) => minutes == 0 ? 'Hanya saat aplikasi dibuka' : 'Setelah $minutes menit tidak dipakai';
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final current = session;
+    if (current == null || current.tenant == null) {
+      return const SizedBox.shrink();
+    }
+    final storage = ref.watch(storageProvider);
+    final hasPin = current.tenant!.hasPin;
+    final lockOn = storage.pinLock;
+    final isHost = !current.isOperator;
+
+    Future<void> toggleLock(bool enable) async {
+      if (enable && !hasPin) {
+        final saved = await showPinSetupSheet(context, hasPin: false);
+        if (!saved) {
+          return;
+        }
+      }
+      await ref.read(sessionProvider.notifier).setPinLock(enable);
+      if (context.mounted) {
+        showMessage(context, enable ? 'Kunci PIN aktif. Kasir lain membuka tablet dengan memilih nama dan mengetik PIN-nya.' : 'Kunci PIN dimatikan.');
+      }
+    }
+
+    Future<void> chooseMinutes() async {
+      final chosen = await showDialog<int>(
+        context: context,
+        builder:
+            (dialog) => SimpleDialog(
+              title: const Text('Kunci otomatis'),
+              children: [
+                for (final minutes in _minuteChoices)
+                  ListTile(
+                    leading: Icon(minutes == storage.pinLockMinutes ? Icons.radio_button_checked : Icons.radio_button_unchecked),
+                    title: Text(minutesLabel(minutes)),
+                    onTap: () => Navigator.pop(dialog, minutes),
+                  ),
+              ],
             ),
-          if (master?.menus.printer ?? tenant?.menus.printer ?? false)
-            ListTile(
-              leading: const Icon(Icons.print_outlined),
-              title: const Text('Printer struk'),
-              subtitle: Text(printer.printer == null ? 'Belum diatur' : '${printer.printer!.name} · ${printer.printer!.width} mm'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => context.push('/printer'),
+      );
+      if (chosen != null) {
+        await ref.read(sessionProvider.notifier).setPinLock(lockOn, minutes: chosen);
+      }
+    }
+
+    return Card(
+      key: const Key('akun-shared-tablet'),
+      child: Column(
+        children: [
+          ListTile(
+            key: const Key('akun-pin'),
+            leading: const Icon(Icons.pin_outlined),
+            title: Text(hasPin ? 'Ganti PIN saya' : 'Buat PIN saya'),
+            subtitle: Text(hasPin ? 'PIN 6 angka untuk membuka tablet kasir' : 'Belum ada PIN. Buat supaya bisa membuka tablet kasir tanpa email.'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => showPinSetupSheet(context, hasPin: hasPin),
+          ),
+          if (isHost)
+            SwitchListTile(
+              key: const Key('akun-pin-lock'),
+              secondary: const Icon(Icons.lock_outline),
+              title: const Text('Kunci dengan PIN (tablet bersama)'),
+              subtitle: const Text('Setiap dibuka, pilih nama lalu ketik PIN. Penjualan tercatat atas nama kasirnya.'),
+              value: lockOn,
+              onChanged: toggleLock,
             ),
-          ListTile(
-            leading: const Icon(Icons.sync),
-            title: const Text('Status sinkron'),
-            subtitle: Text(sync.pending > 0
-                ? '${sync.pending} transaksi menunggu dikirim'
-                : (sync.lastSyncAt != null || master?.lastSyncAt != null ? 'Terakhir ${dateTimeLabel((sync.lastSyncAt ?? master!.lastSyncAt!).toLocal())}' : 'Belum pernah')),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => context.push('/sync'),
-          ),
-          if (master?.menus.pos ?? false)
+          if (lockOn) ...[
+            if (isHost)
+              ListTile(
+                key: const Key('akun-pin-minutes'),
+                leading: const Icon(Icons.timer_outlined),
+                title: const Text('Kunci otomatis'),
+                subtitle: Text(minutesLabel(storage.pinLockMinutes)),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: chooseMinutes,
+              ),
             ListTile(
-              leading: const Icon(Icons.history),
-              title: const Text('Riwayat nota'),
+              key: const Key('akun-lock-now'),
+              leading: const Icon(Icons.switch_account_outlined),
+              title: const Text('Kunci sekarang / ganti pengguna'),
               trailing: const Icon(Icons.chevron_right),
-              onTap: () => context.push('/riwayat'),
+              onTap: () => ref.read(sessionProvider.notifier).lock(),
             ),
-          ListTile(
-            key: const Key('akun-theme'),
-            leading: const Icon(Icons.dark_mode_outlined),
-            title: const Text('Tampilan'),
-            subtitle: Text(themeModeLabel(themeMode)),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: _chooseTheme,
-          ),
-        ]),
+          ],
+        ],
       ),
-      const SizedBox(height: 12),
-      // Kebijakan Google Play: tidak ada tautan ke web untuk paket/koin. Web
-      // hanya disebut sebagai tempat pengaturan lengkap (tanpa tautan).
-      Card(
-        child: Column(children: [
-          ListTile(
-            key: const Key('akun-help'),
-            leading: const Icon(Icons.help_outline),
-            title: const Text('Pusat Bantuan'),
-            subtitle: const Text('Panduan memakai Infois, langkah demi langkah'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => context.push('/bantuan'),
-          ),
-          ListTile(
-            key: const Key('akun-web-info'),
-            leading: const Icon(Icons.computer_outlined),
-            title: const Text('Infois versi web'),
-            subtitle: Text('Laporan lengkap, pengaturan, dan tim ada di ${session == null ? 'dashboard.infois.ai' : Uri.parse(session.serverUrl.trim()).host}.'),
-          ),
-          ListTile(
-            key: const Key('akun-privacy'),
-            leading: const Icon(Icons.privacy_tip_outlined),
-            title: const Text('Kebijakan privasi'),
-            trailing: const Icon(Icons.open_in_new, size: 20),
-            onTap: () => openExternalLink(context, ref, privacyPolicyUrl),
-          ),
-          ListTile(
-            key: const Key('akun-terms'),
-            leading: const Icon(Icons.description_outlined),
-            title: const Text('Syarat & ketentuan'),
-            trailing: const Icon(Icons.open_in_new, size: 20),
-            onTap: () => openExternalLink(context, ref, termsUrl),
-          ),
-          ListTile(
-            key: const Key('akun-delete-account'),
-            leading: Icon(Icons.person_remove_outlined, color: dangerText(context)),
-            title: Text('Hapus akun', style: TextStyle(color: dangerText(context))),
-            subtitle: const Text('Hapus akun Infois dan data Anda'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: session == null ? null : () => showDeleteAccountSheet(context, ref, session.webUrl(deleteAccountPath), pending: sync.pending),
-          ),
-        ]),
-      ),
-      const SizedBox(height: 24),
-      OutlinedButton.icon(
-        key: const Key('akun-logout'),
-        onPressed: _loggingOut ? null : _logout,
-        icon: _loggingOut ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : Icon(Icons.logout, color: dangerText(context)),
-        label: Text(_loggingOut ? 'Keluar…' : 'Keluar', style: TextStyle(color: dangerText(context))),
-      ),
-      const SizedBox(height: 16),
-      Center(child: Text('${AppConfig.name} ${AppConfig.version} · Kasir ${master?.deviceCode ?? '-'}', style: TextStyle(fontSize: 12, color: mutedText(context)))),
-    ]);
+    );
   }
 }

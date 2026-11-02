@@ -30,7 +30,7 @@ final productPhotoStoreProvider = FutureProvider<ProductPhotoStore?>((ref) async
     return null;
   }
   return ProductPhotoStore(
-    directory: Directory(p.join(root.path, ProductPhotoStore.folderName(workspace.user.id, workspace.tenant.id))),
+    directory: Directory(p.join(root.path, ProductPhotoStore.folderName(workspace.ownerId, workspace.tenant.id))),
     download: (url) => workspace.api.bytes(url),
   );
 });

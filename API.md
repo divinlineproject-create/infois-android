@@ -152,6 +152,20 @@ Sinkron latar (WorkManager): 403 `perusahaan_ditutup` → dicatat dengan jumlah 
 ### Tim AI di Telegram (catatan, bukan endpoint HP)
 Akun Telegram dihubungkan ke satu perusahaan dengan dua cara: (1) di bot tekan **Bagikan nomor saya** — hanya nomor milik pengirim sendiri yang diterima, nomornya harus sama dengan **Nomor HP (untuk Telegram)** di profil web (`/app/profile`, kolom `users.phone`; awalan +62/62/0, spasi, dan tanda hubung disamakan); bila user punya beberapa perusahaan yang paketnya membuka Telegram dan ia punya akses Tim AI, bot menampilkan tombol pilih perusahaan; nomor yang dipakai lebih dari satu akun ditolak; (2) kode sekali pakai dari Tim AI web › Saluran Telegram › Hubungkan. Hak akses di Telegram = role user itu di perusahaan tersebut (sama dengan web). Aplikasi HP cukup mengarahkan pengguna ke cara ini bila ditanya; tidak ada endpoint API-nya.
 
+### Tablet kasir bersama: PIN 🏢 (aplikasi ≥ 1.2.0)
+Tablet login penuh sekali (pemilik login tablet = "host"). Kasir lain membuka aplikasi dengan **pilih nama + PIN 6 angka** (per anggota per perusahaan, kolom `pin_*` di `tenant_user`). PIN diatur sendiri (`PUT /pin` di aplikasi, atau web Profil › PIN aplikasi HP) atau oleh pengelola anggota di web (Tim & Akses › Anggota › PIN aplikasi; PIN Owner hanya oleh Owner). Aturan PIN: 6 angka, bukan angka sama semua / berurutan.
+
+| Endpoint | Isi |
+|---|---|
+| `GET /pin/users` | `{ "users": [ { "id", "name", "role", "role_label", "avatar_url" } ], "has_pin": bool, "pin_length": 6 }` — anggota ber-PIN (layar kunci; disimpan HP untuk offline) |
+| `POST /pin/unlock` `{user_id, pin}` | Dipanggil dengan **token host** (throttle 20/menit + 30 percobaan/10 menit per tablet). Benar → `{ "token": "…", "user", "tenants": [perusahaan tablet saja], "pin_session": true }`; untuk host sendiri `token: null` (tetap memakai token login penuh). Salah → 422 `pin_salah` (`Sisa N kali…`); 5× salah → PIN anggota itu dikunci 15 menit. Bukan anggota → 422 `pin_bukan_anggota` |
+| `PUT /pin` `{pin, current_pin?}` | Buat/ganti PIN sendiri; `current_pin` wajib bila sudah punya (salah → 422 `pin_salah`, `errors.current_pin`). Token PIN orang itu di tablet lain dicabut; sesi yang sedang dipakai tetap |
+| `DELETE /pin` `{current_pin}` | Hapus PIN sendiri (bukan dari sesi PIN: 403 `tidak_berhak`) |
+
+Token hasil PIN terikat ke **satu perusahaan** (`personal_access_tokens.tenant_id`) dan **satu tablet** (`device_id` = perangkat host; kode kasir & blok nomor sama). X-Tenant lain → 403 `sesi_pin_perusahaan_lain`; `GET /me` hanya berisi perusahaan itu + `pin_session: true`. Token PIN dicabut bila PIN diganti/dihapus pengelola, dan semua token PIN di tablet dicabut saat **host keluar** (`POST /auth/logout` dengan token host). `GET /me` & login: tiap perusahaan punya `has_pin`.
+
+Di aplikasi: satu database lokal per tablet (`infois_u{host}_t{tenant}.db`) dipakai semua kasir; outbox dikirim dengan token yang sedang aktif dan setiap item membawa `cashier_user_id` (lihat §4 `POST /sync/push`). Tanpa internet, kasir yang pernah membuka tablet ini dengan PIN bisa membuka lagi lewat pencocok PIN di HP (garam + hash; 5× salah → harus online). Akun › "Kunci dengan PIN" (hanya host) + "Kunci otomatis" (0/1/5/15/30 menit tidak disentuh atau ditinggal).
+
 ## 4. Sinkron 🏢
 
 ### `GET /sync/pull?since=<cursor>`
@@ -215,6 +229,8 @@ Foto barang (JPG/PNG/WebP; `size=thumb` = JPEG persegi kecil). Barang perusahaan
 ### `POST /sync/push`
 Kirim isi outbox **berurutan**, maksimal **50** item. Setiap item punya `client_uuid` (UUID v4 dari HP) → idempoten.
 Server memproses berurutan; gagal di satu item tidak menghentikan item lain. HP dengan akses dicabut masih boleh mengirim penjualan yang **dibuat sebelum** dicabut (`created_at` < waktu cabut).
+
+`cashier_user_id` (di item atau di `data`, aplikasi ≥ 1.2.0) = kasir yang membuat data itu di tablet bersama. Dipakai (penjualan tercatat atas namanya, hak aksesnya yang dicek) bila orang itu masih anggota perusahaan dan memakai tablet ini (host, atau pernah membukanya dengan PIN — tabel `device_operators`); selain itu tercatat atas nama pemilik token pengirim.
 
 ```json
 { "items": [ { "type": "customer", "client_uuid": "…", "data": { … } }, { "type": "sale", "client_uuid": "…", "data": { … } } ] }
@@ -872,6 +888,26 @@ Gambar/video artikel dengan token (`path` relatif di folder Pusat Bantuan, mis. 
 ## 9. Web terkait
 - **Tim & Akses › Perangkat** (`/app/{tenant}/tim/perangkat`, permission `manage-members`): daftar HP, kode kasir, pengguna, gudang, terakhir sinkron, transaksi tertunda di HP, **Cabut akses / Izinkan lagi**, atur nama & gudang.
 - **Tim & Akses › Perlu Ditinjau (Kasir HP)** (`/tim/perlu-ditinjau`, permission `issue-invoice`): penjualan `perlu_ditinjau` → **Proses ulang** (boleh ganti tanggal, mis. periode tutup buku) atau **Tandai selesai**.
+
+## 9b. Operasional harian 🏢 (aplikasi ≥ 1.2.0)
+Biaya, tagihan pemasok, Kas & Bank, dan pembayaran dari aplikasi, lewat service yang sama dengan web (`App\Http\Controllers\Api\V1\OperationsController`, tes `backoffice/tests/Feature/Mobile/MobileOperationsTest.php`). Galat aturan pembukuan → 422 `ditolak_pembukuan` dengan pesan sehari-hari; tidak berhak → 403 `tidak_berhak`. Menu tampil bila `menus.operations` (boleh catat Kas & Bank / tagihan, bayar tagihan, atau terima pembayaran).
+
+Setiap dokumen yang dibuka membawa `actions: {edit, delete, pay}` + `locked_reason` (cut off / tahun tutup buku, disetujui lewat Persetujuan, sudah ada pembayaran / retur / aset tetap, direkonsiliasi bank, barang sudah terjual, menunggu persetujuan). Ubah dokumen yang sudah diposting = dibuka kembali dengan **nomor yang sama** (jurnal lama ke arsip Jurnal terhapus, stok ditarik) lalu diposting lagi; hapus = sama lalu dihapus. Hak ubah/hapus = hak posting dokumen itu. `GET /records/purchases/{id}` juga berisi `actions` + `locked_reason`; `GET /records/sales/{id}` berisi `can.receive_payment`.
+
+| Endpoint | Isi |
+|---|---|
+| `GET /ops/options` | `expense_categories[]`, `cash_accounts[]`, `income_accounts[]` / `spending_accounts[]` (akun lawan uang masuk/keluar), `suppliers[]` (`{id, name, group?}`), `tax {name, rate}`, `can {expense_paid, expense_unpaid, bill, post_bill, pay_bill, cash, post_cash, receive_payment, add_supplier}` |
+| `GET /ops/expenses?from&to&q&cursor` | Baris menu Biaya (`source` cash/bill, `id`, `number`, `date`, `status`, `category`, `amount`) |
+| `POST /ops/expenses` | Isian sama dengan form Biaya web: `mode` paid/unpaid, `date`, `lines[{account_id, description?, quantity?, unit_price?, amount?}]`, paid: `account_id` (kas/bank), `contact_name?`; unpaid: `supplier_id`, `due_date?`; `has_tax`, `tax_rate`, `description?` → 201 `{result}` |
+| `GET/PUT/DELETE /ops/expenses/{cash|bill}/{id}` | Isian untuk diubah (`expense.form` + actions); tagihan berisi barang stok → `{expense: null, redirect: {type: "bill", id}}` |
+| `POST /ops/bills` | `supplier_id` atau `supplier_name` (baru, perlu hak tambah pemasok), `date`, `due_date?`/`due_days?`, `supplier_reference?`, `notes?`, `items[{product_id (barang stok) | account_id (jenis biaya), description?, quantity, unit?, unit_factor?, unit_price, tax_rate?}]`, `post?` (default true bila berhak; perlu persetujuan → diajukan), `paid?: {account_id, amount?, method?}` (kosong = lunas) |
+| `GET/PUT/DELETE /ops/bills/{id}` | Isian (`bill.form`) + actions; tagihan mata uang asing hanya lewat web |
+| `POST /ops/bills/{id}/payments` · `DELETE …/payments/{payment}` | Bayar `{date, amount, account_id, method?}` / batalkan pembayaran (jurnal dibalik) |
+| `GET /ops/cash?type=in|out|transfer&q&cursor` · `GET /ops/cash/{id}` | Daftar & rincian Kas & Bank (`lines[]`, actions) |
+| `POST /ops/cash` · `PUT/DELETE /ops/cash/{id}` | `type`, `date`, `account_id`, masuk/keluar: `lines[{account_id, amount, description?}]`, `contact_name?`; transfer: `to_account_id`, `amount`, `fee_amount?`. Jenis tidak bisa diganti saat diubah |
+| `POST /ops/invoices/{id}/payments` · `DELETE …/payments/{payment}` | Terima / batalkan pembayaran pelanggan |
+
+Hasil simpan: `{ "result": { "type": "cash|bill", "id", "number", "status", "total", "balance_due", "pending_approval", "message", "payment_id?" } }`.
 
 ## 10. Contoh cepat (curl)
 ```bash

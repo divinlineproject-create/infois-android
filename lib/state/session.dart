@@ -8,6 +8,7 @@ import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
 import '../core/config.dart';
+import '../core/pin.dart';
 import '../data/api_client.dart';
 import '../data/app_storage.dart';
 import '../data/local_db.dart';
@@ -174,7 +175,7 @@ class GoneCompany {
 }
 
 class SessionState {
-  const SessionState({this.token, this.user, this.tenants = const [], this.tenantId, this.notice, this.gone = const []});
+  const SessionState({this.token, this.user, this.tenants = const [], this.tenantId, this.notice, this.gone = const [], this.host, this.locked = false});
 
   /// Server aplikasi: tetap sejak build ([AppConfig.serverUrl]), tidak bisa
   /// diganti dari aplikasi.
@@ -198,6 +199,19 @@ class SessionState {
 
   bool get loggedIn => token != null && user != null;
 
+  /// Pemilik login tablet ini (login penuh email + kata sandi). Pengguna lain
+  /// membuka tablet dengan PIN dan memakai database tablet yang sama.
+  final SessionUser? host;
+
+  /// Tablet terkunci: menunggu pilih nama + PIN (lihat [SessionController.unlock]).
+  final bool locked;
+
+  /// Yang sedang memakai tablet bukan pemilik login tablet (sesi PIN).
+  bool get isOperator => host != null && user != null && host!.id != user!.id;
+
+  /// Pemilik database lokal di HP ini (pemilik login tablet).
+  int? get ownerId => host?.id ?? user?.id;
+
   TenantSummary? get tenant {
     for (final tenant in tenants) {
       if (tenant.id == tenantId) {
@@ -210,13 +224,15 @@ class SessionState {
   /// Alamat web Infois (tanpa `/` di akhir) + [path], mis. `/app/{slug}/langganan`.
   String webUrl(String path) => '${serverUrl.trim().replaceAll(RegExp(r'/+$'), '')}$path';
 
-  SessionState copyWith({String? token, SessionUser? user, List<TenantSummary>? tenants, int? tenantId, bool clearTenant = false, AccessNotice? notice, bool clearNotice = false, List<GoneCompany>? gone}) => SessionState(
+  SessionState copyWith({String? token, SessionUser? user, List<TenantSummary>? tenants, int? tenantId, bool clearTenant = false, AccessNotice? notice, bool clearNotice = false, List<GoneCompany>? gone, SessionUser? host, bool? locked}) => SessionState(
         token: token ?? this.token,
         user: user ?? this.user,
         tenants: tenants ?? this.tenants,
         tenantId: clearTenant ? null : (tenantId ?? this.tenantId),
         notice: clearNotice ? null : (notice ?? this.notice),
         gone: gone ?? this.gone,
+        host: host ?? this.host,
+        locked: locked ?? this.locked,
       );
 }
 
@@ -229,13 +245,35 @@ class SessionController extends AsyncNotifier<SessionState> {
     final storage = ref.watch(storageProvider);
     final token = await storage.token();
     final saved = storage.session();
-    return SessionState(
+    final base = SessionState(
       token: token,
       user: token == null ? null : saved?.user,
       tenants: token == null ? const [] : (saved?.tenants ?? const []),
       tenantId: token == null ? null : storage.tenantId,
       gone: goneIn(storage),
+      host: token == null ? null : saved?.user,
+      // Tablet kasir bersama: setiap kali aplikasi dibuka, pilih nama + PIN.
+      locked: token != null && saved != null && storage.pinLock,
     );
+    final activeId = storage.activeUserId;
+    if (!base.loggedIn || base.locked || activeId == null || activeId == base.host?.id) {
+      return base;
+    }
+    // Tanpa kunci PIN: lanjutkan pengguna terakhir.
+    return await _restoreOperator(storage, base) ?? base;
+  }
+
+  static Future<SessionState?> _restoreOperator(AppStorage storage, SessionState base) async {
+    final activeId = storage.activeUserId;
+    if (activeId == null || activeId == base.host?.id) {
+      return null;
+    }
+    final profile = storage.operators().where((item) => item.user.id == activeId).firstOrNull;
+    final token = await storage.operatorToken(activeId);
+    if (profile == null || token == null || profile.tenants.isEmpty) {
+      return null;
+    }
+    return base.copyWith(token: token, user: profile.user, tenants: profile.tenants, tenantId: profile.tenants.first.id);
   }
 
   SessionState get _current => state.valueOrNull ?? const SessionState();
@@ -261,12 +299,13 @@ class SessionController extends AsyncNotifier<SessionState> {
     final token = response['token'] as String;
     final user = SessionUser.fromJson(Map<String, dynamic>.from(response['user'] as Map));
     final tenants = _eligible(response['tenants']);
+    await _storage.clearOperators();
     await _storage.setToken(token);
     await _storage.setSession(user, tenants);
     final tenantId = tenants.length == 1 ? tenants.first.id : null;
     await _storage.setTenantId(tenantId);
     final gone = await _forgetGoneListed(user.id, tenants);
-    state = AsyncData(SessionState(token: token, user: user, tenants: tenants, tenantId: tenantId, gone: gone));
+    state = AsyncData(SessionState(token: token, user: user, tenants: tenants, tenantId: tenantId, gone: gone, host: user));
   }
 
   /// Perbarui daftar perusahaan + hak akses (mis. role diubah di web).
@@ -281,6 +320,9 @@ class SessionController extends AsyncNotifier<SessionState> {
     final current = _current;
     if (!current.loggedIn) {
       return;
+    }
+    if (current.isOperator) {
+      return _refreshOperator(current);
     }
     try {
       final response = await _api(token: current.token).get('me');
@@ -313,6 +355,205 @@ class SessionController extends AsyncNotifier<SessionState> {
     } on Object {
       // Jawaban server tidak sesuai: tetap pakai daftar terakhir.
     }
+  }
+
+  /// `GET /me` sesi PIN: hanya perusahaan tablet. Dikeluarkan / tidak boleh
+  /// lagi → sesi PIN dilepas (kembali ke layar kunci); urusan perusahaannya
+  /// ditangani sesi pemilik login tablet.
+  Future<void> _refreshOperator(SessionState current) async {
+    try {
+      final response = await _api(token: current.token).get('me');
+      final user = SessionUser.fromJson(Map<String, dynamic>.from(response['user'] as Map));
+      final tenants = _eligible(response['tenants']);
+      if (!tenants.any((tenant) => tenant.id == current.tenantId)) {
+        await _dropOperator(current.user!.id);
+        return;
+      }
+      await _storage.saveOperator(user, tenants);
+      if (_current.user?.id == user.id) {
+        state = AsyncData(_current.copyWith(user: user, tenants: tenants));
+      }
+    } on ApiException catch (error) {
+      if (error.unauthenticated || error.status == 403) {
+        await _dropOperator(current.user!.id);
+      }
+    } on Object {
+      // Jawaban server tidak sesuai: tetap pakai daftar terakhir.
+    }
+  }
+
+  // --------------------------------------------- tablet kasir bersama (PIN)
+
+  ApiClient _hostApi(String? hostToken, int? tenantId) => ref.read(apiFactoryProvider)(_current.serverUrl, hostToken, tenantId, () => null);
+
+  /// Anggota yang bisa membuka tablet ini: pemilik login tablet, pengguna
+  /// yang pernah membuka dengan PIN, dan anggota ber-PIN dari server
+  /// (disimpan untuk dipakai saat offline).
+  Future<List<PinUser>> pinUsers({bool refresh = true}) async {
+    final current = _current;
+    final tenantId = current.tenantId;
+    final host = current.host;
+    if (tenantId == null || host == null) {
+      return const [];
+    }
+    if (refresh) {
+      try {
+        final response = await _hostApi(await _storage.token(), tenantId).get('pin/users', timeout: const Duration(seconds: 8));
+        await _storage.setPinUsers(tenantId, [for (final item in response['users'] as List? ?? const []) Map<String, dynamic>.from(item as Map)]);
+      } on ApiException {
+        // Offline: pakai daftar terakhir.
+      }
+    }
+    final users = <int, PinUser>{};
+    void add(PinUser user) => users.putIfAbsent(user.id, () => user);
+    for (final item in _storage.pinUsers(tenantId)) {
+      add(PinUser.fromJson(item, isHost: item['id'] == host.id));
+    }
+    add(PinUser(id: host.id, name: host.name, avatarUrl: host.avatarUrl, isHost: true));
+    for (final item in _storage.operators()) {
+      if (item.tenants.any((tenant) => tenant.id == tenantId)) {
+        add(PinUser(id: item.user.id, name: item.user.name, avatarUrl: item.user.avatarUrl, roleLabel: item.tenants.first.roleLabel));
+      }
+    }
+    final list = users.values.toList()..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    return list;
+  }
+
+  /// Buka tablet sebagai [user] dengan [pin]. Online: dicek server (token PIN
+  /// baru untuk perusahaan + tablet ini; pemilik login tablet tetap memakai
+  /// tokennya). Offline: dicocokkan dengan pencocok PIN di HP, hanya untuk
+  /// yang pernah membuka tablet ini dengan PIN. Salah → [ApiException].
+  Future<void> unlock(PinUser user, String pin) async {
+    final current = _current;
+    final tenantId = current.tenantId;
+    final host = current.host;
+    final saved = _storage.session();
+    final hostToken = await _storage.token();
+    if (tenantId == null || host == null || saved == null || hostToken == null) {
+      throw const ApiException('Tablet belum login. Masuk dengan email dulu.');
+    }
+    try {
+      final response = await _hostApi(hostToken, tenantId).post('pin/unlock', data: {'user_id': user.id, 'pin': pin}, timeout: const Duration(seconds: 15));
+      await _storage.setPinVerifier(user.id, PinCode.verifier(pin));
+      await _storage.setPinFailures(user.id, 0);
+      final token = response['token']?.toString();
+      if (token == null || user.id == host.id) {
+        await _activateHost(hostToken, saved, tenantId);
+        return;
+      }
+      final operator = SessionUser.fromJson(Map<String, dynamic>.from(response['user'] as Map));
+      final tenants = _eligible(response['tenants']);
+      await _storage.setOperatorToken(operator.id, token);
+      await _storage.saveOperator(operator, tenants);
+      await _activateOperator(operator, token, tenants, tenantId);
+    } on ApiException catch (error) {
+      if (!error.offline) {
+        rethrow;
+      }
+      await _unlockOffline(user, pin, hostToken, saved, tenantId);
+    }
+  }
+
+  Future<void> _unlockOffline(PinUser user, String pin, String hostToken, ({SessionUser user, List<TenantSummary> tenants}) saved, int tenantId) async {
+    final verifier = await _storage.pinVerifier(user.id);
+    final operatorToken = user.id == saved.user.id ? hostToken : await _storage.operatorToken(user.id);
+    if (verifier == null || operatorToken == null) {
+      throw ApiException('Tidak ada internet. ${user.name} belum pernah membuka tablet ini dengan PIN, jadi pertama kali perlu internet.', offline: true);
+    }
+    final failures = _storage.pinFailures(user.id);
+    if (failures >= PinCode.offlineAttempts) {
+      throw const ApiException('PIN salah terlalu sering. Sambungkan internet untuk mencoba lagi.', offline: true);
+    }
+    if (!PinCode.matches(pin, verifier)) {
+      await _storage.setPinFailures(user.id, failures + 1);
+      final left = PinCode.offlineAttempts - failures - 1;
+      throw ApiException(left > 0 ? 'PIN salah. Sisa $left kali percobaan.' : 'PIN salah terlalu sering. Sambungkan internet untuk mencoba lagi.');
+    }
+    await _storage.setPinFailures(user.id, 0);
+    if (user.id == saved.user.id) {
+      await _activateHost(hostToken, saved, tenantId);
+      return;
+    }
+    final profile = _storage.operators().where((item) => item.user.id == user.id).firstOrNull;
+    if (profile == null || profile.tenants.isEmpty) {
+      throw const ApiException('Data pengguna ini belum lengkap di tablet. Sambungkan internet lalu coba lagi.', offline: true);
+    }
+    await _activateOperator(profile.user, operatorToken, profile.tenants, tenantId);
+  }
+
+  Future<void> _activateHost(String hostToken, ({SessionUser user, List<TenantSummary> tenants}) saved, int tenantId) async {
+    await _storage.setActiveUserId(null);
+    state = AsyncData(SessionState(token: hostToken, user: saved.user, tenants: saved.tenants, tenantId: tenantId, gone: _current.gone, host: saved.user));
+  }
+
+  Future<void> _activateOperator(SessionUser user, String token, List<TenantSummary> tenants, int tenantId) async {
+    await _storage.setActiveUserId(user.id);
+    state = AsyncData(SessionState(token: token, user: user, tenants: tenants, tenantId: tenantId, gone: _current.gone, host: _current.host));
+  }
+
+  /// Kunci tablet (Ganti pengguna / ditinggal lama). Hanya bila kunci PIN aktif.
+  void lock() {
+    final current = state.valueOrNull;
+    if (current != null && current.loggedIn && current.tenant != null && _storage.pinLock && !current.locked) {
+      state = AsyncData(current.copyWith(locked: true));
+    }
+  }
+
+  /// Hidupkan/matikan kunci PIN di tablet ini.
+  Future<void> setPinLock(bool enabled, {int? minutes}) async {
+    await _storage.setPinLock(enabled);
+    if (minutes != null) {
+      await _storage.setPinLockMinutes(minutes);
+    }
+    state = AsyncData(_current.copyWith());
+  }
+
+  /// Buat / ganti PIN sendiri untuk perusahaan aktif ([currentPin] wajib bila sudah punya PIN).
+  Future<void> setOwnPin(String pin, {String? currentPin}) async {
+    final current = _current;
+    final user = current.user;
+    if (user == null || current.tenantId == null) {
+      return;
+    }
+    await ref.read(apiFactoryProvider)(current.serverUrl, current.token, current.tenantId, () => null).put('pin', data: {'pin': pin, if (currentPin != null && currentPin.isNotEmpty) 'current_pin': currentPin});
+    await _storage.setPinVerifier(user.id, PinCode.verifier(pin));
+    await _storage.setPinFailures(user.id, 0);
+    final tenants = [for (final tenant in _current.tenants) tenant.id == current.tenantId ? tenant.copyWith(hasPin: true) : tenant];
+    await _saveActive(user, tenants);
+    state = AsyncData(_current.copyWith(tenants: tenants));
+  }
+
+  /// Simpan user + perusahaan milik sesi yang aktif (pemilik tablet atau sesi PIN).
+  Future<void> _saveActive(SessionUser? user, List<TenantSummary> tenants) async {
+    if (user == null) {
+      return;
+    }
+    if (_current.isOperator) {
+      await _storage.saveOperator(user, tenants);
+    } else {
+      await _storage.setSession(user, tenants);
+    }
+  }
+
+  /// Sesi PIN [userId] tidak berlaku lagi (PIN diganti, dikeluarkan, dicabut):
+  /// lupakan di tablet dan kembali ke pemilik login tablet (terkunci bila kunci PIN aktif).
+  Future<void> _dropOperator(int userId) async {
+    await _storage.removeOperator(userId);
+    await _storage.setPinVerifier(userId, null);
+    if (_storage.activeUserId == userId) {
+      await _storage.setActiveUserId(null);
+    }
+    final current = _current;
+    if (current.user?.id != userId) {
+      return;
+    }
+    final saved = _storage.session();
+    final hostToken = await _storage.token();
+    if (saved == null || hostToken == null) {
+      await _forgetLogin();
+      return;
+    }
+    state = AsyncData(SessionState(token: hostToken, user: saved.user, tenants: saved.tenants, tenantId: current.tenantId, gone: current.gone, host: saved.user, locked: _storage.pinLock));
   }
 
   /// Kunci SharedPreferences untuk daftar [GoneCompany] yang belum "Mengerti".
@@ -394,6 +635,12 @@ class SessionController extends AsyncNotifier<SessionState> {
     if (!current.loggedIn || user == null) {
       return;
     }
+    if (current.isOperator) {
+      // Sesi PIN dilepas; perusahaan ditutup / dikeluarkan dipastikan oleh
+      // sesi pemilik login tablet pada sinkron berikutnya.
+      await _dropOperator(user.id);
+      return;
+    }
     final key = '${user.id}:$tenantId';
     if (_goneInFlight.contains(key) || current.gone.any((item) => item.same(user.id, tenantId))) {
       return;
@@ -450,6 +697,10 @@ class SessionController extends AsyncNotifier<SessionState> {
     if (!current.loggedIn) {
       return;
     }
+    if (current.isOperator) {
+      await _dropOperator(current.user!.id);
+      return;
+    }
     final dropped = current.tenants.where((tenant) => tenant.id == tenantId).firstOrNull;
     if (dropped == null && current.tenantId != tenantId) {
       return;
@@ -494,10 +745,10 @@ class SessionController extends AsyncNotifier<SessionState> {
     final tenants = [
       for (final tenant in current.tenants)
         tenant.id == tenantId
-            ? TenantSummary(id: tenant.id, slug: tenant.slug, name: tenant.name, role: tenant.role, roleLabel: tenant.roleLabel, active: tenant.active, menus: menus, permissions: tenant.permissions)
+            ? tenant.copyWith(menus: menus)
             : tenant,
     ];
-    await _storage.setSession(current.user, tenants);
+    await _saveActive(current.user, tenants);
     state = AsyncData(current.copyWith(tenants: tenants));
     if (changed) {
       unawaited(refreshMe().catchError((Object _) {}));
@@ -519,6 +770,16 @@ class SessionController extends AsyncNotifier<SessionState> {
   /// sudah tertutup.
   Future<void> logout() async {
     final current = _current;
+    if (current.isOperator) {
+      // Sesi PIN tidak mengeluarkan tablet: kembali ke layar kunci.
+      await _storage.setActiveUserId(null);
+      final saved = _storage.session();
+      final hostToken = await _storage.token();
+      if (saved != null && hostToken != null) {
+        state = AsyncData(SessionState(token: hostToken, user: saved.user, tenants: saved.tenants, tenantId: current.tenantId, gone: current.gone, host: saved.user, locked: _storage.pinLock));
+        return;
+      }
+    }
     final token = current.token;
     final userId = current.user?.id;
     try {
@@ -553,8 +814,16 @@ class SessionController extends AsyncNotifier<SessionState> {
     }
   }
 
-  /// Dipanggil bila server menolak token (dicabut / kedaluwarsa).
-  Future<void> expire() => _forgetLogin();
+  /// Dipanggil bila server menolak token (dicabut / kedaluwarsa). Sesi PIN
+  /// hanya melepas pengguna itu; tablet tetap login atas nama pemiliknya.
+  Future<void> expire() async {
+    final current = _current;
+    if (current.isOperator) {
+      await _dropOperator(current.user!.id);
+      return;
+    }
+    await _forgetLogin();
+  }
 
   /// Jumlah transaksi belum terkirim di database perusahaan lain milik user
   /// ini di HP (selain [exceptTenantId]); dipakai peringatan sebelum keluar.

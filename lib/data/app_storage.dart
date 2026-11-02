@@ -329,6 +329,133 @@ class AppStorage {
     return at != null && DateTime.now().difference(DateTime.fromMillisecondsSinceEpoch(at)) < within;
   }
 
+  // ------------------------------------------------ tablet kasir bersama (PIN)
+
+  static const _operators = 'pin_operators';
+  static const _operatorTokens = 'pin_operator_tokens';
+  static const _pinVerifiers = 'pin_verifiers';
+  static const _activeUser = 'pin_active_user';
+  static const _pinLock = 'pin_lock';
+  static const _pinLockMinutes = 'pin_lock_minutes';
+  static const _pinUsers = 'pin_users';
+  static const _pinFailures = 'pin_failures';
+
+  /// Pengguna lain yang pernah membuka tablet ini dengan PIN (bukan pemilik
+  /// login tablet): profil + perusahaannya (satu, perusahaan tablet).
+  List<({SessionUser user, List<TenantSummary> tenants})> operators() {
+    try {
+      final raw = prefs.getString(_operators);
+      if (raw == null) {
+        return const [];
+      }
+      return [
+        for (final item in jsonDecode(raw) as List)
+          if (item is Map)
+            (
+              user: SessionUser.fromJson(Map<String, dynamic>.from(item['user'] as Map)),
+              tenants: [for (final tenant in item['tenants'] as List? ?? const []) TenantSummary.fromJson(Map<String, dynamic>.from(tenant as Map))],
+            ),
+      ];
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Future<void> saveOperator(SessionUser user, List<TenantSummary> tenants) async {
+    final others = [for (final item in operators()) if (item.user.id != user.id) item];
+    await _writeOperators([...others, (user: user, tenants: tenants)]);
+  }
+
+  Future<void> removeOperator(int userId) async {
+    await _writeOperators([for (final item in operators()) if (item.user.id != userId) item]);
+    await setOperatorToken(userId, null);
+  }
+
+  Future<void> _writeOperators(List<({SessionUser user, List<TenantSummary> tenants})> items) => items.isEmpty
+      ? prefs.remove(_operators)
+      : prefs.setString(_operators, jsonEncode([
+          for (final item in items) {'user': item.user.toJson(), 'tenants': [for (final tenant in item.tenants) tenant.toJson()]},
+        ]));
+
+  Future<Map<String, String>> _secureMap(String key) async {
+    try {
+      final raw = await secure.read(key: key);
+      return raw == null ? {} : Map<String, String>.from(jsonDecode(raw) as Map);
+    } catch (_) {
+      return {};
+    }
+  }
+
+  Future<void> _writeSecureMap(String key, Map<String, String> value) => value.isEmpty ? secure.delete(key: key) : secure.write(key: key, value: jsonEncode(value));
+
+  Future<String?> operatorToken(int userId) async => (await _secureMap(_operatorTokens))['$userId'];
+
+  Future<void> setOperatorToken(int userId, String? token) async {
+    final tokens = await _secureMap(_operatorTokens);
+    token == null ? tokens.remove('$userId') : tokens['$userId'] = token;
+    await _writeSecureMap(_operatorTokens, tokens);
+  }
+
+  /// Pencocok PIN di HP (garam + hash, bukan PIN-nya) untuk membuka tablet
+  /// saat offline. Diisi setiap PIN benar menurut server.
+  Future<String?> pinVerifier(int userId) async => (await _secureMap(_pinVerifiers))['$userId'];
+
+  Future<void> setPinVerifier(int userId, String? verifier) async {
+    final verifiers = await _secureMap(_pinVerifiers);
+    verifier == null ? verifiers.remove('$userId') : verifiers['$userId'] = verifier;
+    await _writeSecureMap(_pinVerifiers, verifiers);
+  }
+
+  /// Pengguna yang sedang memakai tablet (null = pemilik login tablet).
+  int? get activeUserId => prefs.getInt(_activeUser);
+
+  Future<void> setActiveUserId(int? id) => id == null ? prefs.remove(_activeUser) : prefs.setInt(_activeUser, id);
+
+  /// Tablet dikunci dengan PIN (dibuka dengan pilih nama + PIN).
+  bool get pinLock => prefs.getBool(_pinLock) ?? false;
+
+  Future<void> setPinLock(bool value) => prefs.setBool(_pinLock, value);
+
+  /// Kunci otomatis setelah aplikasi ditinggal sekian menit (0 = hanya saat dibuka).
+  int get pinLockMinutes => prefs.getInt(_pinLockMinutes) ?? 5;
+
+  Future<void> setPinLockMinutes(int minutes) => prefs.setInt(_pinLockMinutes, minutes);
+
+  /// Daftar anggota ber-PIN terakhir dari server (layar kunci saat offline).
+  List<Map<String, dynamic>> pinUsers(int tenantId) {
+    try {
+      final raw = prefs.getString('${_pinUsers}_$tenantId');
+      return raw == null ? const [] : [for (final item in jsonDecode(raw) as List) Map<String, dynamic>.from(item as Map)];
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Future<void> setPinUsers(int tenantId, List<Map<String, dynamic>> users) => prefs.setString('${_pinUsers}_$tenantId', jsonEncode(users));
+
+  /// PIN salah berturut-turut saat offline per pengguna (5 → harus online).
+  int pinFailures(int userId) => prefs.getInt('${_pinFailures}_$userId') ?? 0;
+
+  Future<void> setPinFailures(int userId, int count) => count <= 0 ? prefs.remove('${_pinFailures}_$userId') : prefs.setInt('${_pinFailures}_$userId', count);
+
+  /// Kosongkan semua data tablet bersama (pemilik login keluar).
+  Future<void> clearOperators() async {
+    for (final item in operators()) {
+      await prefs.remove('${_pinFailures}_${item.user.id}');
+    }
+    await prefs.remove(_operators);
+    await prefs.remove(_activeUser);
+    try {
+      await secure.delete(key: _operatorTokens);
+      await secure.delete(key: _pinVerifiers);
+    } catch (_) {
+      // Token PIN juga sudah dicabut server saat pemilik keluar.
+    }
+    for (final key in prefs.getKeys().where((key) => key.startsWith('${_pinUsers}_')).toList()) {
+      await prefs.remove(key);
+    }
+  }
+
   /// Hapus login dari HP. Tiap langkah berdiri sendiri: penyimpanan aman yang
   /// rusak (Keystore) tidak boleh membuat tombol Keluar macet.
   Future<void> clearSession() async {
@@ -339,5 +466,6 @@ class AppStorage {
     }
     await prefs.remove(_session);
     await prefs.remove(_tenant);
+    await clearOperators();
   }
 }
