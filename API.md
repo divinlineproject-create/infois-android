@@ -152,7 +152,7 @@ Sinkron latar (WorkManager): 403 `perusahaan_ditutup` → dicatat dengan jumlah 
 ### Tim AI di Telegram (catatan, bukan endpoint HP)
 Akun Telegram dihubungkan ke satu perusahaan dengan dua cara: (1) di bot tekan **Bagikan nomor saya** — hanya nomor milik pengirim sendiri yang diterima, nomornya harus sama dengan **Nomor HP (untuk Telegram)** di profil web (`/app/profile`, kolom `users.phone`; awalan +62/62/0, spasi, dan tanda hubung disamakan); bila user punya beberapa perusahaan yang paketnya membuka Telegram dan ia punya akses Tim AI, bot menampilkan tombol pilih perusahaan; nomor yang dipakai lebih dari satu akun ditolak; (2) kode sekali pakai dari Tim AI web › Saluran Telegram › Hubungkan. Hak akses di Telegram = role user itu di perusahaan tersebut (sama dengan web). Aplikasi HP cukup mengarahkan pengguna ke cara ini bila ditanya; tidak ada endpoint API-nya.
 
-### Tablet kasir bersama: PIN 🏢 (aplikasi ≥ 1.2.0)
+### Tablet kasir bersama: PIN 🏢 (aplikasi ≥ 1.1.0, build 2)
 Tablet login penuh sekali (pemilik login tablet = "host"). Kasir lain membuka aplikasi dengan **pilih nama + PIN 6 angka** (per anggota per perusahaan, kolom `pin_*` di `tenant_user`). PIN diatur sendiri (`PUT /pin` di aplikasi, atau web Profil › PIN aplikasi HP) atau oleh pengelola anggota di web (Tim & Akses › Anggota › PIN aplikasi; PIN Owner hanya oleh Owner). Aturan PIN: 6 angka, bukan angka sama semua / berurutan.
 
 | Endpoint | Isi |
@@ -215,7 +215,7 @@ Tanpa `since` = tarikan penuh. Dengan `since` = barang/pelanggan yang berubah se
 - `stock_quantity` = stok di gudang HP (diatur di web, default gudang utama); `null` untuk barang tanpa stok.
 - `stock_source`: `"own"` = stok barang itu sendiri; `"recipe"` = produk resep tanpa stok sendiri (menu/paket, "Kelola stok" mati) — `stock_quantity` dihitung dari stok bahan di gudang HP (porsi yang bisa dibuat, dibulatkan ke bawah; `0` bila salah satu bahan habis) dan `track_inventory` dikirim `true` supaya lencana stok & redup "Habis" tampil; `null` = tidak dikelola stok. Saat dijual, server tetap mengurangi bahannya, bukan produk resepnya. Tarikan `since` ikut mengirim ulang produk resep yang stok/data salah satu bahannya berubah.
 - Hanya barang dengan **Tampilkan di POS** aktif yang dikirim (`items` dan `ids`). Barang yang dimatikan (mis. bahan baku) tidak ada di `ids`, sehingga HP menghapusnya di tarikan berikutnya; bila dinyalakan lagi, barang terkirim lagi karena `updated_at`-nya berubah. Penjualan dari HP lama yang masih memuat barang itu tetap diterima.
-- `type` hanya `product` | `service` (yang dikenal aplikasi lama). **Bahan baku** dikirim sebagai `type: "product"` (barang berstok, stok selalu dikelola) dengan jenis aslinya di **`kind`** (`product` | `service` | `raw_material`) dan **`kind_label`** ("Barang" | "Jasa" | "Bahan baku"). Bawaannya bahan baku tidak "Tampilkan di POS" sehingga tidak dikirim; yang dicentang tampil di kasir dengan label "Bahan baku" (aplikasi ≥ 1.2.0).
+- `type` hanya `product` | `service` (yang dikenal aplikasi lama). **Bahan baku** dikirim sebagai `type: "product"` (barang berstok, stok selalu dikelola) dengan jenis aslinya di **`kind`** (`product` | `service` | `raw_material`) dan **`kind_label`** ("Barang" | "Jasa" | "Bahan baku"). Bawaannya bahan baku tidak "Tampilkan di POS" sehingga tidak dikirim; yang dicentang tampil di kasir dengan label "Bahan baku" (aplikasi ≥ 1.1.0, build 2).
 - `receipt.show_qr` sudah memperhitungkan modul Verify dan pengaturan branding. QR offline = `verify_base_url + "/" + client_uuid` (server memakai `client_uuid` sebagai UID verifikasi saat nota diterbitkan).
 - `logo_url` diunduh dengan header yang sama (token + `X-Tenant`).
 - **Katalog kasir (aplikasi ≥ 1.0.0 "Infois POS"; field aditif, aplikasi lama mengabaikannya):**
@@ -230,7 +230,7 @@ Foto barang (JPG/PNG/WebP; `size=thumb` = JPEG persegi kecil). Barang perusahaan
 Kirim isi outbox **berurutan**, maksimal **50** item. Setiap item punya `client_uuid` (UUID v4 dari HP) → idempoten.
 Server memproses berurutan; gagal di satu item tidak menghentikan item lain. HP dengan akses dicabut masih boleh mengirim penjualan yang **dibuat sebelum** dicabut (`created_at` < waktu cabut).
 
-`cashier_user_id` (di item atau di `data`, aplikasi ≥ 1.2.0) = kasir yang membuat data itu di tablet bersama. Dipakai (penjualan tercatat atas namanya, hak aksesnya yang dicek) bila orang itu masih anggota perusahaan dan memakai tablet ini (host, atau pernah membukanya dengan PIN — tabel `device_operators`); selain itu tercatat atas nama pemilik token pengirim.
+`cashier_user_id` (di item atau di `data`, aplikasi ≥ 1.1.0, build 2) = kasir yang membuat data itu di tablet bersama. Dipakai (penjualan tercatat atas namanya, hak aksesnya yang dicek) bila orang itu masih anggota perusahaan dan memakai tablet ini (host, atau pernah membukanya dengan PIN — tabel `device_operators`); selain itu tercatat atas nama pemilik token pengirim.
 
 ```json
 { "items": [ { "type": "customer", "client_uuid": "…", "data": { … } }, { "type": "sale", "client_uuid": "…", "data": { … } } ] }
@@ -889,7 +889,7 @@ Gambar/video artikel dengan token (`path` relatif di folder Pusat Bantuan, mis. 
 - **Tim & Akses › Perangkat** (`/app/{tenant}/tim/perangkat`, permission `manage-members`): daftar HP, kode kasir, pengguna, gudang, terakhir sinkron, transaksi tertunda di HP, **Cabut akses / Izinkan lagi**, atur nama & gudang.
 - **Tim & Akses › Perlu Ditinjau (Kasir HP)** (`/tim/perlu-ditinjau`, permission `issue-invoice`): penjualan `perlu_ditinjau` → **Proses ulang** (boleh ganti tanggal, mis. periode tutup buku) atau **Tandai selesai**.
 
-## 9b. Operasional harian 🏢 (aplikasi ≥ 1.2.0)
+## 9b. Operasional harian 🏢 (aplikasi ≥ 1.1.0, build 2)
 Biaya, tagihan pemasok, Kas & Bank, dan pembayaran dari aplikasi, lewat service yang sama dengan web (`App\Http\Controllers\Api\V1\OperationsController`, tes `backoffice/tests/Feature/Mobile/MobileOperationsTest.php`). Galat aturan pembukuan → 422 `ditolak_pembukuan` dengan pesan sehari-hari; tidak berhak → 403 `tidak_berhak`. Menu tampil bila `menus.operations` (boleh catat Kas & Bank / tagihan, bayar tagihan, atau terima pembayaran).
 
 Setiap dokumen yang dibuka membawa `actions: {edit, delete, pay}` + `locked_reason` (cut off / tahun tutup buku, disetujui lewat Persetujuan, sudah ada pembayaran / retur / aset tetap, direkonsiliasi bank, barang sudah terjual, menunggu persetujuan). Ubah dokumen yang sudah diposting = dibuka kembali dengan **nomor yang sama** (jurnal lama ke arsip Jurnal terhapus, stok ditarik) lalu diposting lagi; hapus = sama lalu dihapus. Hak ubah/hapus = hak posting dokumen itu. `GET /records/purchases/{id}` juga berisi `actions` + `locked_reason`; `GET /records/sales/{id}` berisi `can.receive_payment`.

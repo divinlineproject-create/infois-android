@@ -61,8 +61,8 @@ bicara, atau foto pesanan → langsung masuk keranjang; online saja, memakai koi
 scan/ketik yang hanya cocok dengan barang nonaktif ditolak ("Barang ini sudah dinonaktifkan.").
 Server harus sudah punya `POST /api/v1/pos/ai-input` sebelum build ini dirilis.
 
-**1.2.0+3** (2026-11-02, menggantikan 1.1.0+2 sebagai pembaruan pertama setelah rilis Play; isinya
-termasuk semua isi 1.1.0+2):
+**1.1.0+2 — tambahan 2026-11-02** (1.1.0+2 belum dirilis/diunggah, jadi isi ini masuk ke build yang sama;
+AAB lama di `~/Desktop/Infois-POS-PlayStore/1-AAB-rilis/infois-1.1.0+2.aab` sudah usang, bangun ulang):
 - **Tablet kasir bersama (PIN)**: tablet login penuh sekali, lalu tiap kasir membuka dengan pilih nama +
   PIN 6 angka (Akun › Kunci dengan PIN; kunci otomatis setelah ditinggal). Satu database per tablet:
   pesanan tersimpan dan antrean kirim dipakai bersama, tiap transaksi tercatat atas nama kasirnya.

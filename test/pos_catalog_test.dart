@@ -531,9 +531,9 @@ void main() {
 
     test('nama aplikasi & versi', () {
       expect(AppConfig.name, 'Infois POS');
-      expect(AppConfig.version, '1.2.0');
+      expect(AppConfig.version, '1.1.0');
       final pubspec = File('pubspec.yaml').readAsStringSync();
-      expect(pubspec, contains('version: 1.2.0+3'), reason: 'versionCode harus lebih tinggi dari build 1 yang sudah diunggah ke Play.');
+      expect(pubspec, contains('version: 1.1.0+2'), reason: 'versionCode harus lebih tinggi dari build 1 yang sudah diunggah ke Play.');
       expect(File('android/app/src/main/AndroidManifest.xml').readAsStringSync(), contains('android:label="Infois POS"'));
     });
   });
