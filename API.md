@@ -521,6 +521,8 @@ Jawaban selalu membawa `"period": { "preset": "bulan_ini", "from": "2026-10-01",
 
 **Daftar peringkat** (`by-product`, `by-customer`, `by-cashier`, `by-device`, `receivables`, `payables`): `limit` (default 20, maks. 100) + `cursor` (dari `next_cursor`; `null` = habis), plus `total_rows`/`totals.parties` = jumlah seluruh baris. Persen (`share`, `margin`, `gross_margin`) = string 1 desimal dengan titik, mis. `"42.5"` (web menampilkan koma).
 
+**PDF** (`format=pdf`, semua endpoint laporan termasuk `overview` dan `shifts/{id}`): jawaban `application/pdf` (`Content-Disposition: attachment`) berformat resmi seperti unduhan PDF di menu Laporan web (kop perusahaan, judul, periode, filter, nomor halaman), dengan periode/filter/`as_of` yang sama dan **semua baris** (tanpa `limit`/`cursor`; shift maks. 500). Laba rugi, arus kas, dan umur piutang/hutang memakai dokumen laporan web; laporan penjualan & shift dari `MobileReportDocuments`. Hak akses & validasi sama dengan JSON-nya. HP: tombol PDF di bilah atas setiap laporan rinci dan di tab Laporan (ringkasan penjualan & ringkasan usaha), diunduh lewat `downloadAndOffer` (Download + Buka/Bagikan). Server lama tanpa dukungan ini menjawab JSON (file tidak bisa dibuka) — rilis HP setelah server di-deploy.
+
 | HTTP | `code` | Arti |
 |---|---|---|
 | 422 | — | Validasi (`errors.period`, `errors.from`, `errors.to`, `errors.limit`, `errors.as_of`, `errors.device_id`, …) |

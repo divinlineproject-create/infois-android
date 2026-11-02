@@ -121,8 +121,11 @@ class _PayScreenState extends ConsumerState<PayScreen> {
     final short = _mode == PayMode.cash && cashValue != null && Money.compare(cashValue, total) < 0 ? Money.sub(total, cashValue) : null;
     final transferPart = _mode == PayMode.mixed && cashValue != null ? Money.sub(total, cashValue) : null;
     final orderInfo = [cart.orderType?.label, cart.orderLabel].whereType<String>().join(' · ');
+    final screen = MediaQuery.sizeOf(context);
+    // Layar miring yang pendek (tablet kasir): total & tombol lebih rapat.
+    final dense = screen.width > screen.height && screen.height < 640;
 
-    final keypadSection = <Widget>[
+    final quickCash = <Widget>[
       if (_mode == PayMode.cash) ...[
         Wrap(spacing: 8, runSpacing: 8, children: [
           for (final (index, amount) in quickCashAmounts(total).indexed)
@@ -137,6 +140,8 @@ class _PayScreenState extends ConsumerState<PayScreen> {
         ]),
         const SizedBox(height: 12),
       ],
+    ];
+    final keypadSection = <Widget>[
       _CashDisplay(
         label: _mode == PayMode.mixed ? 'Bagian tunai' : 'Uang diterima',
         value: _cash.isEmpty ? null : rupiah(_cash),
@@ -162,12 +167,12 @@ class _PayScreenState extends ConsumerState<PayScreen> {
       if (short != null) Text('Kurang ${rupiah(short)}', key: const Key('pay-short'), style: TextStyle(color: dangerText(context), fontWeight: FontWeight.w600)),
       if (transferPart != null && Money.isPositive(transferPart)) Text('Sisanya transfer: ${rupiah(transferPart)}'),
       const SizedBox(height: 12),
-      PosKeypad(onKey: _key),
+      PosKeypad(onKey: _key, keyHeight: dense ? 48 : 56),
     ];
 
     final header = <Widget>[
       Container(
-        padding: const EdgeInsets.symmetric(horizontal: Space.xl, vertical: Space.l + 4),
+        padding: EdgeInsets.symmetric(horizontal: Space.xl, vertical: dense ? Space.m : Space.l + 4),
         decoration: BoxDecoration(color: Theme.of(context).colorScheme.primaryContainer, borderRadius: BorderRadius.circular(Radii.l)),
         child: DefaultTextStyle.merge(
           style: TextStyle(color: Theme.of(context).colorScheme.onPrimaryContainer),
@@ -183,7 +188,7 @@ class _PayScreenState extends ConsumerState<PayScreen> {
           ]),
         ),
       ),
-      const SizedBox(height: 16),
+      SizedBox(height: dense ? 12 : 16),
       SegmentedButton<PayMode>(
         // HP sempit: tanpa ikon dan label tidak dipenggal ("Tun/ai").
         segments: [
@@ -248,15 +253,17 @@ class _PayScreenState extends ConsumerState<PayScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Bayar')),
       body: LayoutBuilder(builder: (context, constraints) {
-        if (constraints.maxWidth >= 720 && usesKeypad) {
+        // Tablet / layar miring: rincian kiri, keypad kanan (tanpa gulir panjang).
+        if (usesKeypad && (constraints.maxWidth >= 720 || (constraints.maxWidth >= 600 && constraints.maxWidth > constraints.maxHeight))) {
+          // Pilihan uang cepat di kiri supaya keypad kanan muat tanpa digulir.
           return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Expanded(child: ListView(padding: const EdgeInsets.all(16), children: [...header, ...details])),
+            Expanded(child: ListView(padding: const EdgeInsets.all(16), children: [...header, ...quickCash, ...details])),
             SizedBox(width: 380, child: ListView(padding: const EdgeInsets.all(16), children: keypadSection)),
           ]);
         }
         return ListView(padding: const EdgeInsets.all(16), children: [
           ...header,
-          if (usesKeypad) ...keypadSection,
+          if (usesKeypad) ...[...quickCash, ...keypadSection],
           ...details,
         ]);
       }),
@@ -264,7 +271,7 @@ class _PayScreenState extends ConsumerState<PayScreen> {
         decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface, border: Border(top: BorderSide(color: Theme.of(context).colorScheme.outlineVariant))),
         child: SafeArea(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(Space.l, Space.m, Space.l, Space.m),
+            padding: EdgeInsets.fromLTRB(Space.l, dense ? Space.s : Space.m, Space.l, dense ? Space.s : Space.m),
             child: FilledButton(
               key: const Key('pay-submit'),
               onPressed: _busy || cart.isEmpty
@@ -273,7 +280,7 @@ class _PayScreenState extends ConsumerState<PayScreen> {
                       HapticFeedback.mediumImpact();
                       _pay(total);
                     },
-              style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(56), textStyle: const TextStyle(fontFamily: 'Poppins', fontSize: 17, fontWeight: FontWeight.w700)),
+              style: FilledButton.styleFrom(minimumSize: Size.fromHeight(dense ? 48 : 56), textStyle: const TextStyle(fontFamily: 'Poppins', fontSize: 17, fontWeight: FontWeight.w700)),
               child: _busy
                   ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
                   : Text(_mode == PayMode.bon ? 'Simpan bon' : (_mode == PayMode.cash && change != null && Money.isPositive(change) ? 'Bayar · kembali ${rupiah(change)}' : 'Bayar')),

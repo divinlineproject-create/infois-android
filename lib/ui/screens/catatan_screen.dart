@@ -28,6 +28,10 @@ class CatatanScreen extends ConsumerStatefulWidget {
 
 class _CatatanScreenState extends ConsumerState<CatatanScreen> {
   RecordSection? _selected;
+  final _scaffold = GlobalKey<ScaffoldState>();
+
+  /// Lebar minimal untuk bilah samping yang selalu tampil (tablet / miring).
+  static const double sidebarWidth = 640;
 
   @override
   Widget build(BuildContext context) {
@@ -44,51 +48,129 @@ class _CatatanScreenState extends ConsumerState<CatatanScreen> {
     final index = sections.indexWhere((section) => section == _selected).clamp(0, sections.length - 1);
     final session = ref.watch(sessionProvider).valueOrNull;
     final menus = ref.watch(masterDataProvider).valueOrNull?.menus ?? session?.tenant?.menus ?? const Menus();
-    return Stack(children: [
-      _sectionsView(context, sections, index),
-      if (menus.operations)
-        Positioned(
-          right: 16,
-          bottom: 16,
-          child: FloatingActionButton.extended(
+    final content = IndexedStack(index: index, children: [
+      // Kunci per bagian: bila daftar bagian berubah (hak akses berubah),
+      // isi yang tersimpan ikut bagiannya, bukan posisinya.
+      for (final (i, section) in sections.indexed) LazyTab(key: ValueKey(section.name), active: i == index, builder: () => RecordSectionView(section: section)),
+    ]);
+    final fab = menus.operations
+        ? FloatingActionButton.extended(
             key: const Key('catatan-ops'),
             onPressed: () => showOperationsSheet(context, ref),
             icon: const Icon(Icons.add),
             label: const Text('Catat'),
+          )
+        : null;
+
+    return LayoutBuilder(builder: (context, constraints) {
+      // Tablet / layar miring: bilah samping selalu tampil di kiri.
+      if (constraints.maxWidth >= sidebarWidth) {
+        final scheme = Theme.of(context).colorScheme;
+        return Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          SizedBox(
+            width: constraints.maxWidth >= 900 ? 232 : 200,
+            child: DecoratedBox(
+              decoration: BoxDecoration(color: scheme.surfaceContainerLow, border: Border(right: BorderSide(color: scheme.outlineVariant))),
+              child: _SectionSidebar(key: const Key('catatan-sidebar'), sections: sections, selected: index, onSelected: (section) => setState(() => _selected = section)),
+            ),
+          ),
+          Expanded(child: Scaffold(body: content, floatingActionButton: fab)),
+        ]);
+      }
+      // HP tegak: bilah samping dibuka dari tombol menu di atas daftar.
+      final section = sections[index];
+      return Scaffold(
+        key: _scaffold,
+        drawer: Drawer(
+          width: 280,
+          child: SafeArea(
+            child: _SectionSidebar(
+              key: const Key('catatan-sidebar'),
+              sections: sections,
+              selected: index,
+              onSelected: (selected) {
+                setState(() => _selected = selected);
+                Navigator.of(context).maybePop();
+              },
+            ),
           ),
         ),
-    ]);
-  }
-
-  Widget _sectionsView(BuildContext context, List<RecordSection> sections, int index) {
-    return Column(children: [
-      SizedBox(
-        height: 52,
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-          child: Row(children: [
-            for (final (i, section) in sections.indexed) ...[
-              if (i > 0) const SizedBox(width: 8),
-              ChoiceChip(
-                key: Key('section-${section.name}'),
-                avatar: Icon(section.icon, size: 18, color: i == index ? Theme.of(context).colorScheme.onSecondaryContainer : null),
-                label: Text(section.label),
-                selected: i == index,
-                showCheckmark: false,
-                onSelected: (_) => setState(() => _selected = section),
+        floatingActionButton: fab,
+        body: Column(children: [
+          Material(
+            color: Theme.of(context).colorScheme.surface,
+            child: InkWell(
+              key: const Key('catatan-menu'),
+              onTap: () => _scaffold.currentState?.openDrawer(),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(8, 6, 16, 6),
+                child: Row(children: [
+                  IconButton(tooltip: 'Pilih catatan', onPressed: () => _scaffold.currentState?.openDrawer(), icon: const Icon(Icons.menu)),
+                  Icon(section.icon, size: 20, color: Theme.of(context).colorScheme.primary),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(section.label, key: const Key('catatan-current'), style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16))),
+                  Text('${sections.length} catatan', style: TextStyle(fontSize: 12, color: mutedText(context))),
+                  const Icon(Icons.chevron_right),
+                ]),
               ),
-            ],
-          ]),
-        ),
-      ),
-      Expanded(
-        child: IndexedStack(index: index, children: [
-          // Kunci per bagian: bila daftar bagian berubah (hak akses berubah),
-          // isi yang tersimpan ikut bagiannya, bukan posisinya.
-          for (final (i, section) in sections.indexed) LazyTab(key: ValueKey(section.name), active: i == index, builder: () => RecordSectionView(section: section)),
+            ),
+          ),
+          const Divider(height: 1),
+          Expanded(child: content),
         ]),
+      );
+    });
+  }
+}
+
+/// Daftar bagian Catatan di bilah samping (Penjualan, Pembayaran, ...).
+class _SectionSidebar extends StatelessWidget {
+  const _SectionSidebar({super.key, required this.sections, required this.selected, required this.onSelected});
+
+  final List<RecordSection> sections;
+  final int selected;
+  final ValueChanged<RecordSection> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return ListView(padding: const EdgeInsets.symmetric(vertical: 8), children: [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(20, 8, 16, 8),
+        child: Text('CATATAN', style: TextStyle(fontSize: 11.5, letterSpacing: 0.8, fontWeight: FontWeight.w700, color: mutedText(context))),
       ),
+      for (final (i, section) in sections.indexed)
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          child: Material(
+            color: i == selected ? scheme.secondaryContainer : Colors.transparent,
+            borderRadius: BorderRadius.circular(Radii.m),
+            child: InkWell(
+              key: Key('section-${section.name}'),
+              borderRadius: BorderRadius.circular(Radii.m),
+              onTap: () => onSelected(section),
+              child: Semantics(
+                selected: i == selected,
+                button: true,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  child: Row(children: [
+                    Icon(section.icon, size: 22, color: i == selected ? scheme.onSecondaryContainer : mutedText(context)),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        section.label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontWeight: i == selected ? FontWeight.w700 : FontWeight.w500, color: i == selected ? scheme.onSecondaryContainer : null),
+                      ),
+                    ),
+                  ]),
+                ),
+              ),
+            ),
+          ),
+        ),
     ]);
   }
 }

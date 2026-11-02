@@ -23,13 +23,20 @@ import 'scan_screen.dart';
 import 'shift_screens.dart';
 
 /// Lebar minimal untuk tata letak dua panel (katalog kiri, pesanan kanan).
-const double posTwoPaneWidth = 720;
+const double posTwoPaneWidth = 600;
 
-/// Dua panel butuh tinggi juga: HP miring / layar terbelah (mis. 780×360 dp)
-/// tetap memakai tata letak HP supaya katalog tidak tergencet.
-const double posTwoPaneMinHeight = 480;
+/// Tinggi minimal dua panel. Layar miring yang pendek (tablet 7–8" miring,
+/// 312–480 dp setelah bilah atas) tetap dua panel dengan tata letak padat;
+/// lebih pendek dari ini (layar terbelah tipis) memakai tata letak HP.
+const double posTwoPaneMinHeight = 300;
+
+/// Di bawah tinggi ini kasir memakai tata letak padat: kelompok barang
+/// sebaris dengan kotak cari, kotak barang lebih pendek, bilah shift tipis.
+const double posDenseHeight = 560;
 
 bool posUseTwoPane(BoxConstraints constraints) => constraints.maxWidth >= posTwoPaneWidth && constraints.maxHeight >= posTwoPaneMinHeight;
+
+bool posUseDense(BoxConstraints constraints) => constraints.maxHeight < posDenseHeight && constraints.maxWidth > constraints.maxHeight;
 
 /// Layar kasir (POS): kelompok barang, cari/scan, grid barang, keranjang.
 /// HP tegak: grid + bilah keranjang di bawah. Tablet/lanskap: dua panel.
@@ -161,16 +168,17 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
     final shift = ref.watch(openShiftProvider).valueOrNull;
     return HardwareScannerListener(active: _scannerActive, onCode: _onHardwareCode, child: LayoutBuilder(builder: (context, constraints) {
       final twoPane = posUseTwoPane(constraints);
+      final dense = twoPane && posUseDense(constraints);
       final catalog = Column(children: [
-        if (data?.menus.shift ?? false) ShiftBar(shift: shift),
-        _toolbar(twoPane),
-        Expanded(child: _grid(twoPane)),
+        if (data?.menus.shift ?? false) ShiftBar(shift: shift, dense: dense),
+        _toolbar(twoPane, dense: dense),
+        Expanded(child: _grid(twoPane, dense: dense)),
         if (!twoPane) _CartBarSlot(onOpen: _openCart),
       ]);
       if (!twoPane) {
         return catalog;
       }
-      final panelWidth = (constraints.maxWidth * 0.4).clamp(340.0, 440.0);
+      final panelWidth = dense ? (constraints.maxWidth * 0.38).clamp(300.0, 380.0) : (constraints.maxWidth * 0.4).clamp(340.0, 440.0);
       final scheme = Theme.of(context).colorScheme;
       return Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Expanded(child: catalog),
@@ -178,20 +186,21 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
           width: panelWidth,
           child: DecoratedBox(
             decoration: BoxDecoration(color: scheme.surface, border: Border(left: BorderSide(color: scheme.outlineVariant))),
-            child: Padding(padding: const EdgeInsets.only(top: Space.s), child: PosOrderPanel(key: const Key('order-panel'), onPay: _goPay)),
+            child: Padding(padding: EdgeInsets.only(top: dense ? Space.xs : Space.s), child: PosOrderPanel(key: const Key('order-panel'), onPay: _goPay, dense: dense)),
           ),
         ),
       ]);
     }));
   }
 
-  Widget _toolbar(bool twoPane) {
+  Widget _toolbar(bool twoPane, {bool dense = false}) {
     final held = ref.watch(heldOrdersProvider).valueOrNull?.length ?? 0;
     final online = ref.watch(syncProvider.select((state) => state.connection == ConnectionStatus.online));
     return Padding(
-      padding: const EdgeInsets.fromLTRB(Space.l, Space.m, Space.s, Space.xs),
+      padding: EdgeInsets.fromLTRB(Space.l, dense ? Space.s : Space.m, Space.s, Space.xs),
       child: Row(children: [
-        Expanded(
+        _flexibleSearch(
+          dense: dense,
           child: TextField(
             key: const Key('kasir-search'),
             controller: _search,
@@ -223,13 +232,33 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
             onTapOutside: (_) => dismissKeyboard(),
           ),
         ),
+        // Padat: kelompok barang sebaris dengan kotak cari (hemat tinggi).
+        if (dense && _hasCategories) Expanded(child: _categoryChips(dense: true)),
         if (!twoPane) HeldOrdersButton(count: held),
         IconButton(tooltip: 'Riwayat nota', onPressed: () => context.push('/riwayat'), icon: const Icon(Icons.history)),
       ]),
     );
   }
 
-  Widget _grid(bool twoPane) {
+  /// Kotak cari: melebar penuh, atau selebar tetap bila kelompok barang
+  /// ikut sebaris (tata letak padat).
+  Widget _flexibleSearch({required bool dense, required Widget child}) => dense && _hasCategories ? SizedBox(width: 240, child: child) : Expanded(child: child);
+
+  bool get _hasCategories {
+    final all = ref.read(productSearchProvider('')).valueOrNull ?? const <Product>[];
+    final known = ref.read(productCategoriesProvider).valueOrNull ?? const <ProductCategory>[];
+    return posCategories(all, known).length >= 2;
+  }
+
+  Widget _categoryChips({bool dense = false}) {
+    final all = ref.watch(productSearchProvider('')).valueOrNull ?? const <Product>[];
+    final known = ref.watch(productCategoriesProvider).valueOrNull ?? const <ProductCategory>[];
+    final categories = posCategories(all, known);
+    final category = categories.firstWhere((item) => item.key == _category, orElse: () => PosCategory.all);
+    return PosCategoryChips(categories: categories, selected: category.key, dense: dense, onSelected: (key) => setState(() => _category = key));
+  }
+
+  Widget _grid(bool twoPane, {bool dense = false}) {
     final all = ref.watch(productSearchProvider('')).valueOrNull ?? const <Product>[];
     final known = ref.watch(productCategoriesProvider).valueOrNull ?? const <ProductCategory>[];
     final products = ref.watch(productSearchProvider(_query));
@@ -238,7 +267,7 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
     final category = categories.firstWhere((item) => item.key == _category, orElse: () => PosCategory.all);
 
     return Column(children: [
-      PosCategoryChips(categories: categories, selected: category.key, onSelected: (key) => setState(() => _category = key)),
+      if (!dense) _categoryChips(),
       Expanded(child: Builder(builder: (context) {
         // Hasil cari sebelumnya tetap tampil selama hasil baru dimuat (tanpa kedip).
         if (products.hasValue) {
@@ -262,11 +291,12 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
         return GridView.builder(
           key: const Key('product-grid'),
           padding: EdgeInsets.fromLTRB(Space.l, Space.s, Space.l, twoPane ? Space.l : Space.s),
-          gridDelegate: posGridDelegate,
+          gridDelegate: dense ? posDenseGridDelegate : posGridDelegate,
           itemCount: items.length,
           itemBuilder: (context, index) {
             final product = items[index];
             return PosProductTile(
+              dense: dense,
               product: product,
               inCart: cart.quantityOf(product.id),
               onTap: () => _addProduct(product),

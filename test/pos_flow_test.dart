@@ -156,10 +156,10 @@ void main() {
       tenants: const [TenantSummary(id: 1, name: 'Warung Tes', roleLabel: 'Viewer', menus: Menus(reports: true, records: true))],
       menus: {'reports': true, 'records': true},
     );
-    expect(find.widgetWithText(NavigationDestination, 'Laporan'), findsOneWidget);
-    expect(find.widgetWithText(NavigationDestination, 'Kasir'), findsNothing);
-    expect(find.widgetWithText(NavigationDestination, 'Tim AI'), findsNothing);
-    expect(find.widgetWithText(NavigationDestination, 'Akun'), findsOneWidget);
+    expect(find.byKey(const Key('nav-laporan')), findsOneWidget);
+    expect(find.byKey(const Key('nav-kasir')), findsNothing);
+    expect(find.byKey(const Key('nav-ai')), findsNothing);
+    expect(find.byKey(const Key('nav-akun')), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
 

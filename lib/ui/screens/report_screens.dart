@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/format.dart';
 import '../../core/money.dart';
+import '../../data/reports_api.dart';
 import '../../domain/report_models.dart';
 import '../../services/file_downloads.dart';
 import '../../state/printer_controller.dart';
@@ -17,7 +18,7 @@ import 'pay_screen.dart' show printMessage;
 /// Kerangka layar laporan berperiode: judul, pilihan periode, tombol
 /// Bagikan, dan isi dari provider; galat/offline ditampilkan ramah.
 class _ReportScaffold<T> extends ConsumerWidget {
-  const _ReportScaffold({required this.title, required this.value, required this.onRetry, required this.builder, this.shareText, this.withPeriod = true, this.actions = const []});
+  const _ReportScaffold({required this.title, required this.value, required this.onRetry, required this.builder, this.shareText, this.withPeriod = true, this.actions = const [], this.pdf});
 
   final String title;
   final AsyncValue<T?> value;
@@ -27,10 +28,15 @@ class _ReportScaffold<T> extends ConsumerWidget {
   final bool withPeriod;
   final List<Widget> actions;
 
+  /// Laporan ini sebagai PDF: (endpoint `/reports/…`, query). Periode
+  /// layanan ikut otomatis bila [withPeriod].
+  final (String, Map<String, dynamic>)? pdf;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final data = value.valueOrNull;
     final period = ref.watch(reportPeriodProvider);
+    final pdf = this.pdf;
     return Scaffold(
       appBar: AppBar(
         title: Column(
@@ -39,6 +45,18 @@ class _ReportScaffold<T> extends ConsumerWidget {
         ),
         actions: [
           ...actions,
+          if (pdf != null && data != null)
+            IconButton(
+              key: const Key('pdf-report'),
+              tooltip: 'Unduh PDF',
+              icon: const Icon(Icons.picture_as_pdf_outlined),
+              onPressed: () => downloadAndOffer(
+                context,
+                ref,
+                apiPath: ReportsApi.pdfPath(pdf.$1, {if (withPeriod) ...period.toQuery(), ...pdf.$2}),
+                fileName: '$title${withPeriod ? ' ${period.label}' : ''}.pdf',
+              ),
+            ),
           if (shareText != null && data != null)
             IconButton(key: const Key('share-report'), tooltip: 'Bagikan', icon: const Icon(Icons.share_outlined), onPressed: () => shareTextOrCopy(context, ref, shareText!(data))),
         ],
@@ -68,6 +86,7 @@ class SalesSummaryScreen extends ConsumerWidget {
     final tenant = ref.watch(sessionProvider).valueOrNull?.tenant?.name ?? '';
     return _ReportScaffold<SalesSummary>(
       title: 'Ringkasan penjualan',
+      pdf: const ('sales/summary', {}),
       value: ref.watch(salesSummaryProvider),
       onRetry: () => ref.invalidate(salesSummaryProvider),
       shareText: (data) => shareLines('Ringkasan penjualan $tenant · ${data.period.label}', _rows(data)),
@@ -193,6 +212,7 @@ class _RankedReportScreenState extends ConsumerState<RankedReportScreen> {
     final isProduct = widget.kind == 'by-product';
     return _ReportScaffold<RankedState>(
       title: RankedReportScreen.titleOf(widget.kind),
+      pdf: ('sales/${widget.kind}', const {}),
       value: ref.watch(rankedReportProvider(widget.kind)),
       onRetry: () => ref.read(rankedReportProvider(widget.kind).notifier).refresh(),
       shareText:
@@ -260,6 +280,7 @@ class HourlyReportScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) => _ReportScaffold<RankedReport>(
     title: 'Per jam',
+    pdf: const ('sales/by-hour', {}),
     value: ref.watch(hourlyReportProvider),
     onRetry: () => ref.invalidate(hourlyReportProvider),
     shareText:
@@ -354,6 +375,7 @@ class _AgingReportScreenState extends ConsumerState<AgingReportScreen> {
     return _ReportScaffold<AgingState>(
       title: title,
       withPeriod: false,
+      pdf: (widget.kind, const {}),
       value: ref.watch(agingReportProvider(widget.kind)),
       onRetry: () => ref.read(agingReportProvider(widget.kind).notifier).refresh(),
       shareText:
@@ -427,6 +449,7 @@ class ProfitLossScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) => _ReportScaffold<ProfitLossReport>(
     title: 'Laba rugi',
+    pdf: const ('profit-loss', {}),
     value: ref.watch(profitLossProvider),
     onRetry: () => ref.invalidate(profitLossProvider),
     shareText: (data) => shareLines('Laba rugi · ${data.period.label}', _rows(data)),
@@ -476,6 +499,7 @@ class CashFlowScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) => _ReportScaffold<CashFlowReport>(
     title: 'Arus kas',
+    pdf: const ('cash-flow', {}),
     value: ref.watch(cashFlowProvider),
     onRetry: () => ref.invalidate(cashFlowProvider),
     shareText:
@@ -569,6 +593,7 @@ class _ShiftsScreenState extends ConsumerState<ShiftsScreen> {
   @override
   Widget build(BuildContext context) => _ReportScaffold<ShiftsState>(
     title: 'Shift kasir',
+    pdf: const ('shifts', {}),
     value: ref.watch(shiftsProvider),
     onRetry: () => ref.read(shiftsProvider.notifier).refresh(),
     builder: (context, data) {
@@ -630,6 +655,7 @@ class ShiftDetailScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) => _ReportScaffold<ShiftDetail>(
     title: 'Laporan shift',
     withPeriod: false,
+    pdf: ('shifts/$id', const {}),
     value: ref.watch(shiftDetailProvider(id)),
     onRetry: () => ref.invalidate(shiftDetailProvider(id)),
     shareText: (data) => shareLines('Laporan tutup kasir ${data.shift.device?.display ?? ''}', _rows(data)),

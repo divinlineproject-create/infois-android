@@ -63,11 +63,14 @@ List<PosCategory> posCategories(List<Product> products, [List<ProductCategory> c
 
 /// Baris chip kategori (geser ke samping).
 class PosCategoryChips extends StatelessWidget {
-  const PosCategoryChips({super.key, required this.categories, required this.selected, required this.onSelected});
+  const PosCategoryChips({super.key, required this.categories, required this.selected, required this.onSelected, this.dense = false});
 
   final List<PosCategory> categories;
   final String selected;
   final ValueChanged<String> onSelected;
+
+  /// Sebaris dengan kotak cari (layar miring yang pendek).
+  final bool dense;
 
   @override
   Widget build(BuildContext context) {
@@ -78,7 +81,7 @@ class PosCategoryChips extends StatelessWidget {
       height: 48,
       child: ListView.separated(
         key: const Key('category-chips'),
-        padding: const EdgeInsets.symmetric(horizontal: Space.l, vertical: Space.xs),
+        padding: EdgeInsets.symmetric(horizontal: dense ? Space.s : Space.l, vertical: Space.xs),
         scrollDirection: Axis.horizontal,
         itemCount: categories.length,
         separatorBuilder: (_, __) => const SizedBox(width: Space.s),

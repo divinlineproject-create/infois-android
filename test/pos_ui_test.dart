@@ -21,7 +21,7 @@ import 'package:infois/state/session.dart';
 import 'package:infois/state/sync_controller.dart';
 import 'package:infois/state/workspace.dart';
 import 'package:infois/main.dart' show isPhoneSize;
-import 'package:infois/ui/screens/kasir_screen.dart' show posUseTwoPane;
+import 'package:infois/ui/screens/kasir_screen.dart' show posUseDense, posUseTwoPane;
 import 'package:infois/ui/screens/pos_order_panel.dart';
 import 'package:infois/ui/widgets/pos_categories.dart';
 import 'package:infois/ui/widgets/pos_keypad.dart';
@@ -292,23 +292,26 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('HP miring / layar terbelah: tata letak HP (bukan dua panel yang tergencet), ketuk barang masuk pesanan', (tester) async {
-    // HP miring 780×360 dp (di aplikasi HP dikunci tegak; ini jaga-jaga bila
-    // tetap miring): tidak ada dua panel yang meluap.
+  testWidgets('layar miring yang pendek: navigasi samping + kasir dua panel padat, ketuk barang masuk pesanan', (tester) async {
+    // Tablet 7–8" miring setelah bilah status & navigasi (≈ 780×360 dp):
+    // navigasi pindah ke samping, katalog & pesanan tetap berdampingan.
     tester.view.physicalSize = const Size(2340, 1080);
     tester.view.devicePixelRatio = 3;
     addTearDown(tester.view.reset);
     await pumpApp(tester);
     await openShift(tester);
-    expect(find.byKey(const Key('order-panel')), findsNothing, reason: 'Terlalu pendek untuk dua panel.');
-
-    // Layar terbelah lebar tetapi pendek (780×520 dp): tata letak HP, barang bisa diketuk.
-    tester.view.physicalSize = const Size(2340, 1560);
-    await settle(tester);
-    expect(find.byKey(const Key('order-panel')), findsNothing);
+    expect(find.byKey(const Key('side-navigation')), findsOneWidget);
+    expect(find.byType(NavigationBar), findsNothing, reason: 'Tinggi layar untuk isi, bukan bilah bawah.');
+    expect(find.byKey(const Key('order-panel')), findsOneWidget);
     await tap(tester, find.byKey(const Key('product-1')));
-    expect(find.text('Tim AI butuh internet'), findsNothing);
-    expect(find.byKey(const Key('open-cart')), findsOneWidget);
+    expect(inPanel(find.text('Kopi susu')), findsOneWidget);
+    expect(find.byKey(const Key('open-cart')), findsNothing);
+
+    // Tablet 10" miring (1280×728 dp): dua panel biasa (tidak padat).
+    tester.view.physicalSize = const Size(3840, 2184);
+    await settle(tester);
+    expect(find.byKey(const Key('order-panel')), findsOneWidget);
+    expect(inPanel(find.text('Kopi susu')), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
 
@@ -333,9 +336,12 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  test('dua panel hanya bila lebar DAN tinggi cukup', () {
+  test('dua panel bila lebar cukup dan tidak terlalu tipis; padat bila miring & pendek', () {
     expect(posUseTwoPane(const BoxConstraints(maxWidth: 1280, maxHeight: 660)), isTrue);
     expect(posUseTwoPane(const BoxConstraints(maxWidth: 780, maxHeight: 224)), isFalse);
+    expect(posUseTwoPane(const BoxConstraints(maxWidth: 696, maxHeight: 312)), isTrue, reason: 'Tablet 7" miring: dua panel padat.');
+    expect(posUseDense(const BoxConstraints(maxWidth: 696, maxHeight: 312)), isTrue);
+    expect(posUseDense(const BoxConstraints(maxWidth: 1196, maxHeight: 650)), isFalse);
     expect(posUseTwoPane(const BoxConstraints(maxWidth: 400, maxHeight: 800)), isFalse);
     expect(isPhoneSize(const Size(360, 780)), isTrue);
     expect(isPhoneSize(const Size(780, 360)), isTrue);

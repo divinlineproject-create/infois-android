@@ -11,6 +11,11 @@ class ReportsApi {
   /// Jenis laporan peringkat yang memakai bentuk jawaban sama.
   static const rankedKinds = {'by-product', 'by-customer', 'by-cashier', 'by-device'};
 
+  /// Alamat PDF laporan (relatif ke `/api/v1/`, `?format=pdf`): angka &
+  /// periode sama dengan layar, semua baris tanpa halaman (API.md › 7).
+  static String pdfPath(String endpoint, [Map<String, dynamic> query = const {}]) =>
+      Uri(path: 'reports/$endpoint', queryParameters: {for (final entry in query.entries) entry.key: '${entry.value}', 'format': 'pdf'}).toString();
+
   Future<ReportOverview> overview() async => ReportOverview.fromJson(await client.get('reports/overview'));
 
   Future<SalesSummary> salesSummary(ReportPeriodChoice period, {Map<String, dynamic>? filters}) async =>

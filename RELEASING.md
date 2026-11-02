@@ -71,8 +71,14 @@ AAB lama di `~/Desktop/Infois-POS-PlayStore/1-AAB-rilis/infois-1.1.0+2.aab` suda
   terima pembayaran pelanggan; tombol Ubah/Hapus mengikuti hak akses dan kunci (cut off, disetujui,
   sudah dibayar) seperti di web.
 - Layar **Masuk** baru: separuh layar panel brand seperti halaman masuk dashboard.
-Server harus sudah punya `/api/v1/pin/*` dan `/api/v1/ops/*` (backoffice main, migrasi
-`2026_11_02_100000_add_mobile_pin`) sebelum build ini dirilis.
+- **Tablet miring nyaman dipakai**: navigasi pindah ke bilah samping kiri dan bilah atas jadi satu baris;
+  kasir tetap dua panel (katalog + pesanan) dengan tata letak padat di tablet 7–8"; layar Bayar
+  rincian kiri + keypad kanan.
+- **Catatan**: Penjualan, Pembayaran, Pembelian, dst. di bilah samping (tablet/miring selalu tampil,
+  HP tegak dari tombol menu).
+- **Unduh PDF** di setiap laporan (format resmi seperti PDF laporan web, periode yang dipilih).
+Server harus sudah punya `/api/v1/pin/*`, `/api/v1/ops/*` (backoffice main, migrasi
+`2026_11_02_100000_add_mobile_pin`) dan `?format=pdf` di `/api/v1/reports/*` sebelum build ini dirilis.
 
 ## 3. Membangun AAB
 

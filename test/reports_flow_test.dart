@@ -9,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:infois/app.dart';
 import 'package:infois/data/app_storage.dart';
 import 'package:infois/domain/models.dart';
+import 'package:infois/services/file_downloads.dart';
 import 'package:infois/state/printer_controller.dart';
 import 'package:infois/state/reports_state.dart';
 import 'package:infois/state/session.dart';
@@ -19,6 +20,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'support/fakes.dart';
+import 'support/file_fakes.dart';
 
 /// Tab Laporan: ubin ringkasan, ganti periode memuat ulang, peringkat
 /// barang dengan porsi, offline, dan hak akses.
@@ -29,6 +31,8 @@ void main() {
   });
 
   const owner = TenantSummary(id: 1, name: 'Warung Tes', roleLabel: 'Pemilik', menus: Menus(pos: true, shift: true, ai: true, reports: true, records: true), permissions: ['view-reports', 'ViewAny:Invoice']);
+
+  late FakeFilePlatform files;
 
   Future<void> pumpApp(WidgetTester tester, {required FakeServer server, Map<String, dynamic>? menus, List<TenantSummary> tenants = const [owner]}) async {
     tester.view.physicalSize = const Size(1080, 2340);
@@ -55,6 +59,7 @@ void main() {
         apiFactoryProvider.overrideWithValue((_, __, ___, ____) => fakeApi(server)),
         connectivityStreamProvider.overrideWithValue(const Stream.empty()),
         printerTransportProvider.overrideWithValue(FakePrinter()),
+        filePlatformProvider.overrideWithValue(files),
       ],
       child: const InfoisApp(),
     ));
@@ -62,7 +67,10 @@ void main() {
   }
 
   late List<String> clipboard;
-  setUp(() => clipboard = mockClipboard());
+  setUp(() {
+    clipboard = mockClipboard();
+    files = FakeFilePlatform();
+  });
 
   Future<void> openLaporan(WidgetTester tester) async {
     await tester.tap(find.widgetWithText(NavigationDestination, 'Laporan'));
@@ -104,6 +112,43 @@ void main() {
     expect(find.textContaining('disalin'), findsOneWidget);
     expect(clipboard.single, contains('Omzet: Rp 8.342.382,50'));
     expect(clipboard.single, contains('Tunai: Rp 5.200.145 (50 nota)'));
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('setiap laporan bisa diunduh PDF dengan periode yang sedang dipilih', (tester) async {
+    final server = FakeServer(reportsHandler());
+    await pumpApp(tester, server: server);
+    await openLaporan(tester);
+    await tester.tap(find.byKey(const Key('period-hari_ini')));
+    await settle(tester);
+
+    // Ringkasan usaha & ringkasan penjualan dari tab Laporan.
+    await tester.tap(find.byKey(const Key('pdf-summary')));
+    await settle(tester);
+    await tapVisible(tester, find.byKey(const Key('pdf-overview')));
+    await settle(tester);
+
+    // Laporan rinci: tombol PDF di bilah atas.
+    for (final (link, path) in const [('report-by-product', 'reports/sales/by-product'), ('report-shift', 'reports/shifts')]) {
+      // Pemberitahuan "Tersimpan di Download" menutupi tautan di bawah.
+      tester.state<ScaffoldMessengerState>(find.byType(ScaffoldMessenger)).clearSnackBars();
+      await settle(tester);
+      await tapVisible(tester, find.byKey(Key(link)));
+      await settle(tester);
+      await tester.tap(find.byKey(const Key('pdf-report')));
+      await settle(tester);
+      final request = server.requests.last.uri;
+      expect(request.path, endsWith('/$path'));
+      expect(request.queryParameters['format'], 'pdf', reason: path);
+      expect(request.queryParameters['period'], 'hari_ini', reason: 'PDF memakai periode yang dipilih ($path).');
+      tester.state<ScaffoldMessengerState>(find.byType(ScaffoldMessenger)).clearSnackBars();
+      await settle(tester);
+      Navigator.of(tester.element(find.byKey(const Key('pdf-report')))).pop();
+      await settle(tester);
+    }
+
+    final pdfs = server.requests.where((request) => request.uri.queryParameters['format'] == 'pdf').map((request) => request.uri.path.split('/api/v1/').last).toList();
+    expect(pdfs, ['reports/sales/summary', 'reports/overview', 'reports/sales/by-product', 'reports/shifts']);
     await tester.pumpWidget(const SizedBox());
   });
 

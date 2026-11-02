@@ -14,13 +14,22 @@ const double posTileHeight = 204;
 /// Grid barang kasir (dipakai grid dan kerangka muat).
 const posGridDelegate = SliverGridDelegateWithMaxCrossAxisExtent(maxCrossAxisExtent: 172, mainAxisExtent: posTileHeight, crossAxisSpacing: Space.m, mainAxisSpacing: Space.m);
 
+/// Kotak barang pada layar miring yang pendek: lebih rendah supaya dua
+/// baris atau lebih terlihat sekaligus.
+const double posDenseTileHeight = 148;
+
+const posDenseGridDelegate = SliverGridDelegateWithMaxCrossAxisExtent(maxCrossAxisExtent: 168, mainAxisExtent: posDenseTileHeight, crossAxisSpacing: Space.s, mainAxisSpacing: Space.s);
+
 /// Kotak barang di grid kasir: foto (atau inisial berwarna), kategori, nama,
 /// harga, label stok, dan badge jumlah di keranjang. Stok habis tampil redup
 /// (tetap bisa dijual; server yang menentukan stok otomatis/perlu ditinjau).
 class PosProductTile extends StatefulWidget {
-  const PosProductTile({super.key, required this.product, required this.inCart, required this.onTap, required this.onLongPress});
+  const PosProductTile({super.key, required this.product, required this.inCart, required this.onTap, required this.onLongPress, this.dense = false});
 
   final Product product;
+
+  /// Kotak pendek (layar miring yang pendek): tanpa nama kelompok, nama 1 baris.
+  final bool dense;
 
   /// Qty barang ini di keranjang (string desimal).
   final String inCart;
@@ -126,16 +135,16 @@ class _PosProductTileState extends State<PosProductTile> {
                 ]),
               ),
               Padding(
-                padding: const EdgeInsets.fromLTRB(Space.m - 2, Space.s, Space.m - 2, Space.m - 2),
+                padding: widget.dense ? const EdgeInsets.fromLTRB(Space.s + 2, Space.xs + 2, Space.s + 2, Space.s) : const EdgeInsets.fromLTRB(Space.m - 2, Space.s, Space.m - 2, Space.m - 2),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  if (product.categoryName != null)
+                  if (product.categoryName != null && !widget.dense)
                     Text(
                       product.categoryName!,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: mutedText(context), letterSpacing: 0.2),
                     ),
-                  Text(product.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5, height: 1.25)),
+                  Text(product.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w600, fontSize: widget.dense ? 12.5 : 13.5, height: 1.2)),
                   const SizedBox(height: 2),
                   Text(rupiah(product.price), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: scheme.primary)),
                 ]),

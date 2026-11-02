@@ -95,9 +95,11 @@ void main() {
     expect(find.byKey(const Key('sale-1365')), findsOneWidget);
     expect(find.text('POS-K22/000002'), findsOneWidget);
     expect(find.text('Lunas'), findsWidgets);
+    await openSections(tester);
     expect(find.byKey(const Key('section-sales')), findsOneWidget);
     expect(find.byKey(const Key('section-purchases')), findsOneWidget);
     expect(find.byKey(const Key('section-suppliers')), findsOneWidget);
+    await selectSection(tester, 'sales');
 
     // Gulir ke bawah: halaman berikutnya diminta dengan kursor.
     await tester.fling(find.byType(ListView).last, const Offset(0, -4000), 3000);
@@ -192,6 +194,7 @@ void main() {
     final server = FakeServer(recordsHandler(menus: kasir.menus.toJson()));
     await pumpApp(tester, server: server, tenant: kasir);
     await openCatatan(tester);
+    await openSections(tester);
     expect(find.byKey(const Key('section-sales')), findsOneWidget);
     expect(find.byKey(const Key('section-payments')), findsOneWidget);
     expect(find.byKey(const Key('section-stock')), findsOneWidget);
@@ -214,8 +217,7 @@ void main() {
     final server = FakeServer(recordsHandler());
     await pumpApp(tester, server: server);
     await openCatatan(tester);
-    await tapVisible(tester, find.byKey(const Key('section-customers')));
-    await settle(tester);
+    await selectSection(tester, 'customers');
     expect(find.text('Belum ada pelanggan'), findsOneWidget);
     final before = server.requests.where((request) => request.path == 'records/customers').length;
 
@@ -247,7 +249,7 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('hak akses berubah: tiap chip tetap membuka bagiannya sendiri', (tester) async {
+  testWidgets('hak akses berubah: tiap menu samping tetap membuka bagiannya sendiri', (tester) async {
     // Sesi lama tanpa daftar permission: bagian mengikuti menu dari sinkron.
     const tenant = TenantSummary(id: 1, name: 'Warung Tes', roleLabel: 'Admin', menus: Menus(pos: true, shift: true, records: true, stock: true));
     var menus = <String, dynamic>{'pos': true, 'shift': true, 'records': true, 'stock': true};
@@ -261,6 +263,7 @@ void main() {
     });
     await pumpApp(tester, server: server, tenant: tenant, menus: menus);
     await openCatatan(tester);
+    await openSections(tester);
     expect(find.byKey(const Key('section-cash')), findsNothing);
     await tapVisible(tester, find.byKey(const Key('section-stock')));
     await settle(tester);
@@ -272,12 +275,10 @@ void main() {
     final container = ProviderScope.containerOf(tester.element(find.byType(CatatanScreen)));
     unawaited(container.read(syncProvider.notifier).syncNow());
     await settle(tester);
-    await tapVisible(tester, find.byKey(const Key('section-cash')));
-    await settle(tester);
-    expect(find.text('Cari keterangan, nomor, atau referensi'), findsOneWidget, reason: 'Chip Kas & Bank membuka Kas & Bank, bukan isi Stok yang tersimpan di posisi itu.');
+    await selectSection(tester, 'cash');
+    expect(find.text('Cari keterangan, nomor, atau referensi'), findsOneWidget, reason: 'Menu Kas & Bank membuka Kas & Bank, bukan isi Stok yang tersimpan di posisi itu.');
     expect(find.text('Cari nama atau SKU barang'), findsNothing);
-    await tapVisible(tester, find.byKey(const Key('section-stock')));
-    await settle(tester);
+    await selectSection(tester, 'stock');
     expect(find.text('Cari nama atau SKU barang'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
@@ -466,6 +467,21 @@ Map<String, dynamic> paymentJson() => {
 Future<void> scrollTo(WidgetTester tester, Finder finder) => tester.scrollUntilVisible(finder, 200, scrollable: find.byType(Scrollable).last);
 
 /// Gulir sampai terlihat, gambar ulang, lalu ketuk.
+/// Buka bilah samping Catatan (HP tegak: laci dari tombol menu).
+Future<void> openSections(WidgetTester tester) async {
+  if (find.byKey(const Key('catatan-menu')).evaluate().isNotEmpty) {
+    await tester.tap(find.byKey(const Key('catatan-menu')));
+    await settle(tester);
+  }
+}
+
+/// Pilih bagian Catatan dari bilah samping.
+Future<void> selectSection(WidgetTester tester, String name) async {
+  await openSections(tester);
+  await tapVisible(tester, find.byKey(Key('section-$name')));
+  await settle(tester);
+}
+
 Future<void> tapVisible(WidgetTester tester, Finder finder) async {
   await tester.ensureVisible(finder);
   await tester.pump();

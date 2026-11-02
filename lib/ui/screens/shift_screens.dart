@@ -15,12 +15,29 @@ import 'pay_screen.dart';
 
 /// Baris status shift di atas katalog.
 class ShiftBar extends ConsumerWidget {
-  const ShiftBar({super.key, required this.shift});
+  const ShiftBar({super.key, required this.shift, this.dense = false});
 
   final Map<String, dynamic>? shift;
 
+  /// Satu baris tipis (layar miring yang pendek).
+  final bool dense;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    if (shift == null && dense) {
+      return Material(
+        color: Brand.amber.withValues(alpha: 0.1),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 2, 8, 2),
+          child: Row(children: [
+            const Icon(Icons.lock_clock_outlined, size: 18, color: Brand.amber),
+            const SizedBox(width: 8),
+            const Expanded(child: Text('Kasir belum dibuka · isi uang awal di laci dulu', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
+            FilledButton(key: const Key('open-shift'), style: FilledButton.styleFrom(visualDensity: VisualDensity.compact), onPressed: () => showOpenShiftDialog(context, ref), child: const Text('Buka')),
+          ]),
+        ),
+      );
+    }
     if (shift == null) {
       return Material(
         color: Brand.amber.withValues(alpha: 0.1),
@@ -36,12 +53,12 @@ class ShiftBar extends ConsumerWidget {
     return Material(
       color: Brand.green.withValues(alpha: 0.06),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 4, 8, 4),
+        padding: EdgeInsets.fromLTRB(16, dense ? 0 : 4, 8, dense ? 0 : 4),
         child: Row(children: [
           const Icon(Icons.lock_open_outlined, size: 18, color: Brand.green),
           const SizedBox(width: 8),
-          Expanded(child: Text('Kasir dibuka ${opened == null ? '' : dateTimeLabel(opened)}', style: const TextStyle(fontSize: 13))),
-          TextButton(onPressed: () => context.push('/tutup-kasir'), child: const Text('Tutup kasir')),
+          Expanded(child: Text('Kasir dibuka ${opened == null ? '' : dateTimeLabel(opened)}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13))),
+          TextButton(style: dense ? TextButton.styleFrom(visualDensity: VisualDensity.compact) : null, onPressed: () => context.push('/tutup-kasir'), child: const Text('Tutup kasir')),
         ]),
       ),
     );

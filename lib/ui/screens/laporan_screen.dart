@@ -4,7 +4,9 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/format.dart';
 import '../../core/money.dart';
+import '../../data/reports_api.dart';
 import '../../domain/report_models.dart';
+import '../../services/file_downloads.dart';
 import '../../state/records_state.dart';
 import '../../state/reports_state.dart';
 import '../../state/session.dart';
@@ -69,12 +71,20 @@ class LaporanScreen extends ConsumerWidget {
                 'Penjualan · ${period.label}',
                 trailing: summaryData == null
                     ? null
-                    : TextButton.icon(
-                        key: const Key('share-summary'),
-                        onPressed: () => copyText(context, _shareText(tenantName, summaryData)),
-                        icon: const Icon(Icons.share_outlined, size: 18),
-                        label: const Text('Bagikan'),
-                      ),
+                    : Row(mainAxisSize: MainAxisSize.min, children: [
+                        IconButton(
+                          key: const Key('pdf-summary'),
+                          tooltip: 'Unduh PDF',
+                          onPressed: () => downloadAndOffer(context, ref, apiPath: ReportsApi.pdfPath('sales/summary', period.toQuery()), fileName: 'Ringkasan penjualan ${period.label}.pdf'),
+                          icon: const Icon(Icons.picture_as_pdf_outlined, size: 20),
+                        ),
+                        TextButton.icon(
+                          key: const Key('share-summary'),
+                          onPressed: () => copyText(context, _shareText(tenantName, summaryData)),
+                          icon: const Icon(Icons.share_outlined, size: 18),
+                          label: const Text('Bagikan'),
+                        ),
+                      ]),
               ),
               if (summary.isLoading && summaryData == null)
                 const Padding(padding: EdgeInsets.all(24), child: Center(child: CircularProgressIndicator()))
@@ -87,7 +97,15 @@ class LaporanScreen extends ConsumerWidget {
                   reloading: summary.isLoading,
                   child: _PeriodSummaryCard(summary: summaryData, onOpen: () => context.push('/laporan/ringkasan')),
                 ),
-              const SectionTitle('Sekilas'),
+              SectionTitle(
+                'Sekilas',
+                trailing: TextButton.icon(
+                  key: const Key('pdf-overview'),
+                  onPressed: () => downloadAndOffer(context, ref, apiPath: ReportsApi.pdfPath('overview'), fileName: 'Ringkasan usaha ${tenantName.isEmpty ? '' : '$tenantName '}${dateFromIso(DateTime.now().toIso8601String())}.pdf'),
+                  icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
+                  label: const Text('PDF'),
+                ),
+              ),
               _Tiles(children: [
                 StatTile(label: 'Hari ini', value: rupiah(data.today.total), valueKey: const Key('tile-today'), caption: '${data.today.count} nota · laba kotor ${compactRupiah(data.today.grossProfit)}'),
                 StatTile(label: 'Kemarin', value: rupiah(data.yesterday.total), caption: '${data.yesterday.count} nota · ${_compare(data.today.total, data.yesterday.total)}'),

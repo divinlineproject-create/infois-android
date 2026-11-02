@@ -234,7 +234,7 @@ Future<SavedFile?> downloadAndOffer(BuildContext context, WidgetRef ref, {requir
   }
   final progress = ValueNotifier<double?>(null);
   messenger.hideCurrentSnackBar();
-  messenger.showSnackBar(SnackBar(
+  final progressBar = messenger.showSnackBar(SnackBar(
     key: const Key('download-progress'),
     duration: const Duration(minutes: 5),
     content: ValueListenableBuilder<double?>(
@@ -258,7 +258,8 @@ Future<SavedFile?> downloadAndOffer(BuildContext context, WidgetRef ref, {requir
     messenger.hideCurrentSnackBar();
     messenger.showSnackBar(const SnackBar(content: Text('File belum bisa disimpan di HP. Coba lagi.')));
   } finally {
-    progress.dispose();
+    // Pemberitahuan progres masih dianimasikan keluar: dibuang setelah tertutup.
+    unawaited(progressBar.closed.then((_) => progress.dispose()));
   }
   return null;
 }

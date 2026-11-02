@@ -18,9 +18,12 @@ String applyKeypad(String current, String key) {
 
 /// Keypad angka besar untuk uang tunai (seperti mesin kasir).
 class PosKeypad extends StatelessWidget {
-  const PosKeypad({super.key, required this.onKey});
+  const PosKeypad({super.key, required this.onKey, this.keyHeight = 56});
 
   final ValueChanged<String> onKey;
+
+  /// Tinggi tombol; lebih rendah di layar miring yang pendek.
+  final double keyHeight;
 
   static const _rows = [
     ['1', '2', '3'],
@@ -46,7 +49,7 @@ class PosKeypad extends StatelessWidget {
               if (index > 0) const SizedBox(width: 8),
               Expanded(
                 child: SizedBox(
-                  height: 56,
+                  height: keyHeight,
                   child: key == 'back'
                       ? GestureDetector(
                           onLongPress: () => _press('clear'),

@@ -20,13 +20,16 @@ import 'pos_item_sheet.dart';
 /// total, Simpan pesanan, dan Bayar. Dipakai di lembar keranjang (HP) dan
 /// panel kanan (tablet/lanskap).
 class PosOrderPanel extends ConsumerWidget {
-  const PosOrderPanel({super.key, required this.onPay, this.onClose});
+  const PosOrderPanel({super.key, required this.onPay, this.onClose, this.dense = false});
 
   /// Lanjut ke layar Bayar.
   final VoidCallback onPay;
 
   /// Tutup lembar keranjang (null di panel tablet).
   final VoidCallback? onClose;
+
+  /// Layar miring yang pendek: judul & tombol lebih rendah.
+  final bool dense;
 
   Future<void> _confirmClear(BuildContext context, WidgetRef ref, Cart cart) async {
     final ok = await showDialog<bool>(
@@ -86,7 +89,7 @@ class PosOrderPanel extends ConsumerWidget {
         child: Row(children: [
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Pesanan', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
+              Text('Pesanan', style: (dense ? Theme.of(context).textTheme.titleMedium : Theme.of(context).textTheme.titleLarge)?.copyWith(fontWeight: FontWeight.w700)),
               if (heldName != null)
                 Text('Pesanan tersimpan: $heldName', key: const Key('held-active'), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12.5, color: mutedText(context)))
               else if (!cart.isEmpty)
@@ -181,14 +184,14 @@ class PosOrderPanel extends ConsumerWidget {
         child: SafeArea(
           top: false,
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(Space.l, Space.m, Space.l, Space.m),
+            padding: EdgeInsets.fromLTRB(Space.l, dense ? Space.s : Space.m, Space.l, dense ? Space.s : Space.m),
             child: Row(children: [
               OutlinedButton.icon(
                 key: const Key('hold-order'),
                 onPressed: cart.isEmpty ? null : () => _hold(context, ref),
                 icon: const Icon(Icons.bookmark_add_outlined),
                 label: const Text('Simpan'),
-                style: OutlinedButton.styleFrom(minimumSize: const Size(0, 56)),
+                style: OutlinedButton.styleFrom(minimumSize: Size(0, dense ? 48 : 56)),
               ),
               const SizedBox(width: Space.m),
               Expanded(
@@ -200,7 +203,7 @@ class PosOrderPanel extends ConsumerWidget {
                           HapticFeedback.mediumImpact();
                           onPay();
                         },
-                  style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(56), textStyle: const TextStyle(fontFamily: 'Poppins', fontSize: 17, fontWeight: FontWeight.w700)),
+                  style: FilledButton.styleFrom(minimumSize: Size.fromHeight(dense ? 48 : 56), textStyle: const TextStyle(fontFamily: 'Poppins', fontSize: 17, fontWeight: FontWeight.w700)),
                   child: FittedBox(fit: BoxFit.scaleDown, child: Text('Bayar ${rupiah(totals.total)}')),
                 ),
               ),
