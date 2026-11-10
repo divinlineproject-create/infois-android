@@ -29,7 +29,7 @@ class ApiException implements Exception {
   static const mobileAccessDeniedCode = 'akses_hp_tidak_tersedia';
   static const subscriptionInactiveCode = 'langganan_tidak_aktif';
 
-  /// Perusahaan ini sudah ditutup pemiliknya (server baru, aplikasi ≥ 1.1.0).
+  /// Perusahaan ini sudah ditutup pemiliknya (server baru, aplikasi ≥ 1.0.0).
   bool get companyClosed => status == 403 && code == companyClosedCode;
 
   /// User bukan anggota perusahaan ini (dikeluarkan, atau ditutup untuk

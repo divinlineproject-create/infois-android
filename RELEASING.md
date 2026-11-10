@@ -80,12 +80,14 @@ AAB lama di `~/Desktop/Infois-POS-PlayStore/1-AAB-rilis/infois-1.1.0+2.aab` suda
 Server harus sudah punya `/api/v1/pin/*`, `/api/v1/ops/*` (backoffice main, migrasi
 `2026_11_02_100000_add_mobile_pin`) dan `?format=pdf` di `/api/v1/reports/*` sebelum build ini dirilis.
 
-**1.1.0+3** (2026-11-10): isi sama dengan 1.1.0+2 di atas; hanya `versionCode` dinaikkan supaya
-aman diunggah sebagai pembaruan pertama setelah 1.0.0+1. Kontrak API dicek ulang terhadap server
-produksi (semua endpoint `/api/v1` yang dipanggil aplikasi ada). Aplikasi tidak memakai webhook
-pembayaran (`/api/webhooks/midtrans`, `/api/webhooks/doku`): itu jalur server ↔ payment gateway,
-terpisah dari `/api/v1`. Setelah rollout Play selesai, set `INFOIS_MOBILE_LATEST_VERSION=1.1.0`
-di `.env` backoffice (biarkan `INFOIS_MOBILE_MIN_VERSION=1.0.0`).
+**1.0.1+2** (2026-11-10, keputusan pemilik): build yang dirilis sebagai pembaruan pertama setelah
+1.0.0+1 memakai nomor **1.0.1** (naik satu), versionCode 2. Isinya semua yang tercatat di atas
+sebagai "1.1.0+2" (nomor 1.1.0 dan 1.1.0+3 tidak pernah diunggah ke Play dan tidak dipakai lagi).
+Kontrak API dicek ulang terhadap server produksi (semua endpoint `/api/v1` yang dipanggil aplikasi
+ada). Aplikasi tidak memakai webhook pembayaran (`/api/webhooks/midtrans`, `/api/webhooks/doku`):
+itu jalur server ↔ payment gateway, terpisah dari `/api/v1`. Setelah rollout Play selesai, set
+`INFOIS_MOBILE_LATEST_VERSION=1.0.1` di `.env` backoffice (biarkan `INFOIS_MOBILE_MIN_VERSION=1.0.0`
+dan `INFOIS_MOBILE_CLOSED_CODE_MIN_VERSION=1.0.0`).
 
 ## 3. Membangun AAB
 
