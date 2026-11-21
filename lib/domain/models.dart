@@ -28,17 +28,63 @@ class UnitOption {
   Map<String, dynamic> toJson() => {'name': name, 'factor': factor, 'price': price};
 }
 
+/// Satu tingkat harga: mulai [minQuantity] [unit] harganya [price].
+/// [levelId] null = harga bertingkat umum (`tiers`, untuk semua pelanggan);
+/// terisi = harga khusus level pelanggan (`level_tiers`, mis. Reseller).
 class PriceTier {
-  const PriceTier({required this.unit, required this.minQuantity, required this.price});
+  const PriceTier({required this.unit, required this.minQuantity, required this.price, this.levelId, this.level});
 
-  factory PriceTier.fromJson(Map<String, dynamic> json) =>
-      PriceTier(unit: _s(json['unit']), minQuantity: Money.normalize(json['min_quantity'], 6), price: Money.normalize(json['price']));
+  factory PriceTier.fromJson(Map<String, dynamic> json) => PriceTier(
+        unit: _s(json['unit']),
+        minQuantity: Money.normalize(json['min_quantity'], 6),
+        price: Money.normalize(json['price']),
+        levelId: _i(json['level_id']),
+        level: _blank(json['level']),
+      );
 
   final String unit;
   final String minQuantity;
   final String price;
 
-  Map<String, dynamic> toJson() => {'unit': unit, 'min_quantity': minQuantity, 'price': price};
+  /// Level pelanggan pemilik harga ini (null = harga umum).
+  final int? levelId;
+
+  /// Nama level, mis. "Reseller".
+  final String? level;
+
+  Map<String, dynamic> toJson() => {
+        if (levelId != null) 'level_id': levelId,
+        if (levelId != null) 'level': level,
+        'unit': unit,
+        'min_quantity': minQuantity,
+        'price': price,
+      };
+}
+
+/// Asal harga satuan otomatis di kasir.
+enum PriceSource {
+  /// Harga satuan biasa (belum ada tingkat yang terpenuhi).
+  normal,
+
+  /// Harga bertingkat umum (harga grosir).
+  tier,
+
+  /// Harga khusus level pelanggan.
+  level,
+}
+
+/// Harga satuan otomatis beserta asalnya (lihat [Product.quoteFor]).
+class PriceQuote {
+  const PriceQuote({required this.price, required this.source, this.tier});
+
+  final String price;
+  final PriceSource source;
+
+  /// Tingkat harga yang dipakai; null untuk [PriceSource.normal].
+  final PriceTier? tier;
+
+  /// Nama level bila harga level yang dipakai.
+  String? get level => source == PriceSource.level ? tier?.level : null;
 }
 
 class Product {
@@ -57,6 +103,7 @@ class Product {
     this.isActive = true,
     this.units = const [],
     this.tiers = const [],
+    this.levelTiers = const [],
     this.kind,
     this.kindLabel,
     this.barcode,
@@ -86,6 +133,11 @@ class Product {
         isActive: json['is_active'] == null ? true : _b(json['is_active']),
         units: [for (final unit in (json['units'] as List? ?? const [])) UnitOption.fromJson(Map<String, dynamic>.from(unit as Map))],
         tiers: [for (final tier in (json['tiers'] as List? ?? const [])) PriceTier.fromJson(Map<String, dynamic>.from(tier as Map))],
+        // Server/cache lama tanpa `level_tiers`: tanpa harga level.
+        levelTiers: [
+          for (final tier in (json['level_tiers'] as List? ?? const []))
+            if (tier is Map && _i(tier['level_id']) != null) PriceTier.fromJson(Map<String, dynamic>.from(tier)),
+        ],
         kind: (json['kind']?.toString() ?? '').isEmpty ? null : json['kind'].toString(),
         kindLabel: (json['kind_label']?.toString() ?? '').trim().isEmpty ? null : json['kind_label'].toString(),
         barcode: _blank(json['barcode']),
@@ -112,7 +164,12 @@ class Product {
   final bool hasComposition;
   final bool isActive;
   final List<UnitOption> units;
+
+  /// Harga bertingkat umum (untuk semua pelanggan).
   final List<PriceTier> tiers;
+
+  /// Harga bertingkat khusus level pelanggan (`level_tiers`).
+  final List<PriceTier> levelTiers;
 
   /// Jenis asli di Katalog web: `product` | `service` | `raw_material`
   /// (bahan baku dikirim sebagai [type] `product`); null dari server lama.
@@ -153,6 +210,7 @@ class Product {
         'is_active': isActive,
         'units': [for (final unit in units) unit.toJson()],
         'tiers': [for (final tier in tiers) tier.toJson()],
+        'level_tiers': [for (final tier in levelTiers) tier.toJson()],
         'kind': kind,
         'kind_label': kindLabel,
         'barcode': barcode,
@@ -170,9 +228,8 @@ class Product {
   UnitOption optionFor(String? unitName) {
     final options = unitOptions();
     if (unitName != null && unitName.trim().isNotEmpty) {
-      final wanted = unitName.trim().toLowerCase();
       for (final option in options) {
-        if (option.name.toLowerCase() == wanted) {
+        if (_sameUnit(option.name, unitName)) {
           return option;
         }
       }
@@ -180,27 +237,71 @@ class Product {
     return options.first;
   }
 
-  /// Harga jual per satuan untuk jumlah tertentu: harga satuan itu, lalu
-  /// harga grosir dengan batas minimum tertinggi yang terpenuhi. Port dari
-  /// `ProductService::priceFor()`.
-  String priceFor(String? unitName, String quantity) {
+  /// Ada harga bertingkat (umum atau level pelanggan).
+  bool get hasTieredPrices => tiers.isNotEmpty || levelTiers.isNotEmpty;
+
+  /// Harga jual per satuan untuk jumlah tertentu. Port dari
+  /// `ProductService::priceFor()` (sama dengan kasir web).
+  String priceFor(String? unitName, String quantity, {int? levelId}) => quoteFor(unitName, quantity, levelId: levelId).price;
+
+  /// Harga jual per satuan + asalnya: harga satuan itu, lalu harga
+  /// bertingkat umum dengan batas minimum tertinggi yang terpenuhi. Pelanggan
+  /// dengan level ([levelId]): harga bertingkat levelnya (batas tertinggi
+  /// yang terpenuhi) dipakai bila lebih murah, jadi pelanggan level tidak
+  /// pernah membayar lebih mahal dari pelanggan umum.
+  PriceQuote quoteFor(String? unitName, String quantity, {int? levelId}) {
     final option = optionFor(unitName);
     final normalizedQuantity = Money.normalize(quantity.isEmpty ? '0' : quantity, 6);
-    PriceTier? best;
-    for (final tier in tiers) {
-      final tierUnit = tier.unit.isEmpty ? unit : tier.unit;
-      if (tierUnit.toLowerCase() != option.name.toLowerCase()) {
-        continue;
+    final general = _bestTier(tiers, option.name, normalizedQuantity);
+    var quote = general == null
+        ? PriceQuote(price: Money.normalize(option.price), source: PriceSource.normal)
+        : PriceQuote(price: Money.normalize(general.price), source: PriceSource.tier, tier: general);
+    if (levelId != null) {
+      final level = _bestTier(levelTiers.where((tier) => tier.levelId == levelId), option.name, normalizedQuantity);
+      if (level != null && Money.compare(level.price, quote.price) < 0) {
+        quote = PriceQuote(price: Money.normalize(level.price), source: PriceSource.level, tier: level);
       }
-      if (_compare6(normalizedQuantity, tier.minQuantity) < 0) {
+    }
+    return quote;
+  }
+
+  /// Tingkat harga satuan [unitName] untuk ditampilkan di kasir: harga umum
+  /// dan harga level [levelId] (level lain tidak), urut jumlah minimum.
+  List<PriceTier> tiersFor(String? unitName, {int? levelId}) {
+    final option = optionFor(unitName);
+    final rows = [
+      for (final tier in tiers)
+        if (_tierUnit(tier, option.name)) tier,
+      if (levelId != null)
+        for (final tier in levelTiers)
+          if (tier.levelId == levelId && _tierUnit(tier, option.name)) tier,
+    ];
+    rows.sort((a, b) {
+      final byMin = _compare6(a.minQuantity, b.minQuantity);
+      return byMin != 0 ? byMin : (a.levelId == null ? 0 : 1) - (b.levelId == null ? 0 : 1);
+    });
+    return rows;
+  }
+
+  /// Tingkat dengan batas minimum tertinggi yang terpenuhi untuk satu satuan
+  /// (sama dengan `ProductService::bestTier()`).
+  PriceTier? _bestTier(Iterable<PriceTier> candidates, String unitName, String quantity) {
+    PriceTier? best;
+    for (final tier in candidates) {
+      if (!_tierUnit(tier, unitName) || _compare6(quantity, tier.minQuantity) < 0) {
         continue;
       }
       if (best == null || _compare6(tier.minQuantity, best.minQuantity) > 0) {
         best = tier;
       }
     }
-    return Money.normalize(best?.price ?? option.price);
+    return best;
   }
+
+  /// Satuan tingkat harga cocok dengan [unitName]; kosong = satuan dasar.
+  bool _tierUnit(PriceTier tier, String unitName) => _sameUnit(tier.unit.trim().isEmpty ? unitOptions().first.name : tier.unit, unitName);
+
+  static bool _sameUnit(String a, String b) => a.trim().toLowerCase() == b.trim().toLowerCase();
 
   bool isLowStock() {
     if (!trackInventory || stockQuantity == null || minimumStock == null) {
@@ -243,7 +344,18 @@ class ProductCategory {
 }
 
 class Customer {
-  const Customer({this.id, this.clientUuid, required this.name, this.phone, this.email, this.address, this.isWalkIn = false, this.pending = false});
+  const Customer({
+    this.id,
+    this.clientUuid,
+    required this.name,
+    this.phone,
+    this.email,
+    this.address,
+    this.isWalkIn = false,
+    this.pending = false,
+    this.levelId,
+    this.level,
+  });
 
   factory Customer.fromJson(Map<String, dynamic> json) => Customer(
         id: _i(json['id']),
@@ -254,6 +366,8 @@ class Customer {
         address: json['address']?.toString(),
         isWalkIn: _b(json['is_walk_in']),
         pending: _b(json['pending']),
+        levelId: _i(json['level_id']),
+        level: _blank(json['level']),
       );
 
   final int? id;
@@ -267,7 +381,15 @@ class Customer {
   /// Pelanggan baru yang dibuat di HP dan belum terkirim.
   final bool pending;
 
+  /// Level pelanggan dari web (mis. Reseller) untuk harga khusus level;
+  /// null = tanpa level (termasuk pelanggan yang dibuat di HP).
+  final int? levelId;
+  final String? level;
+
   String get key => id != null ? 'id:$id' : 'uuid:$clientUuid';
+
+  /// Nama untuk panel pesanan: "Bu Ani · Reseller" bila punya level.
+  String get nameWithLevel => level == null ? name : '$name · $level';
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -278,6 +400,8 @@ class Customer {
         'address': address,
         'is_walk_in': isWalkIn,
         'pending': pending,
+        'level_id': levelId,
+        'level': level,
       };
 }
 

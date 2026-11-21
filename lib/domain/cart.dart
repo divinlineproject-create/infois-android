@@ -180,8 +180,9 @@ class CartLine {
     this.note,
   });
 
-  /// Baris baru dari katalog dengan harga satuan & harga grosir otomatis.
-  factory CartLine.fromProduct(String key, Product product, {String quantity = '1.000000', String? unit, String? note}) {
+  /// Baris baru dari katalog dengan harga satuan & harga bertingkat
+  /// otomatis; [levelId] = level pelanggan di keranjang (harga khusus level).
+  factory CartLine.fromProduct(String key, Product product, {String quantity = '1.000000', String? unit, String? note, int? levelId}) {
     final option = product.optionFor(unit);
     return CartLine(
       key: key,
@@ -189,7 +190,7 @@ class CartLine {
       description: product.name,
       quantity: Money.normalize(quantity, 6),
       unit: option.name,
-      unitPrice: product.priceFor(option.name, quantity),
+      unitPrice: product.priceFor(option.name, quantity, levelId: levelId),
       taxRate: product.taxRate,
       note: cleanNote(note),
     );
@@ -217,10 +218,10 @@ class CartLine {
   final String discountPercent;
   final String taxRate;
 
-  /// Harga diubah manual oleh kasir: harga grosir tidak diterapkan otomatis lagi.
+  /// Harga diubah manual oleh kasir: harga bertingkat tidak diterapkan otomatis lagi.
   final bool manualPrice;
 
-  /// Catatan barang untuk dapur/struk ("tanpa gula", "less ice").
+  /// Catatan barang untuk dapur/struk (mis. warna, ukuran, permintaan khusus).
   final String? note;
 
   Map<String, dynamic> toJson() => {
@@ -236,14 +237,16 @@ class CartLine {
         'note': note,
       };
 
-  /// [note]: null = tidak berubah, '' = hapus catatan.
-  CartLine copyWith({String? quantity, String? unit, String? unitPrice, String? discountPercent, bool? manualPrice, String? description, String? note}) {
+  /// [note]: null = tidak berubah, '' = hapus catatan. Jumlah/satuan yang
+  /// berubah menghitung ulang harga otomatis dengan level pelanggan
+  /// [levelId] (null = tanpa level).
+  CartLine copyWith({String? quantity, String? unit, String? unitPrice, String? discountPercent, bool? manualPrice, String? description, String? note, int? levelId}) {
     final nextQuantity = quantity == null ? this.quantity : Money.normalize(quantity, 6);
     final nextUnit = unit ?? this.unit;
     final nextManual = manualPrice ?? this.manualPrice;
     var nextPrice = unitPrice == null ? this.unitPrice : Money.normalize(unitPrice);
     if (unitPrice == null && !nextManual && product != null && (quantity != null || unit != null)) {
-      nextPrice = product!.priceFor(nextUnit, nextQuantity);
+      nextPrice = product!.priceFor(nextUnit, nextQuantity, levelId: levelId);
     }
     return CartLine(
       key: key,
@@ -261,6 +264,39 @@ class CartLine {
 
   /// Isi satuan dasar per satuan baris (mis. karton = 24).
   String get unitFactor => product?.optionFor(unit).factor ?? '1.000000';
+
+  /// Harga otomatis dihitung ulang untuk level pelanggan [levelId] (pelanggan
+  /// dipilih/diganti/dihapus). Harga manual dan baris tanpa barang tetap.
+  CartLine repriced(int? levelId) {
+    final product = this.product;
+    if (manualPrice || product == null) {
+      return this;
+    }
+    final price = product.priceFor(unit, quantity, levelId: levelId);
+    return price == unitPrice ? this : copyWith(unitPrice: price);
+  }
+
+  /// Asal harga otomatis baris ini untuk level [levelId]; null bila harga
+  /// manual, tanpa barang, atau harganya bukan hasil hitung otomatis.
+  PriceQuote? priceQuote(int? levelId) {
+    final product = this.product;
+    if (manualPrice || product == null) {
+      return null;
+    }
+    final quote = product.quoteFor(unit, quantity, levelId: levelId);
+    return quote.price == unitPrice ? quote : null;
+  }
+
+  /// Keterangan harga di keranjang: "harga grosir" (harga bertingkat umum)
+  /// atau "harga Reseller" (harga level); null untuk harga biasa/manual.
+  String? priceLabel(int? levelId) {
+    final quote = priceQuote(levelId);
+    return switch (quote?.source) {
+      PriceSource.tier => 'harga grosir',
+      PriceSource.level => 'harga ${quote!.level ?? 'level'}',
+      _ => null,
+    };
+  }
 }
 
 class Cart {
@@ -299,6 +335,16 @@ class Cart {
   final String? heldId;
 
   bool get isEmpty => lines.isEmpty;
+
+  /// Level pelanggan keranjang untuk harga khusus level (null = tanpa level).
+  int? get levelId => customer?.levelId;
+
+  /// Ganti pelanggan (null = pelanggan umum) dan hitung ulang harga otomatis
+  /// semua baris dengan level pelanggan barunya.
+  Cart withCustomer(Customer? customer) {
+    final next = customer == null ? copyWith(clearCustomer: true) : copyWith(customer: customer);
+    return next.copyWith(lines: [for (final line in next.lines) line.repriced(next.levelId)]);
+  }
 
   /// Diskon efektif per baris yang dikirim ke server.
   String effectiveDiscount(CartLine line) => combineDiscounts(line.discountPercent, notaDiscountPercent);

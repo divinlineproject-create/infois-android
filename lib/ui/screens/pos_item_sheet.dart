@@ -10,36 +10,6 @@ import '../../state/pos_state.dart';
 import '../theme.dart';
 import '../widgets/product_image.dart';
 
-/// Catatan cepat yang sering dipakai kasir (ketuk untuk menambah).
-const posQuickNotes = ['Tanpa gula', 'Sedikit gula', 'Tanpa es', 'Es sedikit', 'Pedas', 'Tidak pedas', 'Dibungkus'];
-
-/// Chip catatan cepat: ketuk menambahkan teks ke [controller].
-class PosNoteChips extends StatelessWidget {
-  const PosNoteChips({super.key, required this.controller, this.onChanged});
-
-  final TextEditingController controller;
-  final VoidCallback? onChanged;
-
-  void _append(String note) {
-    final current = controller.text.trim();
-    if (current.toLowerCase().contains(note.toLowerCase())) {
-      return;
-    }
-    controller.text = current.isEmpty ? note : '$current, $note';
-    onChanged?.call();
-  }
-
-  @override
-  Widget build(BuildContext context) => Wrap(spacing: 6, runSpacing: 6, children: [
-        for (final note in posQuickNotes)
-          ActionChip(
-            label: Text(note, style: const TextStyle(fontSize: 12.5)),
-            visualDensity: VisualDensity.compact,
-            onPressed: () => _append(note),
-          ),
-      ]);
-}
-
 /// Tekan lama barang: pilih satuan, jumlah, dan catatan sebelum masuk keranjang.
 Future<void> showPosItemSheet(BuildContext context, Product product) => showModalBottomSheet<void>(
       context: context,
@@ -83,8 +53,11 @@ class _PosItemSheetState extends ConsumerState<PosItemSheet> {
   Widget build(BuildContext context) {
     final product = widget.product;
     final options = product.unitOptions();
-    final price = product.priceFor(_unit, _quantity);
+    final customer = ref.watch(cartProvider.select((cart) => cart.customer));
+    final quote = product.quoteFor(_unit, _quantity, levelId: customer?.levelId);
+    final price = quote.price;
     final lineTotal = Money.mul(price, _quantity);
+    final tiers = product.tiersFor(_unit, levelId: customer?.levelId);
     return SafeArea(
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -138,16 +111,18 @@ class _PosItemSheetState extends ConsumerState<PosItemSheet> {
             SizedBox(width: 56, child: Text(qty(_quantity), key: const Key('item-qty'), textAlign: TextAlign.center, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700))),
             IconButton.filledTonal(key: const Key('item-qty-plus'), onPressed: () => _step(1), icon: const Icon(Icons.add)),
           ]),
+          if (tiers.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            PosPriceTiers(option: product.optionFor(_unit), tiers: tiers, quote: quote, fallbackLevel: customer?.level),
+          ],
           const SizedBox(height: 16),
           TextField(
             key: const Key('item-note'),
             controller: _note,
             maxLength: 200,
             textCapitalization: TextCapitalization.sentences,
-            decoration: const InputDecoration(labelText: 'Catatan barang (opsional)', hintText: 'mis. tanpa gula, less ice', counterText: ''),
+            decoration: const InputDecoration(labelText: 'Catatan barang (opsional)', hintText: posNoteHint, counterText: ''),
           ),
-          const SizedBox(height: 8),
-          PosNoteChips(controller: _note),
           const SizedBox(height: 20),
           FilledButton(
             key: const Key('item-add'),
@@ -159,10 +134,6 @@ class _PosItemSheetState extends ConsumerState<PosItemSheet> {
             style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(56)),
             child: Text('Tambah · ${rupiah(lineTotal)}'),
           ),
-          if (product.tiers.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Text('Harga grosir otomatis mengikuti jumlah.', textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: mutedText(context))),
-          ],
           if (product.trackInventory && product.stockQuantity != null && !Money.isPositive(product.stockQuantity)) ...[
             const SizedBox(height: 8),
             Text('Stok tercatat habis.', textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: warningText(context))),
@@ -170,6 +141,63 @@ class _PosItemSheetState extends ConsumerState<PosItemSheet> {
         ]),
       ),
     );
+  }
+}
+
+/// Contoh isian catatan barang (netral, untuk semua jenis usaha).
+const posNoteHint = 'mis. warna, ukuran, atau permintaan khusus';
+
+/// Daftar "Harga bertingkat" satu satuan: harga normal lalu setiap tingkat
+/// (umum dan level pelanggan keranjang). Baris yang sedang berlaku untuk
+/// jumlah terpilih diberi warna utama + tanda centang.
+class PosPriceTiers extends StatelessWidget {
+  const PosPriceTiers({super.key, required this.option, required this.tiers, required this.quote, this.fallbackLevel});
+
+  final UnitOption option;
+  final List<PriceTier> tiers;
+  final PriceQuote quote;
+
+  /// Nama level pelanggan bila tingkat dari server tidak membawa namanya.
+  final String? fallbackLevel;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    Widget row(Key key, String label, String price, bool active) => Padding(
+          key: key,
+          padding: const EdgeInsets.symmetric(horizontal: Space.m, vertical: Space.s),
+          child: Semantics(
+            selected: active,
+            child: Row(children: [
+              Expanded(child: Text(label, style: TextStyle(fontSize: 13.5, color: active ? scheme.primary : null, fontWeight: active ? FontWeight.w600 : FontWeight.w400))),
+              const SizedBox(width: Space.s),
+              Text(rupiah(price), style: TextStyle(fontSize: 13.5, color: active ? scheme.primary : null, fontWeight: active ? FontWeight.w700 : FontWeight.w500)),
+              SizedBox(width: 26, child: active ? Icon(Icons.check, key: const Key('price-row-check'), size: 18, color: scheme.primary) : null),
+            ]),
+          ),
+        );
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      const Text('Harga bertingkat', style: TextStyle(fontWeight: FontWeight.w600)),
+      const SizedBox(height: 6),
+      DecoratedBox(
+        key: const Key('item-price-tiers'),
+        decoration: BoxDecoration(border: Border.all(color: scheme.outlineVariant), borderRadius: BorderRadius.circular(Radii.m)),
+        child: Column(children: [
+          row(const Key('price-row-normal'), 'Harga normal', option.price, quote.source == PriceSource.normal),
+          for (final (index, tier) in tiers.indexed) ...[
+            Divider(height: 1, color: scheme.outlineVariant),
+            row(
+              Key('price-row-$index'),
+              'Mulai ${qty(tier.minQuantity)} ${option.name}${tier.levelId != null ? ' · ${tier.level ?? fallbackLevel ?? 'level pelanggan'}' : ''}',
+              tier.price,
+              identical(quote.tier, tier),
+            ),
+          ],
+        ]),
+      ),
+      const SizedBox(height: 6),
+      Text('Harga otomatis mengikuti jumlah dan level pelanggan.', style: TextStyle(fontSize: 12, color: mutedText(context))),
+    ]);
   }
 }
 

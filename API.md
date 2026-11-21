@@ -199,13 +199,14 @@ Tanpa `since` = tarikan penuh. Dengan `since` = barang/pelanggan yang berubah se
         "track_inventory": true, "stock_quantity": "12.000000", "stock_source": "own", "minimum_stock": "5.000000", "has_composition": false, "is_active": true,
         "units": [ { "name": "karton", "factor": "24.000000", "price": "550000.00" } ],
         "tiers": [ { "unit": "pcs", "min_quantity": "10.000000", "price": "23000.00" } ],
+        "level_tiers": [ { "level_id": 1, "level": "Reseller", "unit": "pcs", "min_quantity": "1.000000", "price": "22000.00" } ],
         "updated_at": "2026-10-07T09:58:00+07:00"
       }
     ],
     "ids": [10, 11, 12]
   },
   "categories": { "items": [ { "id": 3, "name": "Minuman", "sort": 1 }, { "id": 4, "name": "Makanan", "sort": 2 } ], "ids": [3, 4] },
-  "customers": { "items": [ { "id": 7, "name": "Bu Ani", "phone": "0812", "email": null, "address": null, "client_uuid": null, "is_walk_in": false } ], "ids": [7, 8] },
+  "customers": { "items": [ { "id": 7, "name": "Bu Ani", "phone": "0812", "email": null, "address": null, "client_uuid": null, "is_walk_in": false, "level_id": 1, "level": "Reseller" } ], "ids": [7, 8] },
   "accounts": { "items": [ { "id": 21, "code": "1-1100", "name": "Kas", "kind": "cash" }, { "id": 22, "code": "1-1200", "name": "Bank", "kind": "bank" } ], "ids": [21, 22], "default_cash_id": 21, "default_transfer_id": 22 },
   "warehouses": { "items": [ { "id": 1, "code": "UTAMA", "name": "Gudang Utama", "is_default": true, "is_active": true } ], "ids": [1] },
   "number_blocks": [ { "id": 4, "format": "POS-K1/{SEQ:6}", "start": 1, "end": 500, "last_used": 37 } ],
@@ -222,6 +223,13 @@ Tanpa `since` = tarikan penuh. Dengan `since` = barang/pelanggan yang berubah se
   - `barcode` (atau `null`): kode hasil scan kamera / scanner dicocokkan ke **barcode dulu, lalu SKU** (huruf besar/kecil tidak dibedakan) — sama dengan pencocokan server untuk `items[].code` di `sync/push`.
   - `category_id` + `category` (`{id, name}` atau `null`): kategori barang di Katalog web. `categories` = **semua** kategori perusahaan (selalu lengkap, urut `sort` lalu nama). HP menampilkan chip "Semua" + kategori yang punya barang di kasir + "Lainnya" (barang tanpa kategori). Kategori diganti nama/dihapus → barangnya ikut terkirim ulang di tarikan `since`.
   - `has_photo` + `photo_version` (12 karakter, berubah setiap foto diganti; `null` tanpa foto) = **kunci cache** foto di HP. Foto diunduh dari `GET /products/{id}/photo` (asli) atau `?size=thumb` (persegi 256 px) dengan token + `X-Tenant`; HP selalu memakai rute relatif ke server aplikasi (token tidak dikirim ke host lain) dan menambahkan `&v=<photo_version>`. `photo_url` / `photo_thumb_url` hanya informasi. Foto disimpan di HP per perusahaan (`{id}_{versi}_{t|f}`), jadi tetap tampil offline setelah pertama dimuat; versi lama dihapus.
+
+- **Harga bertingkat & level pelanggan (aplikasi ≥ 1.0.2, build 3; field aditif, aplikasi lama mengabaikannya):**
+  - `tiers` = harga bertingkat **umum** (untuk semua pelanggan) saja: `[{unit, min_quantity, price}]`, bentuknya tidak berubah.
+  - `level_tiers` = harga bertingkat khusus **level pelanggan** (Member, Reseller, Agen, …): `[{level_id, level, unit, min_quantity, price}]`. `unit` selalu terisi (nama satuan dasar bila untuk satuan dasar). Kunci terpisah supaya aplikasi lama yang hanya membaca `tiers` tidak memberi harga level ke semua pembeli.
+  - Pelanggan di `customers.items[]`: `level_id` (int atau `null`) + `level` (nama level atau `null`). Pelanggan yang dibuat di HP (offline) tanpa level sampai tarikan berikutnya membawa datanya. Level pelanggan diubah (mis. ganti nama) → barang yang punya harga level itu dan pelanggan level itu ikut terkirim ulang di tarikan `since`.
+  - **Aturan harga** (sama persis dengan `ProductService::priceFor($unit, $qty, $levelId)` dan kasir web; dicek oleh `test/fixtures/cart_parity.json` › `level_prices`): satuan dicocokkan tanpa beda huruf besar/kecil dan spasi di ujung. Harga umum = tingkat `tiers` satuan itu dengan `min_quantity` tertinggi yang ≤ jumlah, atau harga satuan bila tidak ada. Bila pelanggan keranjang punya `level_id`, tingkat `level_tiers` level itu (satuan sama, `min_quantity` tertinggi yang ≤ jumlah) dipakai **hanya bila lebih murah** dari harga umum — pelanggan level tidak pernah membayar lebih mahal dari pembeli umum. Harga dihitung ulang saat barang ditambah, jumlah/satuan diubah, dan saat pelanggan dipilih/diganti/dihapus; baris dengan harga manual tidak diubah. HP mengirim `unit_price` hasil hitungan ini di `sync/push`.
+  - Database HP versi 4 (aplikasi 1.0.2) menghapus cursor sinkron sekali, jadi tarikan pertama setelah pembaruan selalu penuh dan mengisi `level_tiers` / `level_id` yang belum tersimpan.
 
 ### `GET /products/{id}/photo?size=thumb`
 Foto barang (JPG/PNG/WebP; `size=thumb` = JPEG persegi kecil). Barang perusahaan lain / tanpa foto = 404. Header `ETag` = versi foto, `Cache-Control: private, max-age=86400`.

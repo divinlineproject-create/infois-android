@@ -847,13 +847,14 @@ void main() {
     await settle(tester);
   }
 
-  /// Tekan lama barang → lembar barang: jumlah 2 + catatan cepat.
+  /// Tekan lama barang → lembar barang: jumlah 2 + catatan barang.
   Future<void> openItemSheet(WidgetTester tester, String name) async {
     await tester.longPress(await showTile(tester, name));
     await settle(tester);
     await tap(tester, find.byKey(const Key('item-qty-plus')));
-    await tap(tester, find.widgetWithText(ActionChip, 'Sedikit gula'));
-    await tap(tester, find.widgetWithText(ActionChip, 'Es sedikit'));
+    await tester.enterText(find.byKey(const Key('item-note')), 'Sedikit gula, Es sedikit');
+    FocusManager.instance.primaryFocus?.unfocus();
+    await settle(tester);
   }
 
   /// Isi pesanan contoh: Es Kopi Susu ×2 (catatan), Cappuccino, Croissant, Cokelat Panas.

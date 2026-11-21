@@ -95,7 +95,7 @@ class _CustomerPickerState extends ConsumerState<_CustomerPicker> {
                       final customer = list[index];
                       return ListTile(
                         title: Text(customer.name),
-                        subtitle: Text([customer.phone, if (customer.pending) 'belum terkirim'].whereType<String>().where((text) => text.isNotEmpty).join(' · ')),
+                        subtitle: Text([customer.level, customer.phone, if (customer.pending) 'belum terkirim'].whereType<String>().where((text) => text.isNotEmpty).join(' · ')),
                         onTap: () => Navigator.pop(context, customer),
                       );
                     },

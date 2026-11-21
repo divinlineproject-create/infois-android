@@ -89,6 +89,16 @@ itu jalur server ↔ payment gateway, terpisah dari `/api/v1`. Setelah rollout P
 `INFOIS_MOBILE_LATEST_VERSION=1.0.1` di `.env` backoffice (biarkan `INFOIS_MOBILE_MIN_VERSION=1.0.0`
 dan `INFOIS_MOBILE_CLOSED_CODE_MIN_VERSION=1.0.0`).
 
+**1.0.2+3** (2026-11-21, belum dibangun): **harga bertingkat per level pelanggan** (Member, Reseller,
+Agen: `level_tiers` barang + `level_id` pelanggan, lihat API.md › sync/pull), daftar **Harga
+bertingkat** di lembar barang (baris yang berlaku disorot), keterangan "harga grosir" / "harga
+{level}" di baris pesanan, nama level di samping nama pelanggan, dan chip catatan cepat ("Tanpa
+gula", "Pedas", …) dihapus (catatan barang tetap isian bebas). Database HP naik ke versi 4: tarikan
+pertama setelah pembaruan selalu penuh. Server harus sudah mengirim `level_tiers` dan `level_id`
+(backoffice dengan migrasi `2026_11_22_100000_create_customer_levels_table`) sebelum build ini
+dirilis; server lama tetap bisa dipakai (tanpa harga level). Setelah rollout, set
+`INFOIS_MOBILE_LATEST_VERSION=1.0.2`.
+
 ## 3. Membangun AAB
 
 ```bash

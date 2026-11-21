@@ -183,7 +183,7 @@ class _PayScreenState extends ConsumerState<PayScreen> {
               fit: BoxFit.scaleDown,
               child: Text(rupiah(total), key: const Key('pay-total'), style: TextStyle(fontSize: 34, fontWeight: FontWeight.w700, color: Theme.of(context).colorScheme.onPrimaryContainer)),
             ),
-            Text('${cart.itemCount} barang · ${cart.customer?.name ?? 'Pelanggan umum'}', textAlign: TextAlign.center),
+            Text('${cart.itemCount} barang · ${cart.customer?.nameWithLevel ?? 'Pelanggan umum'}', textAlign: TextAlign.center),
             if (orderInfo.isNotEmpty) Text(orderInfo, key: const Key('pay-order-info'), textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w600)),
           ]),
         ),
@@ -235,7 +235,7 @@ class _PayScreenState extends ConsumerState<PayScreen> {
             }
           },
           icon: const Icon(Icons.person_outline),
-          label: Text(cart.customer == null ? 'Pilih pelanggan' : 'Pelanggan: ${cart.customer!.name}'),
+          label: Text(cart.customer == null ? 'Pilih pelanggan' : 'Pelanggan: ${cart.customer!.nameWithLevel}'),
         ),
       ],
       if (_error != null) ...[const SizedBox(height: 16), Text(_error!, key: const Key('pay-error'), style: TextStyle(color: dangerText(context), fontWeight: FontWeight.w500))],

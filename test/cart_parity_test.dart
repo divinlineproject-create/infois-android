@@ -58,6 +58,27 @@ void main() {
     }
   });
 
+  test('harga khusus level pelanggan sama dengan ProductService::priceFor(\$unit, \$qty, \$levelId)', () {
+    final data = Map<String, dynamic>.from(fixture['price_product'] as Map);
+    expect(data['level_tiers'], isNotEmpty);
+    final product = Product.fromJson({'id': 1, 'name': 'Kopi', ...data});
+    expect(product.levelTiers, hasLength((data['level_tiers'] as List).length));
+    final cases = (fixture['level_prices'] as List).cast<Map<String, dynamic>>();
+    expect(cases, isNotEmpty);
+    for (final item in cases) {
+      expect(
+        product.priceFor(item['unit'] as String?, item['quantity'] as String, levelId: item['level_id'] as int?),
+        item['expected'],
+        reason: '${item['unit']} x ${item['quantity']} level ${item['level_id']}',
+      );
+    }
+    // Cache HP (toJson → fromJson) tetap menghitung sama.
+    final cached = Product.fromJson(product.toJson());
+    for (final item in cases) {
+      expect(cached.priceFor(item['unit'] as String?, item['quantity'] as String, levelId: item['level_id'] as int?), item['expected']);
+    }
+  });
+
   test('diskon nota digabung berurutan dengan diskon barang', () {
     expect(combineDiscounts('10', '5'), '14.50');
     expect(combineDiscounts('0', '5'), '5.00');

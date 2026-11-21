@@ -147,7 +147,7 @@ class SyncEngine {
           if (rows.isNotEmpty) {
             final customer = Customer.fromJson(Map<String, dynamic>.from(jsonDecode(rows.first['data'] as String) as Map));
             await local.upsertCustomers([
-              Customer(id: id, clientUuid: uuid, name: customer.name, phone: customer.phone, email: customer.email, address: customer.address),
+              Customer(id: id, clientUuid: uuid, name: customer.name, phone: customer.phone, email: customer.email, address: customer.address, levelId: customer.levelId, level: customer.level),
             ]);
           }
         }

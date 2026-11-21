@@ -93,11 +93,12 @@ class _LineEditorState extends ConsumerState<_LineEditor> {
       setState(() => _error = 'Harga tidak valid.');
       return;
     }
+    final levelId = ref.read(cartProvider).levelId;
     ref.read(cartProvider.notifier).update(
           widget.line.key,
           (line) => _priceEdited
               ? line.copyWith(quantity: quantity, unit: _unit, discountPercent: discount, unitPrice: price, manualPrice: true, note: _note.text)
-              : line.copyWith(quantity: quantity, unit: _unit, discountPercent: discount, note: _note.text),
+              : line.copyWith(quantity: quantity, unit: _unit, discountPercent: discount, note: _note.text, levelId: levelId),
         );
     Navigator.pop(context);
   }
@@ -140,7 +141,7 @@ class _LineEditorState extends ConsumerState<_LineEditor> {
               child: TextField(
                 controller: _price,
                 keyboardType: TextInputType.number,
-                decoration: InputDecoration(labelText: 'Harga satuan', prefixText: 'Rp ', helperText: _priceEdited ? 'Harga diubah manual' : 'Otomatis (harga grosir ikut jumlah)'),
+                decoration: InputDecoration(labelText: 'Harga satuan', prefixText: 'Rp ', helperText: _priceEdited ? 'Harga diubah manual' : 'Otomatis (harga bertingkat ikut jumlah & level pelanggan)'),
                 onChanged: (_) => setState(() => _priceEdited = true),
               ),
             ),
@@ -160,10 +161,8 @@ class _LineEditorState extends ConsumerState<_LineEditor> {
             controller: _note,
             maxLength: 200,
             textCapitalization: TextCapitalization.sentences,
-            decoration: const InputDecoration(labelText: 'Catatan barang', hintText: 'mis. tanpa gula, less ice', counterText: ''),
+            decoration: const InputDecoration(labelText: 'Catatan barang', hintText: posNoteHint, counterText: ''),
           ),
-          const SizedBox(height: 8),
-          PosNoteChips(controller: _note),
           if (_error != null) ...[const SizedBox(height: 8), Text(_error!, style: TextStyle(color: dangerText(context)))],
           const SizedBox(height: 16),
           Row(children: [

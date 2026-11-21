@@ -122,14 +122,14 @@ class _PosProductTileState extends State<PosProductTile> {
                       bottom: Space.s,
                       child: _Pill(key: Key('product-kind-${product.id}'), text: product.kindLabel ?? 'Bahan baku', background: scheme.surface.withValues(alpha: 0.92), foreground: mutedText(context)),
                     ),
-                  if (product.units.isNotEmpty || product.tiers.isNotEmpty)
+                  if (product.units.isNotEmpty || product.hasTieredPrices)
                     Positioned(
                       right: Space.s,
                       bottom: Space.s,
                       child: Container(
                         padding: const EdgeInsets.all(Space.xs),
                         decoration: BoxDecoration(color: scheme.surface.withValues(alpha: 0.92), shape: BoxShape.circle),
-                        child: Icon(product.tiers.isNotEmpty ? Icons.sell_outlined : Icons.straighten, size: 14, color: scheme.primary),
+                        child: Icon(product.hasTieredPrices ? Icons.sell_outlined : Icons.straighten, size: 14, color: scheme.primary),
                       ),
                     ),
                 ]),

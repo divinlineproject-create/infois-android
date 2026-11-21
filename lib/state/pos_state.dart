@@ -25,22 +25,24 @@ class CartController extends Notifier<Cart> {
   }
 
   /// Tambah barang. Barang yang sama (satuan sama, tanpa catatan) cukup
-  /// ditambah jumlahnya; barang dengan catatan menjadi baris sendiri.
+  /// ditambah jumlahnya; barang dengan catatan menjadi baris sendiri. Harga
+  /// bertingkat mengikuti jumlah dan level pelanggan keranjang.
   void add(Product product, {String? unit, String quantity = '1', String? note}) {
     final unitName = product.optionFor(unit).name;
     final cleaned = cleanNote(note);
+    final levelId = state.levelId;
     final index = cleaned != null ? -1 : state.lines.indexWhere((line) => line.product?.id == product.id && line.unit == unitName && line.note == null);
     if (index >= 0) {
       final line = state.lines[index];
-      final lines = [...state.lines]..[index] = line.copyWith(quantity: Money.add([line.quantity, quantity]));
+      final lines = [...state.lines]..[index] = line.copyWith(quantity: Money.add([line.quantity, quantity]), levelId: levelId);
       state = state.copyWith(lines: lines);
       return;
     }
-    state = state.copyWith(lines: [...state.lines, CartLine.fromProduct(PosService.newUuid(), product, unit: unitName, quantity: quantity, note: cleaned)]);
+    state = state.copyWith(lines: [...state.lines, CartLine.fromProduct(PosService.newUuid(), product, unit: unitName, quantity: quantity, note: cleaned, levelId: levelId)]);
   }
 
   /// Hasil Input AI: setiap barang masuk lewat [add], persis seperti ketuk
-  /// barang (satuan, harga grosir, gabung baris yang sama). Barang yang tidak
+  /// barang (satuan, harga bertingkat & level pelanggan, gabung baris yang sama). Barang yang tidak
   /// ada / tidak aktif di katalog HP ini menjadi "tidak ditemukan"; saran
   /// hanya barang aktif. Sama dengan `applyAiInput` kasir web.
   PosAiApplied applyAi(PosAiResult result, Map<int, Product> products) {
@@ -85,7 +87,7 @@ class CartController extends Notifier<Cart> {
     }
     final next = Money.add([line.quantity, '$delta']);
     if (Money.isPositive(next)) {
-      update(key, (current) => current.copyWith(quantity: next));
+      update(key, (current) => current.copyWith(quantity: next, levelId: state.levelId));
     } else {
       remove(key);
     }
@@ -95,7 +97,9 @@ class CartController extends Notifier<Cart> {
 
   void setNotaDiscount(String percent) => state = state.copyWith(notaDiscountPercent: percent);
 
-  void setCustomer(Customer? customer) => state = customer == null ? state.copyWith(clearCustomer: true) : state.copyWith(customer: customer);
+  /// Pilih/ganti/hapus pelanggan; harga otomatis semua baris dihitung ulang
+  /// dengan level pelanggan itu (harga manual tetap).
+  void setCustomer(Customer? customer) => state = state.withCustomer(customer);
 
   /// Catatan pesanan; kosong = hapus.
   void setNote(String note) => state = state.copyWith(note: note);

@@ -33,7 +33,9 @@ class LocalDb {
 
   /// 2: tabel `held_orders` (pesanan tersimpan kasir).
   /// 3: kolom `barcode` + `category_id` di `products` (scan kamera, chip Kategori).
-  static const int version = 3;
+  /// 4: harga level pelanggan (`level_tiers` barang, `level_id` pelanggan) —
+  ///    tanpa kolom baru, hanya tarikan berikutnya penuh.
+  static const int version = 4;
 
   /// Kunci meta daftar kategori barang (JSON, dari sync/pull).
   static const String categoriesKey = 'product_categories';
@@ -85,6 +87,19 @@ class LocalDb {
     await batch.commit(noResult: true);
     if (from < 3) {
       await _addCatalogColumns(db);
+    }
+    if (from < 4) {
+      await _forceFullPull(db);
+    }
+  }
+
+  /// Data barang & pelanggan di HP disimpan dari versi aplikasi yang belum
+  /// mengenal harga level, jadi isinya belum ada: cursor sinkron dihapus
+  /// supaya tarikan berikutnya penuh dan mengisi semuanya.
+  static Future<void> _forceFullPull(Database db) async {
+    final tables = await db.rawQuery("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'meta'");
+    if (tables.isNotEmpty) {
+      await db.delete('meta', where: 'key IN (?, ?)', whereArgs: ['sync_cursor', 'last_full_pull']);
     }
   }
 

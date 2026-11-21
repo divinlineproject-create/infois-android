@@ -112,7 +112,7 @@ class PosOrderPanel extends ConsumerWidget {
             : ListView(padding: const EdgeInsets.symmetric(horizontal: Space.l), children: [
                 _OrderTypeSelector(cart: cart),
                 const SizedBox(height: Space.s),
-                for (final line in cart.lines) _LineRow(line: line, amounts: cart.amountsFor(line, pricesIncludeTax: inclusive)),
+                for (final line in cart.lines) _LineRow(line: line, amounts: cart.amountsFor(line, pricesIncludeTax: inclusive), levelId: cart.levelId),
                 const SizedBox(height: Space.s),
                 _OptionGroup(children: [
                   _OptionTile(
@@ -126,7 +126,7 @@ class PosOrderPanel extends ConsumerWidget {
                   _OptionTile(
                     key: const Key('order-customer'),
                     icon: Icons.person_outline,
-                    title: cart.customer?.name ?? 'Pelanggan umum',
+                    title: cart.customer?.nameWithLevel ?? 'Pelanggan umum',
                     subtitle: 'Wajib dipilih bila bayar nanti (bon)',
                     onTap: () async {
                       final customer = await pickCustomer(context, ref);
@@ -315,16 +315,20 @@ class _OptionTile extends StatelessWidget {
 /// Satu baris pesanan: foto kecil, nama, satuan × harga, diskon, catatan,
 /// stepper qty. Geser ke kiri untuk menghapus; ketuk untuk mengubah semua isian.
 class _LineRow extends ConsumerWidget {
-  const _LineRow({required this.line, required this.amounts});
+  const _LineRow({required this.line, required this.amounts, this.levelId});
 
   final CartLine line;
   final LineAmounts amounts;
+
+  /// Level pelanggan keranjang (keterangan "harga grosir" / "harga Reseller").
+  final int? levelId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final notifier = ref.read(cartProvider.notifier);
     final discount = amounts.discountPercent;
     final product = line.product;
+    final priceLabel = line.priceLabel(levelId);
     return Dismissible(
       key: ValueKey('line-${line.key}'),
       direction: DismissDirection.endToStart,
@@ -358,7 +362,8 @@ class _LineRow extends ConsumerWidget {
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(line.description, style: const TextStyle(fontWeight: FontWeight.w600, height: 1.25)),
                 Text(
-                  '${line.unit} × ${rupiah(line.unitPrice)}${Money.isPositive(discount) ? ' · diskon ${percentLabel(discount)}%' : ''}',
+                  '${line.unit} × ${rupiah(line.unitPrice)}${priceLabel != null ? ' · $priceLabel' : ''}${Money.isPositive(discount) ? ' · diskon ${percentLabel(discount)}%' : ''}',
+                  key: Key('line-price-${line.key}'),
                   style: TextStyle(fontSize: 12.5, color: mutedText(context)),
                 ),
                 if (line.note != null) PosNoteText(line.note!),
