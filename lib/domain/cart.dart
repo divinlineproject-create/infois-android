@@ -387,7 +387,7 @@ class Cart {
   final String? deliveryAddress;
 
   /// Nama biaya yang berarti barang dikirim (ongkos kirim, biaya antar, ...).
-  static final deliveryChargePattern = RegExp('kirim|antar|ongkir|ekspedisi', caseSensitive: false);
+  static final deliveryChargePattern = RegExp('kirim|pengiriman|antar|ongkir|ekspedisi|kurir', caseSensitive: false);
 
   /// Catatan pesanan (untuk seluruh nota).
   final String? note;
@@ -402,7 +402,7 @@ class Cart {
   bool get isEmpty => lines.isEmpty;
 
   /// Barang dikirim: jenis pesanan Pesan antar (hanya bila fitur rumah makan
-  /// nyala, [dining]) atau ada biaya kirim/antar/ongkir/ekspedisi. Sama
+  /// nyala, [dining]) atau ada biaya kirim/pengiriman/antar/ongkir/ekspedisi/kurir. Sama
   /// dengan `needsDelivery` kasir web.
   bool needsDelivery({bool dining = true}) => (dining && orderType == OrderType.delivery) || charges.any((charge) => deliveryChargePattern.hasMatch(charge.name));
 

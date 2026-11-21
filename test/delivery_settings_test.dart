@@ -46,7 +46,7 @@ void main() {
       expect(base.needsDelivery(), isFalse);
       expect(base.deliveryAddressFor(), isNull, reason: 'Tidak dikirim: alamat tidak dipakai.');
       expect(base.copyWith(charges: const [layanan]).needsDelivery(), isFalse);
-      for (final name in ['Ongkos kirim', 'ONGKIR', 'Biaya antar', 'Ekspedisi JNE', 'Biaya kirim barang']) {
+      for (final name in ['Ongkos kirim', 'ONGKIR', 'Biaya antar', 'Ekspedisi JNE', 'Biaya kirim barang', 'Biaya pengiriman', 'Kurir']) {
         expect(base.copyWith(charges: [CartCharge(key: 'x', name: name, amount: '1')]).needsDelivery(), isTrue, reason: name);
       }
       final delivery = base.copyWith(orderType: OrderType.delivery);
