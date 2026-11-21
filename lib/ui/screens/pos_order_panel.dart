@@ -362,7 +362,7 @@ class _LineRow extends ConsumerWidget {
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(line.description, style: const TextStyle(fontWeight: FontWeight.w600, height: 1.25)),
                 Text(
-                  '${line.unit} × ${rupiah(line.unitPrice)}${priceLabel != null ? ' · $priceLabel' : ''}${Money.isPositive(discount) ? ' · diskon ${percentLabel(discount)}%' : ''}',
+                  '${line.unitLabel} × ${rupiah(line.unitPrice)}${priceLabel != null ? ' · $priceLabel' : ''}${Money.isPositive(discount) ? ' · diskon ${percentLabel(discount)}%' : ''}',
                   key: Key('line-price-${line.key}'),
                   style: TextStyle(fontSize: 12.5, color: mutedText(context)),
                 ),

@@ -98,6 +98,10 @@ pertama setelah pembaruan selalu penuh. Server harus sudah mengirim `level_tiers
 (backoffice dengan migrasi `2026_11_22_100000_create_customer_levels_table`) sebelum build ini
 dirilis; server lama tetap bisa dipakai (tanpa harga level). Setelah rollout, set
 `INFOIS_MOBILE_LATEST_VERSION=1.0.2`.
+Tambahan 2026-11-22 (masih 1.0.2+3): **ketuk barang bersatuan lain → pilih satuan** (mis. pcs atau
+"karton (isi 6 pcs)", harga 1 satuan ikut level pelanggan; "Atur jumlah & catatan" membuka lembar
+barang) supaya kasir toko eceran tidak menghitung isi; barang satu satuan tetap langsung masuk, scan
+dan Input AI tidak berubah. Satuan ditulis dengan isinya di baris pesanan dan chip satuan lembar barang.
 
 ## 3. Membangun AAB
 

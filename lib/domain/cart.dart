@@ -265,6 +265,9 @@ class CartLine {
   /// Isi satuan dasar per satuan baris (mis. karton = 24).
   String get unitFactor => product?.optionFor(unit).factor ?? '1.000000';
 
+  /// Satuan baris untuk keranjang: "pcs" atau "karton (isi 6 pcs)".
+  String get unitLabel => product?.unitLabelFor(unit) ?? unit;
+
   /// Harga otomatis dihitung ulang untuk level pelanggan [levelId] (pelanggan
   /// dipilih/diganti/dihapus). Harga manual dan baris tanpa barang tetap.
   CartLine repriced(int? levelId) {

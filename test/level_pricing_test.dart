@@ -363,7 +363,9 @@ void main() {
 
       Finder inPanel(Finder finder) => find.descendant(of: find.byType(PosOrderPanel), matching: finder);
 
+      // Teh kotak punya satuan karton: ketuk = pilih satuan dulu.
       await tap(find.byKey(const Key('product-5')));
+      await tap(find.byKey(const Key('unit-pick-pcs')));
       await tap(find.byKey(const Key('open-cart')));
       final container = ProviderScope.containerOf(tester.element(find.byType(PosOrderPanel)));
       final key = container.read(cartProvider).lines.single.key;

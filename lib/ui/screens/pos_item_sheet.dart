@@ -22,6 +22,74 @@ Future<void> showPosItemSheet(BuildContext context, Product product) => showModa
       ),
     );
 
+/// Ketuk barang yang punya satuan lain: pilih satuan yang dibeli (mis. pcs
+/// atau karton isi 6) supaya kasir tidak menghitung isinya. Satu ketukan
+/// menambah 1 satuan itu; "Atur jumlah & catatan" membuka lembar barang.
+Future<void> showPosUnitPicker(BuildContext context, Product product) async {
+  final details = await showModalBottomSheet<bool>(
+    context: context,
+    isScrollControlled: true,
+    showDragHandle: true,
+    useSafeArea: true,
+    builder: (context) => PosUnitPicker(product: product),
+  );
+  if (details == true && context.mounted) {
+    await showPosItemSheet(context, product);
+  }
+}
+
+class PosUnitPicker extends ConsumerWidget {
+  const PosUnitPicker({super.key, required this.product});
+
+  final Product product;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final levelId = ref.watch(cartProvider.select((cart) => cart.levelId));
+    final scheme = Theme.of(context).colorScheme;
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Text(product.name, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 2),
+          Text('Pilih satuan yang dibeli. Isi & stok dihitung otomatis.', style: TextStyle(fontSize: 13, color: mutedText(context))),
+          const SizedBox(height: 16),
+          for (final option in product.unitOptions()) ...[
+            OutlinedButton(
+              key: Key('unit-pick-${option.name}'),
+              onPressed: () {
+                HapticFeedback.selectionClick();
+                ref.read(cartProvider.notifier).add(product, unit: option.name);
+                Navigator.pop(context, false);
+              },
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(56),
+                padding: const EdgeInsets.symmetric(horizontal: Space.l),
+                foregroundColor: scheme.onSurface,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.m)),
+              ),
+              child: Row(children: [
+                Expanded(child: Text(product.unitLabel(option), style: const TextStyle(fontSize: 15.5, fontWeight: FontWeight.w600))),
+                const SizedBox(width: Space.s),
+                Text(rupiah(product.priceFor(option.name, '1', levelId: levelId)), style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: scheme.primary)),
+              ]),
+            ),
+            const SizedBox(height: Space.s),
+          ],
+          const SizedBox(height: Space.s),
+          OutlinedButton(
+            key: const Key('unit-pick-details'),
+            onPressed: () => Navigator.pop(context, true),
+            style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+            child: const Text('Atur jumlah & catatan'),
+          ),
+        ]),
+      ),
+    );
+  }
+}
+
 class PosItemSheet extends ConsumerStatefulWidget {
   const PosItemSheet({super.key, required this.product});
 
@@ -97,7 +165,7 @@ class _PosItemSheetState extends ConsumerState<PosItemSheet> {
               for (final option in options)
                 ChoiceChip(
                   key: Key('item-unit-${option.name}'),
-                  label: Text(Money.compare(option.factor, '1') == 0 ? option.name : '${option.name} (isi ${qty(option.factor)})'),
+                  label: Text(product.unitLabel(option)),
                   selected: option.name == _unit,
                   showCheckmark: false,
                   onSelected: (_) => setState(() => _unit = option.name),

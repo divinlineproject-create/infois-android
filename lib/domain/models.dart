@@ -1,4 +1,5 @@
 import '../core/bcmath.dart';
+import '../core/format.dart';
 import '../core/money.dart';
 
 /// Data master dari server (lihat API.md › sync/pull). Semua angka uang/qty
@@ -235,6 +236,25 @@ class Product {
       }
     }
     return options.first;
+  }
+
+  /// Punya satuan lain selain satuan dasar (mis. karton isi 6): kasir
+  /// memilih satuan saat barang diketuk.
+  bool get hasOtherUnits => units.isNotEmpty;
+
+  /// Label satuan untuk kasir: "pcs" (satuan dasar) atau "karton (isi 6
+  /// pcs)", sama dengan `unitOptionLabel` kasir web.
+  String unitLabel(UnitOption option) => Money.compare(option.factor, '1') == 0 ? option.name : '${option.name} (isi ${qty(option.factor)} ${unitOptions().first.name})';
+
+  /// Label satuan [unitName] milik barang ini; satuan yang tidak dikenal
+  /// barang ini ditulis apa adanya.
+  String unitLabelFor(String unitName) {
+    for (final option in unitOptions()) {
+      if (_sameUnit(option.name, unitName)) {
+        return unitLabel(option);
+      }
+    }
+    return unitName;
   }
 
   /// Ada harga bertingkat (umum atau level pelanggan).

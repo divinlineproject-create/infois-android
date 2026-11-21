@@ -104,10 +104,16 @@ void main() {
     }
 
     // --- Tambah 2 barang ke keranjang ---
-    await tester.tap(products.first);
-    await settle(tester);
-    await tester.tap(products.first);
-    await settle(tester);
+    // Barang bersatuan lain membuka lembar pilih satuan: pilih satuan dasar.
+    final unitPick = find.byWidgetPredicate((w) => w.key is ValueKey<String> && (w.key as ValueKey<String>).value.startsWith('unit-pick-') && (w.key as ValueKey<String>).value != 'unit-pick-details');
+    for (var i = 0; i < 2; i++) {
+      await tester.tap(products.first);
+      await settle(tester);
+      if (unitPick.evaluate().isNotEmpty) {
+        await tester.tap(unitPick.first);
+        await settle(tester);
+      }
+    }
     await tester.tap(find.byKey(const Key('open-cart')));
     await settle(tester);
     await shot('06-cart');

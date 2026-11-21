@@ -76,6 +76,12 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
     // Barang diketuk: keyboard cari ditutup supaya grid terlihat.
     dismissKeyboard();
     HapticFeedback.selectionClick();
+    // Barang bersatuan lain (mis. karton isi 6): kasir memilih satuannya
+    // dulu, isi dihitung otomatis. Tanpa satuan lain: langsung masuk.
+    if (product.hasOtherUnits) {
+      showPosUnitPicker(context, product);
+      return;
+    }
     ref.read(cartProvider.notifier).add(product);
   }
 
