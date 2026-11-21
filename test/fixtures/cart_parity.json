@@ -1,5 +1,5 @@
 {
-    "_comment": "Fixture paritas hitung keranjang kasir HP vs InvoiceCalculator & ProductService::priceFor (backoffice). Dibuat dari PHP; dicek oleh tests/Feature/Mobile/PosCartParityTest.php dan android/test/cart_parity_test.dart. `code_products` + `codes`: kode scan/ketik (barcode aktif → SKU aktif; kode yang hanya cocok dengan barang nonaktif ditolak), dicek oleh tests/js/cart_parity.test.mjs dan android/test/cart_parity_test.dart.",
+    "_comment": "Fixture paritas hitung keranjang kasir HP vs InvoiceCalculator & ProductService::priceFor (backoffice). Dibuat dari PHP; dicek oleh tests/Feature/Mobile/PosCartParityTest.php dan android/test/cart_parity_test.dart. `code_products` + `codes`: kode scan/ketik (barcode aktif → SKU aktif; kode yang hanya cocok dengan barang nonaktif ditolak), dicek oleh tests/js/cart_parity.test.mjs dan android/test/cart_parity_test.dart. `price_product.level_tiers` + `level_prices`: harga khusus level pelanggan (pelanggan level mendapat harga termurah antara harga bertingkat levelnya dan harga umum), dicek oleh ketiganya.",
     "lines": [
         {
             "input": {
@@ -9296,6 +9296,36 @@
                 "min_quantity": "2.500000",
                 "price": "280000.00"
             }
+        ],
+        "level_tiers": [
+            {
+                "level_id": 1,
+                "level": "Reseller",
+                "unit": "pcs",
+                "min_quantity": "1.000000",
+                "price": "22000.00"
+            },
+            {
+                "level_id": 1,
+                "level": "Reseller",
+                "unit": "pcs",
+                "min_quantity": "100.000000",
+                "price": "19000.00"
+            },
+            {
+                "level_id": 1,
+                "level": "Reseller",
+                "unit": "karton",
+                "min_quantity": "1.000000",
+                "price": "500000.00"
+            },
+            {
+                "level_id": 2,
+                "level": "Member",
+                "unit": "pcs",
+                "min_quantity": "1.000000",
+                "price": "24000.00"
+            }
         ]
     },
     "prices": [
@@ -9471,6 +9501,92 @@
             "code": "",
             "product_id": null,
             "inactive_id": null
+        }
+    ],
+    "level_prices": [
+        {
+            "unit": "pcs",
+            "quantity": "1",
+            "level_id": null,
+            "expected": "25000.00"
+        },
+        {
+            "unit": "pcs",
+            "quantity": "1",
+            "level_id": 1,
+            "expected": "22000.00"
+        },
+        {
+            "unit": "pcs",
+            "quantity": "10",
+            "level_id": 1,
+            "expected": "22000.00"
+        },
+        {
+            "unit": "pcs",
+            "quantity": "50",
+            "level_id": 1,
+            "expected": "21000.00"
+        },
+        {
+            "unit": "pcs",
+            "quantity": "100",
+            "level_id": 1,
+            "expected": "19000.00"
+        },
+        {
+            "unit": "pcs",
+            "quantity": "0.5",
+            "level_id": 1,
+            "expected": "25000.00"
+        },
+        {
+            "unit": "pcs",
+            "quantity": "1",
+            "level_id": 2,
+            "expected": "24000.00"
+        },
+        {
+            "unit": "pcs",
+            "quantity": "10",
+            "level_id": 2,
+            "expected": "23000.00"
+        },
+        {
+            "unit": "karton",
+            "quantity": "1",
+            "level_id": 1,
+            "expected": "500000.00"
+        },
+        {
+            "unit": "karton",
+            "quantity": "5",
+            "level_id": 1,
+            "expected": "500000.00"
+        },
+        {
+            "unit": "karton",
+            "quantity": "5",
+            "level_id": 2,
+            "expected": "520000.00"
+        },
+        {
+            "unit": "lusin",
+            "quantity": "3",
+            "level_id": 1,
+            "expected": "280000.00"
+        },
+        {
+            "unit": "pcs",
+            "quantity": "1",
+            "level_id": 3,
+            "expected": "25000.00"
+        },
+        {
+            "unit": "PCS",
+            "quantity": "100",
+            "level_id": 1,
+            "expected": "19000.00"
         }
     ]
 }
