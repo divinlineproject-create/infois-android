@@ -156,6 +156,29 @@ class PosOrderPanel extends ConsumerWidget {
                       }
                     },
                   ),
+                  // Hanya bila barang dikirim (Pesan antar / ada ongkos kirim).
+                  if (cart.needsDelivery(dining: dining))
+                    _OptionTile(
+                      key: const Key('order-delivery'),
+                      icon: Icons.local_shipping_outlined,
+                      title: cart.deliveryAddress ?? 'Alamat pengiriman',
+                      subtitle: cart.deliveryAddress == null ? 'Tercetak di tagihan, struk, dan list' : 'Alamat pengiriman',
+                      highlight: cart.deliveryAddress != null,
+                      onTap: () async {
+                        final value = await askText(
+                          context,
+                          title: 'Alamat pengiriman',
+                          initial: cart.deliveryAddress ?? cleanNote(cart.customer?.address, 500),
+                          hint: 'Jalan, nomor, kelurahan, patokan',
+                          maxLength: 500,
+                          fieldKey: const Key('delivery-address-field'),
+                          multiline: true,
+                        );
+                        if (value != null) {
+                          notifier.setDeliveryAddress(value);
+                        }
+                      },
+                    ),
                   _OptionTile(
                     key: const Key('order-note'),
                     icon: Icons.edit_note,
@@ -582,6 +605,7 @@ Future<String?> askText(
   int maxLength = 200,
   Key? fieldKey,
   List<String> suggestions = const [],
+  bool multiline = false,
 }) async {
   final controller = TextEditingController(text: initial ?? '');
   final result = await showDialog<String>(
@@ -594,9 +618,12 @@ Future<String?> askText(
           controller: controller,
           autofocus: true,
           maxLength: maxLength,
+          minLines: multiline ? 2 : 1,
+          maxLines: multiline ? 4 : 1,
+          keyboardType: multiline ? TextInputType.multiline : TextInputType.text,
           textCapitalization: TextCapitalization.sentences,
           decoration: InputDecoration(hintText: hint, counterText: ''),
-          onSubmitted: (value) => Navigator.pop(context, value),
+          onSubmitted: multiline ? null : (value) => Navigator.pop(context, value),
         ),
         if (suggestions.isNotEmpty) ...[
           const SizedBox(height: 8),

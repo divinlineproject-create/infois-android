@@ -114,6 +114,13 @@ bukti pembayaran", cap BELUM DIBAYAR. Tombol "Pesanan dapur" setelah bayar jadi 
 LIST PESANAN) dan selalu tampil. **Biaya tambahan** nota (ongkos kirim, biaya layanan, biaya kemasan):
 ikut total, tidak kena diskon nota & pajak, dikirim sebagai baris `charge` (server membukukan ke
 Pendapatan Jasa; server lama menganggapnya baris tanpa barang biasa), tersimpan di pesanan tersimpan.
+Tambahan 2026-11-22 (masih 1.0.2+3): **Alamat pengiriman** di pilihan pesanan, hanya bila barang dikirim
+(Pesan antar atau ada ongkos kirim/antar/ekspedisi); isian awal dari alamat pelanggan, tercetak "Kirim ke:"
+di struk, tagihan, dan list, dikirim sebagai `delivery_address`. Akun › **Pengaturan kasir** (dulu
+"Printer struk"): pengguna yang boleh mengelola perusahaan (`menus.pos_settings`) bisa menyalakan /
+mematikan "Fitur rumah makan / kafe" untuk semua kasir lewat `PUT /api/v1/pos/settings` (online saja);
+printer tetap di bagian "Printer di perangkat ini". Server harus sudah punya endpoint itu (backoffice
+565e431) sebelum rilis; server lama menjawab 404 dan HP menampilkan pesan galat biasa.
 
 ## 3. Membangun AAB
 

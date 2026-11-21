@@ -157,6 +157,7 @@ class PosService {
       'notes': cart.note,
       'order_type': dining ? cart.orderType?.code : null,
       'order_label': dining ? cart.orderLabel : null,
+      'delivery_address': cart.deliveryAddressFor(dining: dining),
       'items': saleItems(cart, pricesIncludeTax: inclusive),
       'payments': const [],
       'subtotal': totals.subtotal,
@@ -209,6 +210,8 @@ class PosService {
       // keranjang/pesanan tersimpan lama masih membawanya.
       'order_type': master.tenant.posDining ? cart.orderType?.code : null,
       'order_label': master.tenant.posDining ? cart.orderLabel : null,
+      // Hanya bila barang dikirim (Pesan antar / ada ongkos kirim).
+      'delivery_address': cart.deliveryAddressFor(dining: master.tenant.posDining),
       'items': items,
       'payments': payments,
       'subtotal': totals.subtotal,
@@ -275,6 +278,7 @@ class PosService {
         'notes': sale['notes'],
         if (sale['order_type'] != null) 'order_type': sale['order_type'],
         if (sale['order_label'] != null) 'order_label': sale['order_label'],
+        if (sale['delivery_address'] != null) 'delivery_address': sale['delivery_address'],
         // Tablet kasir bersama: tercatat atas nama kasir yang membuat nota.
         if (sale['cashier_user_id'] != null) 'cashier_user_id': sale['cashier_user_id'],
         'total': sale['total'],

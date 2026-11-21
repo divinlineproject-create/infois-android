@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/format.dart';
+import '../../data/api_client.dart';
 import '../../data/outbox_store.dart';
 import '../../services/permission_gate.dart';
 import '../../services/printing/printer_service.dart';
+import '../../state/pos_state.dart';
 import '../../state/printer_controller.dart';
 import '../../state/session.dart';
 import '../../state/sync_controller.dart';
@@ -13,7 +15,9 @@ import '../theme.dart';
 import '../widgets/common.dart';
 import 'pay_screen.dart';
 
-/// Akun › Printer: pilih printer Bluetooth, lebar kertas, tes cetak.
+/// Akun › Pengaturan kasir: pengaturan untuk semua kasir usaha ini (hanya
+/// yang boleh mengelola perusahaan, `menus.pos_settings`), lalu printer di
+/// perangkat ini (printer Bluetooth, lebar kertas, tes cetak).
 class PrinterSettingsScreen extends ConsumerStatefulWidget {
   const PrinterSettingsScreen({super.key});
 
@@ -25,6 +29,31 @@ class _PrinterSettingsScreenState extends ConsumerState<PrinterSettingsScreen> {
   List<PrinterDevice>? _devices;
   bool _scanning = false;
   late int _width = ref.read(printerProvider).printer?.width ?? ref.read(masterDataProvider).valueOrNull?.receipt.width ?? 58;
+  bool _savingDining = false;
+
+  /// Simpan fitur rumah makan / kafe ke server (online saja). Gagal = nilai
+  /// lama tetap, dengan pesan biasa.
+  Future<void> _saveDining(bool value) async {
+    setState(() => _savingDining = true);
+    try {
+      final dining = await ref.read(posActionsProvider).saveDining(value);
+      if (mounted) {
+        showMessage(context, dining ? 'Fitur rumah makan / kafe dinyalakan untuk semua kasir.' : 'Fitur rumah makan / kafe dimatikan untuk semua kasir.');
+      }
+    } on ApiException catch (error) {
+      if (mounted) {
+        showMessage(context, error.offline ? 'Butuh internet untuk mengubah pengaturan ini. Sambungkan internet lalu coba lagi.' : error.message, error: true);
+      }
+    } catch (_) {
+      if (mounted) {
+        showMessage(context, 'Pengaturan belum tersimpan. Coba lagi.', error: true);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _savingDining = false);
+      }
+    }
+  }
 
   Future<void> _scan() async {
     // Jelaskan dulu kenapa izin Bluetooth (Perangkat sekitar) diminta.
@@ -58,9 +87,26 @@ class _PrinterSettingsScreenState extends ConsumerState<PrinterSettingsScreen> {
       PrinterStatus.none => 'Belum dipilih',
     };
 
+    final master = ref.watch(masterDataProvider).valueOrNull;
+    final canManage = master?.menus.posSettings ?? false;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Printer struk')),
+      appBar: AppBar(title: const Text('Pengaturan kasir')),
       body: ListView(padding: const EdgeInsets.all(16), children: [
+        if (canManage) ...[
+          const Text('Untuk semua kasir di usaha ini', key: Key('pos-settings-shared'), style: TextStyle(fontWeight: FontWeight.w600)),
+          SwitchListTile(
+            key: const Key('pos-settings-dining'),
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Fitur rumah makan / kafe (jenis pesanan, meja/antrian)'),
+            subtitle: _savingDining ? const Text('Menyimpan…') : null,
+            value: master!.tenant.posDining,
+            onChanged: _savingDining ? null : _saveDining,
+          ),
+          const Divider(height: 24),
+          const Text('Printer di perangkat ini', style: TextStyle(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+        ],
         Card(
           child: ListTile(
             leading: Icon(Icons.print, color: state.status == PrinterStatus.connected ? Brand.green : Colors.grey),

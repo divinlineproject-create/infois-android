@@ -188,7 +188,7 @@ Tanpa `since` = tarikan penuh. Dengan `since` = barang/pelanggan yang berubah se
   "device": { "id": 3, "code": "K1", "name": "HP Kasir Depan", "warehouse_id": 1, "revoked": false },
   "user": { "id": 5, "name": "Sari" },
   "permissions": ["…"],
-  "menus": { "pos": true, "…": "…" },
+  "menus": { "pos": true, "pos_settings": false, "…": "…" },
   "products": {
     "items": [
       {
@@ -206,7 +206,7 @@ Tanpa `since` = tarikan penuh. Dengan `since` = barang/pelanggan yang berubah se
     "ids": [10, 11, 12]
   },
   "categories": { "items": [ { "id": 3, "name": "Minuman", "sort": 1 }, { "id": 4, "name": "Makanan", "sort": 2 } ], "ids": [3, 4] },
-  "customers": { "items": [ { "id": 7, "name": "Bu Ani", "phone": "0812", "email": null, "address": null, "client_uuid": null, "is_walk_in": false, "level_id": 1, "level": "Reseller" } ], "ids": [7, 8] },
+  "customers": { "items": [ { "id": 7, "name": "Bu Ani", "phone": "0812", "email": null, "address": "Jl. Kenanga 12", "client_uuid": null, "is_walk_in": false, "level_id": 1, "level": "Reseller" } ], "ids": [7, 8] },
   "accounts": { "items": [ { "id": 21, "code": "1-1100", "name": "Kas", "kind": "cash" }, { "id": 22, "code": "1-1200", "name": "Bank", "kind": "bank" } ], "ids": [21, 22], "default_cash_id": 21, "default_transfer_id": 22 },
   "warehouses": { "items": [ { "id": 1, "code": "UTAMA", "name": "Gudang Utama", "is_default": true, "is_active": true } ], "ids": [1] },
   "number_blocks": [ { "id": 4, "format": "POS-K1/{SEQ:6}", "start": 1, "end": 500, "last_used": 37 } ],
@@ -224,6 +224,8 @@ Tanpa `since` = tarikan penuh. Dengan `since` = barang/pelanggan yang berubah se
   - `category_id` + `category` (`{id, name}` atau `null`): kategori barang di Katalog web. `categories` = **semua** kategori perusahaan (selalu lengkap, urut `sort` lalu nama). HP menampilkan chip "Semua" + kategori yang punya barang di kasir + "Lainnya" (barang tanpa kategori). Kategori diganti nama/dihapus → barangnya ikut terkirim ulang di tarikan `since`.
   - `has_photo` + `photo_version` (12 karakter, berubah setiap foto diganti; `null` tanpa foto) = **kunci cache** foto di HP. Foto diunduh dari `GET /products/{id}/photo` (asli) atau `?size=thumb` (persegi 256 px) dengan token + `X-Tenant`; HP selalu memakai rute relatif ke server aplikasi (token tidak dikirim ke host lain) dan menambahkan `&v=<photo_version>`. `photo_url` / `photo_thumb_url` hanya informasi. Foto disimpan di HP per perusahaan (`{id}_{versi}_{t|f}`), jadi tetap tampil offline setelah pertama dimuat; versi lama dihapus.
 
+- **`menus.pos_settings`** (bool, aplikasi ≥ 1.0.2, build 3): `true` untuk pengguna yang boleh mengelola perusahaan (dan memakai kasir) → Akun › Pengaturan kasir menampilkan bagian "Untuk semua kasir di usaha ini" (lihat `PUT /pos/settings`). Lainnya hanya melihat printer di perangkat ini.
+- **`customers.items[].address`**: alamat pelanggan (atau `null`), dipakai sebagai isian awal Alamat pengiriman di kasir.
 - **`tenant.pos_dining`** (bool, aplikasi ≥ 1.0.2, build 3): fitur rumah makan / kafe di kasir (web: Pengaturan Kasir › "Fitur rumah makan / kafe"; bawaannya nyala hanya untuk usaha F&B). `false` = HP menyembunyikan jenis pesanan (Makan di tempat / Bawa pulang / Pesan antar), dan isian Meja / antrian (tombol "Cetak list" tetap ada, juga untuk toko eceran), dan penjualan dikirim **tanpa** `order_type` / `order_label` walau keranjang atau pesanan tersimpan lama masih membawanya. Kunci tidak ada / `null` (server lama) = `true` (perilaku lama).
 - **Pesanan tersimpan dibuka lagi** (HP ≥ 1.0.2): pelanggan diambil ulang dari data pelanggan di HP (cocok `id`, atau `client_uuid` untuk pelanggan buatan HP) supaya perubahan level terbawa, data barang diganti dengan katalog HP terbaru, lalu harga otomatis dihitung ulang dengan aturan di bawah; harga manual tetap. Sama dengan kasir web.
 - **Harga bertingkat & level pelanggan (aplikasi ≥ 1.0.2, build 3; field aditif, aplikasi lama mengabaikannya):**
@@ -268,6 +270,7 @@ Jawaban:
   "customer_id": null, "customer_client_uuid": null,
   "notes": "Antar ke lantai 2",
   "order_type": "take_away", "order_label": "Meja 5",
+  "delivery_address": null,
   "total": "52650.00",
   "items": [
     { "product_id": 1, "description": "Kopi susu", "quantity": "2.000000", "unit": "gelas", "unit_price": "18000.00", "discount_percent": "0.00", "tax_rate": "0.00", "note": "tanpa gula" },
@@ -281,6 +284,7 @@ Jawaban:
 ```
 - Tanpa pelanggan → "Pelanggan Umum". `customer_client_uuid` = pelanggan baru dari HP (item `customer` dikirim lebih dulu di antrean yang sama).
 - **Data pesanan** (opsional): `notes` = catatan pesanan (maks. 1000), `order_type` = `dine_in` | `take_away` | `delivery` (lainnya → `ditolak`), `order_label` = meja/antrian (maks. 40), `items[].note` = catatan barang (maks. 200). Disimpan di `invoices.order_type`, `invoices.order_label`, `invoice_items.note`; `invoices.notes` berisi ringkasan yang tampil di web/PDF dan di `records/sales/{id}(/receipt).notes`: `Pesanan: Bawa pulang · Meja 5` ⏎ `Catatan: Antar ke lantai 2` ⏎ `- Kopi susu: tanpa gula` (tanpa jenis/meja: hanya catatan apa adanya).
+- **Alamat pengiriman** (aplikasi ≥ 1.0.2, build 3): `delivery_address` (maks. 500, dirapikan; `null`/tidak dikirim bila kosong) hanya dikirim bila barang dikirim — jenis pesanan `delivery` (Pesan antar, hanya saat `tenant.pos_dining`) atau ada biaya tambahan yang namanya cocok `/kirim|antar|ongkir|ekspedisi/i` (sama dengan `needsDelivery` kasir web). Server menyimpannya di nota. Di HP tersimpan di keranjang & pesanan tersimpan (`delivery_address`); isian awal = alamat pelanggan (`customers.items[].address` dari `sync/pull`). Struk, tagihan, dan List pesanan mencetak blok `Kirim ke:` + alamat setelah jenis pesanan / baris pelanggan.
 - **Bon**: `payments: []` (wajib pelanggan). **Campuran**: dua pembayaran `cash` + `transfer`. `method` hanya `cash` | `transfer` (tidak ada QRIS).
 - `discount_percent` = diskon efektif per baris (diskon barang digabung diskon nota di HP, 2 desimal). `total` dipakai untuk cek paritas; beda → `perlu_ditinjau`.
 - **Biaya tambahan** (aplikasi ≥ 1.0.2, build 3): ongkos kirim, biaya layanan, dll. dikirim setelah baris barang sebagai `items[]` dengan `"charge": true`, `product_id: null`, `unit: null`, `quantity: "1.000000"`, `unit_price` = nominal, `discount_percent: "0.00"`, `tax_rate: "0.00"` (diskon nota tidak berlaku untuk biaya). Server membukukan baris `charge` ke Pendapatan Jasa; server lama mengabaikan tandanya (baris tanpa barang biasa). `total` = barang (dengan diskon nota & pajak) + biaya. Di HP biaya disimpan di keranjang & pesanan tersimpan sebagai `charges: [{key, name, amount}]` (JSON lama tanpa kunci = tanpa biaya). Struk lunas menampilkan biaya sebagai baris biasa; **List pesanan** (dulu "Pesanan dapur") tidak memuat biaya.
@@ -306,6 +310,14 @@ Jawaban:
 Uang seharusnya = uang awal + pembayaran tunai penjualan shift itu yang sudah sampai di server.
 
 ## 5. Kasir 🏢
+
+### `PUT /pos/settings` (online saja)
+Pengaturan kasir untuk **semua kasir** usaha ini, dari Akun › Pengaturan kasir di HP. Hanya bila `menus.pos_settings` (`sync/pull`) = `true` (boleh mengelola perusahaan dan memakai kasir). Body JSON, semua opsional: `{ "dining": false, "shift_required": true }`.
+```json
+{ "settings": { "shift_required": false, "dining": false } }
+```
+- Tidak berhak → 403 `tidak_berhak` ("Anda tidak punya hak mengubah pengaturan kasir."). HP menampilkan pesan server apa adanya; offline → "Butuh internet untuk mengubah pengaturan ini. …"; nilai lama tetap.
+- Berhasil: HP langsung mengganti `tenant.pos_dining` di data tersimpan (tanpa menunggu sinkron); kasir lain mendapatkannya di tarikan berikutnya. Aplikasi hanya mengubah `dining` (tidak ada pilihan shift wajib di HP).
 
 ### `POST /pos/number-blocks`
 Jatah nomor nota offline untuk HP ini (permission `issue-invoice`). Body opsional `{ "size": 500 }` (maks. 2000; bawaan env `INFOIS_MOBILE_NUMBER_BLOCK`=500).

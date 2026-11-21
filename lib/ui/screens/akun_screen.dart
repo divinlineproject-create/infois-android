@@ -327,10 +327,11 @@ class _AkunScreenState extends ConsumerState<AkunScreen> {
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => ref.read(sessionProvider.notifier).selectTenant(null),
                 ),
-              if (master?.menus.printer ?? tenant?.menus.printer ?? false)
+              if ((master?.menus.printer ?? tenant?.menus.printer ?? false) || (master?.menus.posSettings ?? false))
                 ListTile(
+                  key: const Key('akun-pos-settings'),
                   leading: const Icon(Icons.print_outlined),
-                  title: const Text('Printer struk'),
+                  title: const Text('Pengaturan kasir'),
                   subtitle: Text(printer.printer == null ? 'Belum diatur' : '${printer.printer!.name} · ${printer.printer!.width} mm'),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => context.push('/printer'),

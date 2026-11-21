@@ -357,6 +357,7 @@ class Cart {
     this.orderLabel,
     this.heldId,
     this.charges = const [],
+    this.deliveryAddress,
   });
 
   factory Cart.fromJson(Map<String, dynamic> json) => Cart(
@@ -367,6 +368,7 @@ class Cart {
         orderType: OrderType.fromCode(json['order_type']),
         orderLabel: cleanNote(json['order_label']?.toString(), 40),
         heldId: json['held_id']?.toString(),
+        deliveryAddress: cleanNote(json['delivery_address']?.toString(), 500),
         // Keranjang/pesanan tersimpan lama tanpa `charges`: tanpa biaya tambahan.
         charges: [
           for (final charge in (json['charges'] as List? ?? const []))
@@ -381,6 +383,12 @@ class Cart {
   /// Biaya tambahan nota (ongkos kirim, ...), di luar barang.
   final List<CartCharge> charges;
 
+  /// Alamat pengiriman (hanya dipakai bila barang dikirim, lihat [needsDelivery]).
+  final String? deliveryAddress;
+
+  /// Nama biaya yang berarti barang dikirim (ongkos kirim, biaya antar, ...).
+  static final deliveryChargePattern = RegExp('kirim|antar|ongkir|ekspedisi', caseSensitive: false);
+
   /// Catatan pesanan (untuk seluruh nota).
   final String? note;
   final OrderType? orderType;
@@ -392,6 +400,14 @@ class Cart {
   final String? heldId;
 
   bool get isEmpty => lines.isEmpty;
+
+  /// Barang dikirim: jenis pesanan Pesan antar (hanya bila fitur rumah makan
+  /// nyala, [dining]) atau ada biaya kirim/antar/ongkir/ekspedisi. Sama
+  /// dengan `needsDelivery` kasir web.
+  bool needsDelivery({bool dining = true}) => (dining && orderType == OrderType.delivery) || charges.any((charge) => deliveryChargePattern.hasMatch(charge.name));
+
+  /// Alamat yang dicetak & dikirim ke server: hanya bila barang dikirim.
+  String? deliveryAddressFor({bool dining = true}) => needsDelivery(dining: dining) ? cleanNote(deliveryAddress, 500) : null;
 
   /// Level pelanggan keranjang untuk harga khusus level (null = tanpa level).
   int? get levelId => customer?.levelId;
@@ -453,9 +469,10 @@ class Cart {
         'order_label': orderLabel,
         'held_id': heldId,
         'charges': [for (final charge in charges) charge.toJson()],
+        'delivery_address': deliveryAddress,
       };
 
-  /// [note] / [orderLabel]: null = tidak berubah, '' = hapus.
+  /// [note] / [orderLabel] / [deliveryAddress]: null = tidak berubah, '' = hapus.
   Cart copyWith({
     List<CartLine>? lines,
     String? notaDiscountPercent,
@@ -467,10 +484,12 @@ class Cart {
     String? orderLabel,
     String? heldId,
     List<CartCharge>? charges,
+    String? deliveryAddress,
   }) =>
       Cart(
         lines: lines ?? this.lines,
         charges: charges ?? this.charges,
+        deliveryAddress: deliveryAddress == null ? this.deliveryAddress : cleanNote(deliveryAddress, 500),
         notaDiscountPercent: notaDiscountPercent == null ? this.notaDiscountPercent : Money.normalize(notaDiscountPercent),
         customer: clearCustomer ? null : (customer ?? this.customer),
         note: note == null ? this.note : cleanNote(note, 1000),

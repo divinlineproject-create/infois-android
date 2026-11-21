@@ -85,6 +85,7 @@ class ReceiptBuilder {
     if (order != null) {
       bytes.addAll(generator.text(clean(order), styles: base.copyWith(align: PosAlign.center, bold: true)));
     }
+    bytes.addAll(_deliveryAddress(generator, base, sale));
     bytes.addAll(generator.hr());
 
     final items = [for (final raw in (sale['items'] as List? ?? const [])) Map<String, dynamic>.from(raw as Map)];
@@ -167,6 +168,19 @@ class ReceiptBuilder {
     return parts.isEmpty ? null : parts.join(' - ');
   }
 
+  /// Blok "Kirim ke:" + alamat pengiriman (struk, tagihan, list pesanan).
+  List<int> _deliveryAddress(Generator generator, PosStyles base, Map<String, dynamic> sale) {
+    final address = cleanNote(sale['delivery_address']?.toString(), 500);
+    if (address == null) {
+      return const [];
+    }
+    return [
+      ...generator.text('Kirim ke:', styles: base.copyWith(bold: true)),
+      for (final line in clean(address).split('\n'))
+        if (line.trim().isNotEmpty) ...generator.text(line.trim(), styles: base),
+    ];
+  }
+
   List<int> _orderNote(Generator generator, PosStyles base, Map<String, dynamic> sale) {
     final note = cleanNote(sale['notes']?.toString(), 1000);
     if (note == null) {
@@ -211,6 +225,7 @@ class ReceiptBuilder {
     if (customer != null && customer != 'Pelanggan Umum') {
       info('Pelanggan', customer);
     }
+    bytes.addAll(_deliveryAddress(generator, base, sale));
     bytes.addAll(generator.hr());
     for (final raw in (sale['items'] as List? ?? const [])) {
       if (isCharge(raw)) {
@@ -256,6 +271,10 @@ class ReceiptBuilder {
     final label = cleanNote(sale['order_label']?.toString(), 40);
     if (type != null || label != null) {
       out.writeln([type, label].whereType<String>().join(' · '));
+    }
+    final address = cleanNote(sale['delivery_address']?.toString(), 500);
+    if (address != null) {
+      out.writeln('Kirim ke: $address');
     }
     out.writeln();
     for (final raw in (sale['items'] as List? ?? const [])) {

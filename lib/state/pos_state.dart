@@ -11,6 +11,7 @@ import '../domain/pos_ai.dart';
 import '../services/file_downloads.dart' show whatsappUri;
 import '../services/pos_service.dart';
 import '../services/printing/receipt_builder.dart';
+import '../services/sync_engine.dart' show MetaKeys;
 import 'printer_controller.dart';
 import 'session.dart';
 import 'sync_controller.dart';
@@ -114,6 +115,9 @@ class CartController extends Notifier<Cart> {
 
   /// Catatan pesanan; kosong = hapus.
   void setNote(String note) => state = state.copyWith(note: note);
+
+  /// Alamat pengiriman (maks. 500 huruf); kosong = hapus.
+  void setDeliveryAddress(String address) => state = state.copyWith(deliveryAddress: address);
 
   void setLineNote(String key, String note) => update(key, (line) => line.copyWith(note: note));
 
@@ -355,6 +359,23 @@ class PosActions {
     }
     final draft = await _draft(title);
     return draft == null ? PrintResult.failed : printOrderList(draft);
+  }
+
+  /// Pengaturan kasir untuk semua kasir di usaha ini: fitur rumah makan /
+  /// kafe (`PUT /pos/settings`, online saja; hanya `menus.pos_settings`).
+  /// Berhasil = pengaturan di HP langsung diganti (tanpa menunggu sinkron).
+  Future<bool> saveDining(bool value) async {
+    final workspace = await ref.read(workspaceProvider.future);
+    if (workspace == null || !workspace.usable) {
+      throw const CheckoutException('Data kasir belum siap.');
+    }
+    final result = await workspace.api.put('pos/settings', data: {'dining': value});
+    final settings = result['settings'];
+    final dining = settings is Map && settings['dining'] is bool ? settings['dining'] as bool : value;
+    final tenant = await workspace.local.getJson(MetaKeys.tenant);
+    await workspace.local.setJson(MetaKeys.tenant, {'id': workspace.tenant.id, 'name': workspace.tenant.name, ...?tenant, 'pos_dining': dining});
+    ref.read(dataVersionProvider.notifier).state++;
+    return dining;
   }
 
   /// Teks struk untuk WhatsApp / disalin.
