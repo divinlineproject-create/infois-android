@@ -176,7 +176,7 @@ Tanpa `since` = tarikan penuh. Dengan `since` = barang/pelanggan yang berubah se
   "cursor": "2026-10-07T10:00:00.123456+07:00",
   "full": false,
   "server_time": "2026-10-07T10:00:05+07:00",
-  "tenant": { "id": 1, "name": "Warung Bu Sri", "prices_include_tax": false, "sales_tax_name": "PPN", "sales_tax_rate": "11.00", "auto_stock_adjustment": true, "payment_terms_days": 14 },
+  "tenant": { "id": 1, "name": "Warung Bu Sri", "prices_include_tax": false, "sales_tax_name": "PPN", "sales_tax_rate": "11.00", "auto_stock_adjustment": true, "payment_terms_days": 14, "pos_dining": true },
   "receipt": {
     "width": 58, "font_size": "normal", "show_logo": true, "show_address": true, "show_phone": true, "show_cashier": true,
     "show_customer": true, "show_tax": true, "show_payment": true, "show_qr": true,
@@ -224,6 +224,8 @@ Tanpa `since` = tarikan penuh. Dengan `since` = barang/pelanggan yang berubah se
   - `category_id` + `category` (`{id, name}` atau `null`): kategori barang di Katalog web. `categories` = **semua** kategori perusahaan (selalu lengkap, urut `sort` lalu nama). HP menampilkan chip "Semua" + kategori yang punya barang di kasir + "Lainnya" (barang tanpa kategori). Kategori diganti nama/dihapus → barangnya ikut terkirim ulang di tarikan `since`.
   - `has_photo` + `photo_version` (12 karakter, berubah setiap foto diganti; `null` tanpa foto) = **kunci cache** foto di HP. Foto diunduh dari `GET /products/{id}/photo` (asli) atau `?size=thumb` (persegi 256 px) dengan token + `X-Tenant`; HP selalu memakai rute relatif ke server aplikasi (token tidak dikirim ke host lain) dan menambahkan `&v=<photo_version>`. `photo_url` / `photo_thumb_url` hanya informasi. Foto disimpan di HP per perusahaan (`{id}_{versi}_{t|f}`), jadi tetap tampil offline setelah pertama dimuat; versi lama dihapus.
 
+- **`tenant.pos_dining`** (bool, aplikasi ≥ 1.0.2, build 3): fitur rumah makan / kafe di kasir (web: Pengaturan Kasir › "Fitur rumah makan / kafe"; bawaannya nyala hanya untuk usaha F&B). `false` = HP menyembunyikan jenis pesanan (Makan di tempat / Bawa pulang / Pesan antar), isian Meja / antrian, dan tombol tiket "Pesanan dapur", dan penjualan dikirim **tanpa** `order_type` / `order_label` walau keranjang atau pesanan tersimpan lama masih membawanya. Kunci tidak ada / `null` (server lama) = `true` (perilaku lama).
+- **Pesanan tersimpan dibuka lagi** (HP ≥ 1.0.2): pelanggan diambil ulang dari data pelanggan di HP (cocok `id`, atau `client_uuid` untuk pelanggan buatan HP) supaya perubahan level terbawa, data barang diganti dengan katalog HP terbaru, lalu harga otomatis dihitung ulang dengan aturan di bawah; harga manual tetap. Sama dengan kasir web.
 - **Harga bertingkat & level pelanggan (aplikasi ≥ 1.0.2, build 3; field aditif, aplikasi lama mengabaikannya):**
   - `tiers` = harga bertingkat **umum** (untuk semua pelanggan) saja: `[{unit, min_quantity, price}]`, bentuknya tidak berubah.
   - `level_tiers` = harga bertingkat khusus **level pelanggan** (Member, Reseller, Agen, …): `[{level_id, level, unit, min_quantity, price}]`. `unit` selalu terisi (nama satuan dasar bila untuk satuan dasar). Kunci terpisah supaya aplikasi lama yang hanya membaca `tiers` tidak memberi harga level ke semua pembeli.

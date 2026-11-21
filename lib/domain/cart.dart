@@ -268,6 +268,28 @@ class CartLine {
   /// Satuan baris untuk keranjang: "pcs" atau "karton (isi 6 pcs)".
   String get unitLabel => product?.unitLabelFor(unit) ?? unit;
 
+  /// Baris dengan data barang terbaru [current] dari katalog HP (pesanan
+  /// tersimpan dibuka lagi). Harga manual, barang lain, atau satuan baris
+  /// yang sudah tidak ada di barang itu: baris tetap.
+  CartLine withCatalogProduct(Product? current) {
+    final product = this.product;
+    if (manualPrice || product == null || current == null || current.id != product.id || !current.hasUnit(unit)) {
+      return this;
+    }
+    return CartLine(
+      key: key,
+      product: current,
+      description: description,
+      quantity: quantity,
+      unit: unit,
+      unitPrice: unitPrice,
+      discountPercent: discountPercent,
+      taxRate: taxRate,
+      manualPrice: manualPrice,
+      note: note,
+    );
+  }
+
   /// Harga otomatis dihitung ulang untuk level pelanggan [levelId] (pelanggan
   /// dipilih/diganti/dihapus). Harga manual dan baris tanpa barang tetap.
   CartLine repriced(int? levelId) {
@@ -347,6 +369,15 @@ class Cart {
   Cart withCustomer(Customer? customer) {
     final next = customer == null ? copyWith(clearCustomer: true) : copyWith(customer: customer);
     return next.copyWith(lines: [for (final line in next.lines) line.repriced(next.levelId)]);
+  }
+
+  /// Pesanan tersimpan dibuka lagi: data barang terbaru dari [catalog] (per
+  /// id) dan pelanggan terbaru [customer] (level bisa berubah; null = data
+  /// tersimpan tetap dipakai), lalu harga otomatis dihitung ulang lewat
+  /// [withCustomer]. Harga manual tetap.
+  Cart reopened({Customer? customer, Map<int, Product> catalog = const {}}) {
+    final refreshed = copyWith(lines: [for (final line in lines) line.withCatalogProduct(catalog[line.product?.id])]);
+    return refreshed.withCustomer(customer ?? this.customer);
   }
 
   /// Diskon efektif per baris yang dikirim ke server.

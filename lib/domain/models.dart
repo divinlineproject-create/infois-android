@@ -257,6 +257,9 @@ class Product {
     return unitName;
   }
 
+  /// Barang punya satuan [unitName] (satuan dasar atau satuan lain).
+  bool hasUnit(String unitName) => unitOptions().any((option) => _sameUnit(option.name, unitName));
+
   /// Ada harga bertingkat (umum atau level pelanggan).
   bool get hasTieredPrices => tiers.isNotEmpty || levelTiers.isNotEmpty;
 
@@ -448,6 +451,7 @@ class TenantSettings {
     this.salesTaxRate = '0.00',
     this.autoStockAdjustment = false,
     this.paymentTermsDays = 14,
+    this.posDining = true,
   });
 
   factory TenantSettings.fromJson(Map<String, dynamic> json) => TenantSettings(
@@ -458,6 +462,8 @@ class TenantSettings {
         salesTaxRate: Money.normalize(json['sales_tax_rate']),
         autoStockAdjustment: _b(json['auto_stock_adjustment']),
         paymentTermsDays: _i(json['payment_terms_days']) ?? 14,
+        // Server lama tanpa `pos_dining`: fitur rumah makan tetap tampil.
+        posDining: json['pos_dining'] == null || _b(json['pos_dining']),
       );
 
   final int id;
@@ -468,6 +474,10 @@ class TenantSettings {
   final bool autoStockAdjustment;
   final int paymentTermsDays;
 
+  /// Fitur rumah makan / kafe di kasir (Pengaturan Kasir di web): jenis
+  /// pesanan, meja/antrian, dan tiket pesanan dapur. Mati = toko eceran.
+  final bool posDining;
+
   Map<String, dynamic> toJson() => {
         'id': id,
         'name': name,
@@ -476,6 +486,7 @@ class TenantSettings {
         'sales_tax_rate': salesTaxRate,
         'auto_stock_adjustment': autoStockAdjustment,
         'payment_terms_days': paymentTermsDays,
+        'pos_dining': posDining,
       };
 }
 

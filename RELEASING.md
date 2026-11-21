@@ -102,6 +102,13 @@ Tambahan 2026-11-22 (masih 1.0.2+3): **ketuk barang bersatuan lain → pilih sat
 "karton (isi 6 pcs)", harga 1 satuan ikut level pelanggan; "Atur jumlah & catatan" membuka lembar
 barang) supaya kasir toko eceran tidak menghitung isi; barang satu satuan tetap langsung masuk, scan
 dan Input AI tidak berubah. Satuan ditulis dengan isinya di baris pesanan dan chip satuan lembar barang.
+Tambahan 2026-11-22 (masih 1.0.2+3): **fitur rumah makan / kafe bisa dimatikan** (`tenant.pos_dining`
+dari web, Pengaturan Kasir › "Fitur rumah makan / kafe"; server lama tanpa kunci = tetap nyala): jenis
+pesanan, Meja / antrian, dan tiket "Pesanan dapur" disembunyikan, penjualan dikirim tanpa
+`order_type` / `order_label`. **Pesanan tersimpan yang dibuka lagi** memakai level pelanggan dan katalog
+terbaru di HP (harga manual tetap); daftar pesanan tersimpan menampilkan "{nama} · {level}". Contoh
+catatan pesanan jadi "mis. dikirim sore, nota dipisah"; petunjuk keranjang kosong menjelaskan pilihan
+satuan.
 
 ## 3. Membangun AAB
 

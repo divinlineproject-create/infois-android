@@ -333,11 +333,13 @@ class _CartBarSlot extends ConsumerWidget {
       bar = const SizedBox(key: ValueKey('cart-empty'), width: double.infinity);
     } else {
       final scheme = Theme.of(context).colorScheme;
-      final inclusive = ref.watch(masterDataProvider).valueOrNull?.tenant.pricesIncludeTax ?? false;
+      final tenant = ref.watch(masterDataProvider).valueOrNull?.tenant;
+      final inclusive = tenant?.pricesIncludeTax ?? false;
+      final dining = tenant?.posDining ?? true;
       final total = cart.totals(pricesIncludeTax: inclusive).total;
       final details = [
-        if (cart.orderType != null) cart.orderType!.label,
-        if (cart.orderLabel != null) cart.orderLabel!,
+        if (dining && cart.orderType != null) cart.orderType!.label,
+        if (dining && cart.orderLabel != null) cart.orderLabel!,
         if (cart.customer != null) cart.customer!.name,
       ].join(' · ');
       bar = SafeArea(

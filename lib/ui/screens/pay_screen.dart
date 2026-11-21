@@ -120,7 +120,7 @@ class _PayScreenState extends ConsumerState<PayScreen> {
     final change = _mode == PayMode.cash && cashValue != null && Money.compare(cashValue, total) >= 0 ? Money.sub(cashValue, total) : null;
     final short = _mode == PayMode.cash && cashValue != null && Money.compare(cashValue, total) < 0 ? Money.sub(total, cashValue) : null;
     final transferPart = _mode == PayMode.mixed && cashValue != null ? Money.sub(total, cashValue) : null;
-    final orderInfo = [cart.orderType?.label, cart.orderLabel].whereType<String>().join(' · ');
+    final orderInfo = (master?.tenant.posDining ?? true) ? [cart.orderType?.label, cart.orderLabel].whereType<String>().join(' · ') : '';
     final screen = MediaQuery.sizeOf(context);
     // Layar miring yang pendek (tablet kasir): total & tombol lebih rapat.
     final dense = screen.width > screen.height && screen.height < 640;
@@ -382,6 +382,8 @@ class SaleDoneScreen extends ConsumerWidget {
     final change = sale['change']?.toString() ?? '0';
     final unpaid = Money.sub(sale['total'], sale['paid']);
     final order = ReceiptBuilder.orderHeadline(sale);
+    // Tiket pesanan dapur hanya untuk rumah makan / kafe.
+    final dining = ref.watch(masterDataProvider).valueOrNull?.tenant.posDining ?? true;
     return Scaffold(
       body: SafeArea(
         child: LayoutBuilder(
@@ -420,24 +422,26 @@ class SaleDoneScreen extends ConsumerWidget {
                           },
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: _DoneAction(
-                          key: const Key('print-kitchen'),
-                          icon: Icons.soup_kitchen_outlined,
-                          label: 'Pesanan dapur',
-                          onTap: () async {
-                            final result = await ref.read(posActionsProvider).printKitchenTicket(sale);
-                            if (context.mounted) {
-                              showMessage(
-                                context,
-                                result == PrintResult.printed ? 'Pesanan dapur tercetak.' : printMessage(result.name).replaceFirst('Struk', 'Pesanan dapur'),
-                                error: result != PrintResult.printed,
-                              );
-                            }
-                          },
+                      if (dining) ...[
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _DoneAction(
+                            key: const Key('print-kitchen'),
+                            icon: Icons.soup_kitchen_outlined,
+                            label: 'Pesanan dapur',
+                            onTap: () async {
+                              final result = await ref.read(posActionsProvider).printKitchenTicket(sale);
+                              if (context.mounted) {
+                                showMessage(
+                                  context,
+                                  result == PrintResult.printed ? 'Pesanan dapur tercetak.' : printMessage(result.name).replaceFirst('Struk', 'Pesanan dapur'),
+                                  error: result != PrintResult.printed,
+                                );
+                              }
+                            },
+                          ),
                         ),
-                      ),
+                      ],
                       const SizedBox(width: 8),
                       Expanded(
                         child: _DoneAction(key: const Key('send-wa'), icon: Icons.chat_outlined, label: 'Kirim struk WA', onTap: () => _sendWhatsApp(context, ref)),

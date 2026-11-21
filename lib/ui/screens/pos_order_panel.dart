@@ -77,6 +77,8 @@ class PosOrderPanel extends ConsumerWidget {
     final cart = ref.watch(cartProvider);
     final master = ref.watch(masterDataProvider).valueOrNull;
     final inclusive = master?.tenant.pricesIncludeTax ?? false;
+    // Fitur rumah makan / kafe (jenis pesanan, meja/antrian); mati untuk toko eceran.
+    final dining = master?.tenant.posDining ?? true;
     final totals = cart.totals(pricesIncludeTax: inclusive);
     final notifier = ref.read(cartProvider.notifier);
     final held = ref.watch(heldOrdersProvider).valueOrNull ?? const [];
@@ -108,21 +110,28 @@ class PosOrderPanel extends ConsumerWidget {
       ),
       Expanded(
         child: cart.isEmpty
-            ? const EmptyState(icon: Icons.shopping_basket_outlined, title: 'Belum ada pesanan', message: 'Ketuk barang untuk menambah. Tekan lama untuk pilih satuan, jumlah, atau catatan.')
+            ? const EmptyState(
+                icon: Icons.shopping_basket_outlined,
+                title: 'Belum ada pesanan',
+                message: 'Ketuk barang untuk menambah; barang yang punya satuan lain (mis. karton) menampilkan pilihan satuan. Tekan lama untuk jumlah atau catatan.',
+              )
             : ListView(padding: const EdgeInsets.symmetric(horizontal: Space.l), children: [
-                _OrderTypeSelector(cart: cart),
-                const SizedBox(height: Space.s),
+                if (dining) ...[
+                  _OrderTypeSelector(cart: cart),
+                  const SizedBox(height: Space.s),
+                ],
                 for (final line in cart.lines) _LineRow(line: line, amounts: cart.amountsFor(line, pricesIncludeTax: inclusive), levelId: cart.levelId),
                 const SizedBox(height: Space.s),
                 _OptionGroup(children: [
-                  _OptionTile(
-                    key: const Key('order-label'),
-                    icon: Icons.table_restaurant_outlined,
-                    title: cart.orderLabel ?? 'Meja / antrian',
-                    subtitle: cart.orderLabel == null ? 'mis. Meja 5 atau Antrian 12' : 'Meja / antrian',
-                    highlight: cart.orderLabel != null,
-                    onTap: () => _editLabel(context, ref, cart),
-                  ),
+                  if (dining)
+                    _OptionTile(
+                      key: const Key('order-label'),
+                      icon: Icons.table_restaurant_outlined,
+                      title: cart.orderLabel ?? 'Meja / antrian',
+                      subtitle: cart.orderLabel == null ? 'mis. Meja 5 atau Antrian 12' : 'Meja / antrian',
+                      highlight: cart.orderLabel != null,
+                      onTap: () => _editLabel(context, ref, cart),
+                    ),
                   _OptionTile(
                     key: const Key('order-customer'),
                     icon: Icons.person_outline,
@@ -139,11 +148,11 @@ class PosOrderPanel extends ConsumerWidget {
                     key: const Key('order-note'),
                     icon: Icons.edit_note,
                     title: cart.note ?? 'Catatan pesanan',
-                    subtitle: cart.note == null ? 'mis. antar ke lantai 2, pisahkan sambal' : 'Catatan pesanan',
+                    subtitle: cart.note == null ? orderNoteHint : 'Catatan pesanan',
                     highlight: cart.note != null,
                     italic: true,
                     onTap: () async {
-                      final value = await askText(context, title: 'Catatan pesanan', initial: cart.note, hint: 'mis. antar ke lantai 2', maxLength: 500, fieldKey: const Key('order-note-field'));
+                      final value = await askText(context, title: 'Catatan pesanan', initial: cart.note, hint: orderNoteHint, maxLength: 500, fieldKey: const Key('order-note-field'));
                       if (value != null) {
                         notifier.setNote(value);
                       }
@@ -214,6 +223,9 @@ class PosOrderPanel extends ConsumerWidget {
     ]);
   }
 }
+
+/// Contoh isian catatan pesanan (netral, untuk semua jenis usaha).
+const orderNoteHint = 'mis. dikirim sore, nota dipisah';
 
 /// Jenis pesanan: tiga tombol sejajar; ketuk yang terpilih lagi = batal pilih.
 class _OrderTypeSelector extends ConsumerWidget {

@@ -352,6 +352,17 @@ class LocalDb {
     await batch.commit(noResult: true);
   }
 
+  /// Data terbaru pelanggan [customer] di HP: cocok `id`, atau `client_uuid`
+  /// untuk pelanggan buatan HP. Null bila sudah tidak ada.
+  Future<Customer?> customerFor(Customer customer) async {
+    final rows = customer.id != null
+        ? await db.query('customers', where: 'id = ?', whereArgs: [customer.id], limit: 1)
+        : customer.clientUuid != null
+            ? await db.query('customers', where: 'client_uuid = ?', whereArgs: [customer.clientUuid], limit: 1)
+            : const <Map<String, Object?>>[];
+    return rows.isEmpty ? null : Customer.fromJson(Map<String, dynamic>.from(jsonDecode(rows.first['data'] as String) as Map));
+  }
+
   Future<List<Customer>> customers({String query = '', int limit = 100}) async {
     final where = <String>[];
     final args = <Object>[];

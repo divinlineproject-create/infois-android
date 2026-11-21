@@ -151,8 +151,10 @@ class PosService {
       'customer_client_uuid': customer?.id == null ? customer?.clientUuid : null,
       'customer_name': customer?.name ?? 'Pelanggan Umum',
       'notes': cart.note,
-      'order_type': cart.orderType?.code,
-      'order_label': cart.orderLabel,
+      // Fitur rumah makan mati: jenis pesanan & meja tidak dikirim, walau
+      // keranjang/pesanan tersimpan lama masih membawanya.
+      'order_type': master.tenant.posDining ? cart.orderType?.code : null,
+      'order_label': master.tenant.posDining ? cart.orderLabel : null,
       'items': items,
       'payments': payments,
       'subtotal': totals.subtotal,

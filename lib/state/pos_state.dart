@@ -256,14 +256,34 @@ class PosActions {
 
   /// Buka pesanan tersimpan di keranjang. Keranjang yang sedang terisi
   /// disimpan dulu supaya tidak hilang (kembalikan true bila begitu).
+  /// Pelanggan diambil ulang dari data HP (level bisa berubah) dan harga
+  /// otomatis dihitung ulang dengan katalog terbaru; harga manual tetap.
   Future<bool> resume(HeldOrder order) async {
     final current = ref.read(cartProvider);
     final saveCurrent = !current.isEmpty && current.heldId != order.id;
     if (saveCurrent) {
       await holdCurrent();
     }
-    ref.read(cartProvider.notifier).load(order.cart.copyWith(heldId: order.id));
+    ref.read(cartProvider.notifier).load(await _refreshed(order.cart.copyWith(heldId: order.id)));
     return saveCurrent;
+  }
+
+  Future<Cart> _refreshed(Cart cart) async {
+    final workspace = await ref.read(workspaceProvider.future);
+    if (workspace == null) {
+      return cart;
+    }
+    try {
+      final customer = cart.customer == null ? null : await workspace.local.customerFor(cart.customer!);
+      final catalog = await workspace.local.productsByIds([
+        for (final line in cart.lines)
+          if (line.product != null) line.product!.id,
+      ]);
+      return cart.reopened(customer: customer, catalog: catalog);
+    } on Exception {
+      // Data HP belum bisa dibaca: pesanan tetap dibuka apa adanya.
+      return cart;
+    }
   }
 
   Future<void> deleteHeld(String id) async {

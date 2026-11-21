@@ -5,6 +5,7 @@ import '../../core/format.dart';
 import '../../domain/cart.dart';
 import '../../services/pos_service.dart';
 import '../../state/pos_state.dart';
+import '../../state/workspace.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 
@@ -113,6 +114,7 @@ class HeldOrdersSheet extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final orders = ref.watch(heldOrdersProvider);
     final activeId = ref.watch(cartProvider.select((cart) => cart.heldId));
+    final dining = ref.watch(masterDataProvider).valueOrNull?.tenant.posDining ?? true;
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Padding(
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
@@ -123,25 +125,37 @@ class HeldOrdersSheet extends ConsumerWidget {
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (error, _) => EmptyState(icon: Icons.error_outline, title: 'Pesanan tersimpan belum bisa dibuka', message: plainError(error, fallback: 'Coba lagi sebentar lagi.')),
           data: (items) => items.isEmpty
-              ? const EmptyState(icon: Icons.bookmarks_outlined, title: 'Belum ada pesanan tersimpan', message: 'Tekan "Simpan" di keranjang untuk menyimpan pesanan yang dibayar nanti (mis. open bill per meja).')
+              ? EmptyState(
+                  icon: Icons.bookmarks_outlined,
+                  title: 'Belum ada pesanan tersimpan',
+                  message: 'Tekan "Simpan" di keranjang untuk menyimpan pesanan yang dibayar nanti${dining ? ' (mis. open bill per meja)' : ''}.',
+                )
               : ListView.separated(
                   itemCount: items.length,
                   separatorBuilder: (_, __) => const Divider(height: 1),
                   itemBuilder: (context, index) {
                     final order = items[index];
                     final active = order.id == activeId;
-                    final type = order.cart.orderType;
+                    final type = dining ? order.cart.orderType : null;
+                    final customer = order.cart.customer;
                     final details = [
                       '${order.itemCount} barang',
                       if (type != null) type.label,
-                      if (order.cart.customer != null && order.name != order.cart.customer!.name) order.cart.customer!.name,
+                      // Pelanggan "{nama} · {level}"; nama pesanan = nama pelanggan: levelnya saja.
+                      if (customer != null && order.name != customer.name) customer.nameWithLevel,
+                      if (customer != null && order.name == customer.name && customer.level != null) customer.level!,
                       'disimpan ${_time(order.createdAt)}',
                     ].join(' · ');
                     return ListTile(
                       key: Key('held-${order.id}'),
                       leading: CircleAvatar(
                         backgroundColor: Brand.green.withValues(alpha: 0.12),
-                        child: Icon(type == OrderType.delivery ? Icons.delivery_dining_outlined : (type == OrderType.takeAway ? Icons.shopping_bag_outlined : Icons.table_restaurant_outlined), color: Brand.green),
+                        child: Icon(
+                          !dining
+                              ? Icons.receipt_long_outlined
+                              : (type == OrderType.delivery ? Icons.delivery_dining_outlined : (type == OrderType.takeAway ? Icons.shopping_bag_outlined : Icons.table_restaurant_outlined)),
+                          color: Brand.green,
+                        ),
                       ),
                       title: Text(order.name, style: const TextStyle(fontWeight: FontWeight.w600)),
                       subtitle: Text(active ? 'Sedang dibuka di keranjang · $details' : details),
