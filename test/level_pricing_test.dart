@@ -369,8 +369,17 @@ void main() {
       await tap(find.byKey(const Key('open-cart')));
       final container = ProviderScope.containerOf(tester.element(find.byType(PosOrderPanel)));
       final key = container.read(cartProvider).lines.single.key;
-      String priceText() => (tester.widget(inPanel(find.byKey(Key('line-price-$key')))) as Text).data!;
-      expect(priceText(), 'pcs × Rp 25.000');
+      // Panel bergulir (ListView malas): gulir ke atas bila baris barang tidak terbangun.
+      Future<String> priceText() async {
+        final finder = inPanel(find.byKey(Key('line-price-$key')));
+        if (finder.evaluate().isEmpty) {
+          await tester.drag(find.descendant(of: find.byType(PosOrderPanel), matching: find.byType(Scrollable)).first, const Offset(0, 3000));
+          await settle(tester);
+        }
+        return (tester.widget(finder) as Text).data!;
+      }
+
+      expect(await priceText(), 'pcs × Rp 25.000');
 
       // Pilih pelanggan Reseller: level tampil di daftar dan di panel, harga turun.
       await tap(find.byKey(const Key('order-customer')));
@@ -378,7 +387,7 @@ void main() {
       expect(find.text('0812'), findsOneWidget, reason: 'Pelanggan tanpa level: hanya no. HP.');
       await tap(find.text('Toko Maju'));
       expect(inPanel(find.text('Toko Maju · Reseller')), findsOneWidget);
-      expect(priceText(), 'pcs × Rp 22.000 · harga Reseller');
+      expect(await priceText(), 'pcs × Rp 22.000 · harga Reseller');
       expect(inPanel(find.text('Rp 22.000')), findsWidgets);
 
       // Ubah jumlah lewat lembar ubah baris: tetap harga level.
@@ -388,13 +397,13 @@ void main() {
       expect(find.byType(ActionChip), findsNothing);
       await tester.enterText(find.byKey(const Key('line-quantity')), '100');
       await tap(find.byKey(const Key('line-save')));
-      expect(priceText(), 'pcs × Rp 19.000 · harga Reseller');
+      expect(await priceText(), 'pcs × Rp 19.000 · harga Reseller');
 
       // Kembali ke pelanggan umum: harga grosir umum.
       await tap(find.byKey(const Key('order-customer')));
       await tap(find.text('Pelanggan umum'));
       expect(inPanel(find.text('Pelanggan umum')), findsOneWidget);
-      expect(priceText(), 'pcs × Rp 21.000 · harga grosir');
+      expect(await priceText(), 'pcs × Rp 21.000 · harga grosir');
       await tester.pumpWidget(const SizedBox());
     });
   });

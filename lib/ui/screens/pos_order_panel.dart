@@ -6,12 +6,14 @@ import '../../core/format.dart';
 import '../../core/money.dart';
 import '../../domain/cart.dart';
 import '../../state/pos_state.dart';
+import '../../state/printer_controller.dart';
 import '../../state/workspace.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 import '../widgets/product_image.dart';
 import 'cart_sheet.dart';
 import 'customer_picker.dart';
+import 'pay_screen.dart' show draftPrintMessage;
 import 'pos_held_orders.dart';
 import 'pos_item_sheet.dart';
 
@@ -54,6 +56,16 @@ class PosOrderPanel extends ConsumerWidget {
     // Tanpa snackbar: menutupi bilah keranjang. Badge "Pesanan tersimpan" bertambah.
     if (held && context.mounted) {
       onClose?.call();
+    }
+  }
+
+  /// Cetak tagihan / list pesanan sebelum dibayar (tidak dicatat).
+  Future<void> _printDraft(BuildContext context, WidgetRef ref, {required bool bill, String? title}) async {
+    HapticFeedback.selectionClick();
+    final actions = ref.read(posActionsProvider);
+    final result = bill ? await actions.printDraftBill(title: title) : await actions.printDraftList(title: title);
+    if (context.mounted) {
+      showMessage(context, draftPrintMessage(result, bill ? 'Tagihan' : 'List pesanan'), error: result != PrintResult.printed);
     }
   }
 
@@ -171,6 +183,59 @@ class PosOrderPanel extends ConsumerWidget {
                       }
                     },
                   ),
+                  _OptionTile(
+                    key: const Key('order-charges'),
+                    icon: Icons.add_circle_outline,
+                    title: 'Biaya tambahan',
+                    subtitle: 'mis. ongkos kirim, biaya layanan',
+                    highlight: cart.charges.isNotEmpty,
+                    onTap: () async {
+                      final charge = await askCharge(context);
+                      if (charge != null) {
+                        notifier.addCharge(charge.$1, charge.$2);
+                      }
+                    },
+                  ),
+                ]),
+                if (cart.charges.isNotEmpty) ...[
+                  const SizedBox(height: Space.s),
+                  for (final charge in cart.charges)
+                    Padding(
+                      key: Key('charge-${charge.key}'),
+                      padding: const EdgeInsets.only(left: Space.m),
+                      child: Row(children: [
+                        Expanded(child: Text(charge.name, style: const TextStyle(fontWeight: FontWeight.w500))),
+                        Text(rupiah(charge.amount), style: const TextStyle(fontWeight: FontWeight.w700)),
+                        IconButton(
+                          key: Key('charge-remove-${charge.key}'),
+                          tooltip: 'Hapus ${charge.name}',
+                          visualDensity: VisualDensity.compact,
+                          onPressed: () => notifier.removeCharge(charge.key),
+                          icon: const Icon(Icons.close, size: 20),
+                        ),
+                      ]),
+                    ),
+                ],
+                const SizedBox(height: Space.m),
+                // Cetak sebelum dibayar: tagihan (bayar nanti / bon) dan list pesanan.
+                Row(children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      key: const Key('cart-print-bill'),
+                      onPressed: () => _printDraft(context, ref, bill: true, title: heldName),
+                      icon: const Icon(Icons.receipt_long_outlined),
+                      label: const Text('Cetak tagihan'),
+                    ),
+                  ),
+                  const SizedBox(width: Space.s),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      key: const Key('cart-print-list'),
+                      onPressed: () => _printDraft(context, ref, bill: false, title: heldName),
+                      icon: const Icon(Icons.list_alt_outlined),
+                      label: const Text('Cetak list'),
+                    ),
+                  ),
                 ]),
                 const SizedBox(height: Space.m),
                 Container(
@@ -178,8 +243,10 @@ class PosOrderPanel extends ConsumerWidget {
                   padding: const EdgeInsets.fromLTRB(Space.l, Space.m, Space.l, Space.m),
                   decoration: BoxDecoration(color: scheme.surfaceContainer, borderRadius: BorderRadius.circular(Radii.l)),
                   child: Column(children: [
-                    AmountRow('Subtotal (${qty(cart.totalQuantity)} item)', rupiah(totals.subtotal)),
+                    // Subtotal barang saja; biaya tambahan sebaris masing-masing (tidak kena diskon nota).
+                    AmountRow('Subtotal (${qty(cart.totalQuantity)} item)', rupiah(Money.sub(totals.subtotal, cart.chargesTotal))),
                     if (Money.isPositive(totals.discountTotal)) AmountRow('Diskon', '-${rupiah(totals.discountTotal)}'),
+                    for (final charge in cart.charges) AmountRow(charge.name, rupiah(charge.amount)),
                     if (Money.isPositive(totals.taxTotal)) AmountRow('${master?.tenant.salesTaxName ?? 'PPN'}${inclusive ? ' (termasuk)' : ''}', rupiah(totals.taxTotal)),
                     const Padding(padding: EdgeInsets.symmetric(vertical: Space.s), child: Divider()),
                     AmountRow('Total', rupiah(totals.total), bold: true, large: true),
@@ -433,6 +500,76 @@ class _Stepper extends StatelessWidget {
       ]),
     );
   }
+}
+
+/// Dialog "Biaya tambahan": nama (dengan saran) + nominal. Kembalikan
+/// (nama, nominal) atau null bila dibatalkan.
+Future<(String, String)?> askCharge(BuildContext context) async {
+  final name = TextEditingController();
+  final amount = TextEditingController();
+  String? error;
+  final result = await showDialog<(String, String)>(
+    context: context,
+    builder: (context) => StatefulBuilder(
+      builder: (context, setState) {
+        void submit() {
+          final value = parseMoneyInput(amount.text);
+          if (name.text.trim().isEmpty) {
+            setState(() => error = 'Isi nama biaya, mis. Ongkos kirim.');
+          } else if (value == null || !Money.isPositive(value)) {
+            setState(() => error = 'Isi nominal biaya.');
+          } else {
+            Navigator.pop(context, (name.text.trim(), value));
+          }
+        }
+
+        return AlertDialog(
+          title: const Text('Biaya tambahan'),
+          content: SingleChildScrollView(
+            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+              TextField(
+                key: const Key('charge-name'),
+                controller: name,
+                autofocus: true,
+                maxLength: 60,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: const InputDecoration(labelText: 'Nama biaya', hintText: 'mis. Ongkos kirim', counterText: ''),
+              ),
+              const SizedBox(height: 8),
+              Wrap(spacing: 6, runSpacing: 6, children: [
+                for (final suggestion in CartCharge.suggestions)
+                  ActionChip(
+                    label: Text(suggestion),
+                    visualDensity: VisualDensity.compact,
+                    onPressed: () => setState(() {
+                      name.text = suggestion;
+                      error = null;
+                    }),
+                  ),
+              ]),
+              const SizedBox(height: 12),
+              TextField(
+                key: const Key('charge-amount'),
+                controller: amount,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'Nominal', prefixText: 'Rp ', hintText: '0', helperText: 'Ditambahkan ke total nota, tidak kena diskon nota.', helperMaxLines: 2),
+                onSubmitted: (_) => submit(),
+              ),
+              if (error != null) ...[
+                const SizedBox(height: 8),
+                Text(error!, key: const Key('charge-error'), style: TextStyle(color: dangerText(context))),
+              ],
+            ]),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Batal')),
+            FilledButton(key: const Key('charge-save'), onPressed: submit, child: const Text('Tambah')),
+          ],
+        );
+      },
+    ),
+  );
+  return result;
 }
 
 /// Dialog isian teks satu baris. Kembalikan teks (boleh kosong = hapus) atau

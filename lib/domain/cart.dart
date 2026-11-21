@@ -144,7 +144,7 @@ enum OrderType {
   final String code;
   final String label;
 
-  /// Huruf besar untuk struk & tiket dapur.
+  /// Huruf besar untuk struk & list pesanan.
   final String ticketLabel;
 
   static OrderType? fromCode(Object? code) {
@@ -324,6 +324,29 @@ class CartLine {
   }
 }
 
+/// Biaya tambahan nota (ongkos kirim, biaya layanan, ...): 1 × [amount],
+/// tanpa diskon & pajak, tidak kena diskon nota. Dikirim sebagai baris
+/// `charge` (server membukukan ke Pendapatan Jasa).
+class CartCharge {
+  const CartCharge({required this.key, required this.name, required this.amount});
+
+  factory CartCharge.fromJson(Map<String, dynamic> json) =>
+      CartCharge(key: json['key']?.toString() ?? '', name: cleanNote(json['name']?.toString(), 60) ?? '', amount: Money.normalize(json['amount']));
+
+  /// Contoh nama biaya di dialog "Biaya tambahan".
+  static const suggestions = ['Ongkos kirim', 'Biaya layanan', 'Biaya kemasan'];
+
+  final String key;
+  final String name;
+  final String amount;
+
+  /// Hitungan baris (1 × nominal, tanpa diskon & pajak).
+  LineAmounts amounts({required bool pricesIncludeTax}) =>
+      const InvoiceCalculator().item(quantity: '1', unitPrice: amount, discountPercent: '0', taxRate: '0', pricesIncludeTax: pricesIncludeTax);
+
+  Map<String, dynamic> toJson() => {'key': key, 'name': name, 'amount': amount};
+}
+
 class Cart {
   const Cart({
     this.lines = const [],
@@ -333,6 +356,7 @@ class Cart {
     this.orderType,
     this.orderLabel,
     this.heldId,
+    this.charges = const [],
   });
 
   factory Cart.fromJson(Map<String, dynamic> json) => Cart(
@@ -343,11 +367,19 @@ class Cart {
         orderType: OrderType.fromCode(json['order_type']),
         orderLabel: cleanNote(json['order_label']?.toString(), 40),
         heldId: json['held_id']?.toString(),
+        // Keranjang/pesanan tersimpan lama tanpa `charges`: tanpa biaya tambahan.
+        charges: [
+          for (final charge in (json['charges'] as List? ?? const []))
+            if (charge is Map) CartCharge.fromJson(Map<String, dynamic>.from(charge)),
+        ],
       );
 
   final List<CartLine> lines;
   final String notaDiscountPercent;
   final Customer? customer;
+
+  /// Biaya tambahan nota (ongkos kirim, ...), di luar barang.
+  final List<CartCharge> charges;
 
   /// Catatan pesanan (untuk seluruh nota).
   final String? note;
@@ -391,8 +423,16 @@ class Cart {
         pricesIncludeTax: pricesIncludeTax,
       );
 
-  CartTotals totals({required bool pricesIncludeTax}) =>
-      const InvoiceCalculator().totals([for (final line in lines) amountsFor(line, pricesIncludeTax: pricesIncludeTax)]);
+  /// Total nota (sama dengan `InvoiceCalculator::totals` di server dan
+  /// `totalsFor` kasir web): barang dengan diskon nota + biaya tambahan.
+  CartTotals totals({required bool pricesIncludeTax}) => const InvoiceCalculator().totals([
+        for (final line in lines) amountsFor(line, pricesIncludeTax: pricesIncludeTax),
+        for (final charge in charges) charge.amounts(pricesIncludeTax: pricesIncludeTax),
+      ]);
+
+  /// Jumlah biaya tambahan (sudah termasuk di [totals]); subtotal barang =
+  /// subtotal − ini.
+  String get chargesTotal => Money.add([for (final charge in charges) charge.amount]);
 
   /// Jumlah barang (per baris) untuk badge keranjang.
   int get itemCount => lines.length;
@@ -412,6 +452,7 @@ class Cart {
         'order_type': orderType?.code,
         'order_label': orderLabel,
         'held_id': heldId,
+        'charges': [for (final charge in charges) charge.toJson()],
       };
 
   /// [note] / [orderLabel]: null = tidak berubah, '' = hapus.
@@ -425,9 +466,11 @@ class Cart {
     bool clearOrderType = false,
     String? orderLabel,
     String? heldId,
+    List<CartCharge>? charges,
   }) =>
       Cart(
         lines: lines ?? this.lines,
+        charges: charges ?? this.charges,
         notaDiscountPercent: notaDiscountPercent == null ? this.notaDiscountPercent : Money.normalize(notaDiscountPercent),
         customer: clearCustomer ? null : (customer ?? this.customer),
         note: note == null ? this.note : cleanNote(note, 1000),

@@ -166,6 +166,19 @@ class PrinterController extends Notifier<PrinterState> {
     return printBytes(builder.sale(sale, master.receipt, width: _width(master), logo: master.logoBytes, reprint: reprint));
   }
 
+  /// Tagihan sebelum dibayar (lihat `ReceiptBuilder.bill`).
+  Future<PrintResult> printBill(Map<String, dynamic> draft) async {
+    if (state.printer == null) {
+      return PrintResult.noPrinter;
+    }
+    final master = await ref.read(masterDataProvider.future);
+    if (master == null) {
+      return PrintResult.failed;
+    }
+    final builder = await ref.read(receiptBuilderProvider.future);
+    return printBytes(builder.bill(draft, master.receipt, width: _width(master), logo: master.logoBytes));
+  }
+
   Future<PrintResult> printShiftReport(Map<String, dynamic> report) async {
     final master = await ref.read(masterDataProvider.future);
     if (master == null || state.printer == null) {

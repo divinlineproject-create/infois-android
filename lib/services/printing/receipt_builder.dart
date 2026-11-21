@@ -33,14 +33,32 @@ class ReceiptBuilder {
 
   PosStyles _base(ReceiptConfig config) => PosStyles(fontType: config.fontSize == 'small' ? PosFontType.fontB : PosFontType.fontA);
 
-  /// Struk satu penjualan (data penjualan lokal, lihat PosService).
-  List<int> sale(Map<String, dynamic> sale, ReceiptConfig config, {int? width, List<int>? logo, bool reprint = false}) {
+  /// Baris biaya tambahan (ongkos kirim, ...), bukan barang.
+  static bool isCharge(Object? item) => item is Map && item['charge'] == true;
+
+  /// Struk satu penjualan (data penjualan lokal, lihat PosService). Biaya
+  /// tambahan tercetak sebagai baris biasa.
+  List<int> sale(Map<String, dynamic> sale, ReceiptConfig config, {int? width, List<int>? logo, bool reprint = false}) =>
+      _receipt(sale, config, width: width, logo: logo, reprint: reprint);
+
+  /// Tagihan sebelum dibayar (data dari `PosService.draft`): tampilan struk
+  /// berjudul TAGIHAN, "Bukan bukti pembayaran", biaya tambahan di bagian
+  /// total, Sisa tagihan = total, cap BELUM DIBAYAR, tanpa pembayaran & QR.
+  List<int> bill(Map<String, dynamic> draft, ReceiptConfig config, {int? width, List<int>? logo}) =>
+      _receipt(draft, config, width: width, logo: logo, bill: true);
+
+  List<int> _receipt(Map<String, dynamic> sale, ReceiptConfig config, {int? width, List<int>? logo, bool reprint = false, bool bill = false}) {
     final paper = width ?? config.width;
     final generator = _generator(paper);
     final base = _base(config);
     final bytes = <int>[...generator.reset()];
 
     bytes.addAll(_header(generator, config, base, logo, paper));
+    if (bill) {
+      bytes.addAll(generator.feed(1));
+      bytes.addAll(generator.text('TAGIHAN', styles: base.copyWith(align: PosAlign.center, bold: true, height: PosTextSize.size2)));
+      bytes.addAll(generator.text('Bukan bukti pembayaran', styles: base.copyWith(align: PosAlign.center)));
+    }
     bytes.addAll(generator.hr());
 
     void info(String label, String? value) {
@@ -54,7 +72,7 @@ class ReceiptBuilder {
     }
 
     final createdAt = DateTime.tryParse(sale['created_at']?.toString() ?? '')?.toLocal() ?? DateTime.now();
-    info('No', sale['number']?.toString() ?? 'Menunggu nomor');
+    info('No', bill ? (sale['title']?.toString() ?? '-') : (sale['number']?.toString() ?? 'Menunggu nomor'));
     info('Tanggal', receiptDateTime(createdAt));
     if (config.showCashier) {
       info('Kasir', sale['cashier']?.toString());
@@ -69,8 +87,12 @@ class ReceiptBuilder {
     }
     bytes.addAll(generator.hr());
 
-    for (final raw in (sale['items'] as List? ?? const [])) {
-      final item = Map<String, dynamic>.from(raw as Map);
+    final items = [for (final raw in (sale['items'] as List? ?? const [])) Map<String, dynamic>.from(raw as Map)];
+    final charges = bill ? items.where(isCharge).toList() : const <Map<String, dynamic>>[];
+    for (final item in items) {
+      if (bill && isCharge(item)) {
+        continue;
+      }
       bytes.addAll(generator.text(clean(item['description']?.toString()), styles: base.copyWith(bold: true)));
       final discount = Money.normalize(item['discount_percent']);
       final detail = '${qty(item['quantity'])}${(item['unit'] ?? '').toString().isEmpty ? '' : ' ${item['unit']}'} x ${rupiah(item['unit_price'], symbol: false)}'
@@ -94,9 +116,13 @@ class ReceiptBuilder {
       ]));
     }
 
-    amount('Subtotal', sale['subtotal']);
+    // Tagihan: subtotal barang saja, biaya tambahan sebaris masing-masing.
+    amount('Subtotal', bill ? Money.sub(sale['subtotal'], Money.add([for (final charge in charges) charge['line_total']])) : sale['subtotal']);
     if (Money.isPositive(sale['discount_total'])) {
       amount('Diskon', sale['discount_total'], prefix: '-');
+    }
+    for (final charge in charges) {
+      amount(charge['description']?.toString() ?? 'Biaya tambahan', charge['line_total']);
     }
     if (config.showTax && Money.isPositive(sale['tax_total'])) {
       amount('${sale['tax_name'] ?? 'PPN'}${sale['prices_include_tax'] == true ? ' (termasuk)' : ''}', sale['tax_total']);
@@ -124,7 +150,7 @@ class ReceiptBuilder {
     }
 
     bytes.addAll(generator.feed(1));
-    final status = Money.isPositive(balance) ? 'BELUM LUNAS' : 'LUNAS';
+    final status = bill ? 'BELUM DIBAYAR' : (Money.isPositive(balance) ? 'BELUM LUNAS' : 'LUNAS');
     bytes.addAll(generator.text(' $status ', styles: base.copyWith(align: PosAlign.center, bold: true, reverse: true)));
     if (reprint) {
       bytes.addAll(generator.text('-- CETAK ULANG --', styles: base.copyWith(align: PosAlign.center)));
@@ -152,14 +178,16 @@ class ReceiptBuilder {
     ];
   }
 
-  /// Tiket pesanan dapur/bar: tanpa harga, qty & nama besar, catatan barang
-  /// dan catatan pesanan, jenis pesanan + meja/antrian.
-  List<int> kitchenTicket(Map<String, dynamic> sale, ReceiptConfig config, {int? width}) {
+  /// List pesanan untuk dapur/bar atau menyiapkan barang di gudang: tanpa
+  /// harga, qty & nama besar, catatan barang dan catatan pesanan, jenis
+  /// pesanan + meja/antrian. Biaya tambahan tidak ikut. Penjualan yang sudah
+  /// dibayar, atau keranjang sebelum dibayar (`PosService.draft`).
+  List<int> orderList(Map<String, dynamic> sale, ReceiptConfig config, {int? width}) {
     final paper = width ?? config.width;
     final generator = _generator(paper);
     final base = _base(config);
     final bytes = <int>[...generator.reset()];
-    bytes.addAll(generator.text('PESANAN DAPUR', styles: base.copyWith(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2)));
+    bytes.addAll(generator.text('LIST PESANAN', styles: base.copyWith(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2)));
     final order = orderHeadline(sale);
     if (order != null) {
       bytes.addAll(generator.text(clean(order), styles: base.copyWith(align: PosAlign.center, bold: true, height: PosTextSize.size2)));
@@ -176,7 +204,7 @@ class ReceiptBuilder {
       ]));
     }
 
-    info('No', sale['number']?.toString() ?? 'Menunggu nomor');
+    info('No', sale['draft'] == true ? (sale['title']?.toString() ?? 'Belum dibayar') : (sale['number']?.toString() ?? 'Menunggu nomor'));
     info('Waktu', receiptDateTime(createdAt));
     info('Kasir', sale['cashier']?.toString());
     final customer = sale['customer_name']?.toString();
@@ -185,6 +213,9 @@ class ReceiptBuilder {
     }
     bytes.addAll(generator.hr());
     for (final raw in (sale['items'] as List? ?? const [])) {
+      if (isCharge(raw)) {
+        continue;
+      }
       final item = Map<String, dynamic>.from(raw as Map);
       final unit = (item['unit'] ?? '').toString();
       bytes.addAll(generator.text(

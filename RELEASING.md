@@ -104,11 +104,16 @@ barang) supaya kasir toko eceran tidak menghitung isi; barang satu satuan tetap 
 dan Input AI tidak berubah. Satuan ditulis dengan isinya di baris pesanan dan chip satuan lembar barang.
 Tambahan 2026-11-22 (masih 1.0.2+3): **fitur rumah makan / kafe bisa dimatikan** (`tenant.pos_dining`
 dari web, Pengaturan Kasir › "Fitur rumah makan / kafe"; server lama tanpa kunci = tetap nyala): jenis
-pesanan, Meja / antrian, dan tiket "Pesanan dapur" disembunyikan, penjualan dikirim tanpa
-`order_type` / `order_label`. **Pesanan tersimpan yang dibuka lagi** memakai level pelanggan dan katalog
+pesanan dan Meja / antrian disembunyikan, penjualan dikirim tanpa `order_type` / `order_label`. **Pesanan tersimpan yang dibuka lagi** memakai level pelanggan dan katalog
 terbaru di HP (harga manual tetap); daftar pesanan tersimpan menampilkan "{nama} · {level}". Contoh
 catatan pesanan jadi "mis. dikirim sore, nota dipisah"; petunjuk keranjang kosong menjelaskan pilihan
 satuan.
+Tambahan 2026-11-22 (masih 1.0.2+3): **Cetak tagihan** dan **Cetak list** dari panel pesanan sebelum
+dibayar (pelanggan minta nota dulu / bon; offline, tidak dicatat): tagihan berjudul TAGIHAN, "Bukan
+bukti pembayaran", cap BELUM DIBAYAR. Tombol "Pesanan dapur" setelah bayar jadi **Cetak list** (judul
+LIST PESANAN) dan selalu tampil. **Biaya tambahan** nota (ongkos kirim, biaya layanan, biaya kemasan):
+ikut total, tidak kena diskon nota & pajak, dikirim sebagai baris `charge` (server membukukan ke
+Pendapatan Jasa; server lama menganggapnya baris tanpa barang biasa), tersimpan di pesanan tersimpan.
 
 ## 3. Membangun AAB
 

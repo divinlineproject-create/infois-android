@@ -25,7 +25,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'support/fakes.dart';
 
 /// Fitur rumah makan / kafe bisa dimatikan (`tenant.pos_dining`): jenis
-/// pesanan, meja/antrian, dan tiket dapur disembunyikan dan tidak dikirim.
+/// pesanan dan meja/antrian disembunyikan dan tidak dikirim; "Cetak list"
+/// setelah bayar tetap ada (juga untuk toko eceran).
 /// Pesanan tersimpan yang dibuka lagi memakai pelanggan & katalog terbaru.
 void main() {
   setUpAll(() async {
@@ -106,7 +107,7 @@ void main() {
     }
   });
 
-  testWidgets('fitur rumah makan mati: tanpa jenis pesanan, meja/antrian, dan tiket dapur; penjualan tanpa order_type', (tester) async {
+  testWidgets('fitur rumah makan mati: tanpa jenis pesanan & meja/antrian, Cetak list tetap ada; penjualan tanpa order_type', (tester) async {
     final local = (await tester.runAsync(() => seeded(dining: false)))!;
     final container = await pumpApp(tester, local);
 
@@ -132,7 +133,9 @@ void main() {
     await tap(tester, find.byKey(const Key('pay-submit')));
     expect(find.text('Penjualan tersimpan'), findsOneWidget);
     expect(find.byKey(const Key('print-receipt')), findsOneWidget);
-    expect(find.byKey(const Key('print-kitchen')), findsNothing);
+    // "Cetak list" (dulu Pesanan dapur) dipakai juga untuk menyiapkan barang: selalu ada.
+    expect(find.byKey(const Key('print-kitchen')), findsOneWidget);
+    expect(find.descendant(of: find.byKey(const Key('print-kitchen')), matching: find.text('Cetak list')), findsOneWidget);
     expect(find.text('Pesanan dapur'), findsNothing);
 
     final push = (await tester.runAsync(() => OutboxStore(local).pending()))!.single.data;
@@ -142,7 +145,7 @@ void main() {
     await tester.runAsync(local.close);
   });
 
-  testWidgets('server lama tanpa pos_dining: jenis pesanan, meja/antrian, dan tiket dapur tetap tampil', (tester) async {
+  testWidgets('server lama tanpa pos_dining: jenis pesanan, meja/antrian, dan Cetak list tetap tampil', (tester) async {
     final local = (await tester.runAsync(() => seeded()))!;
     await pumpApp(tester, local);
 

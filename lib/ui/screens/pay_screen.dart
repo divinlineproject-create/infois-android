@@ -332,7 +332,14 @@ String printMessage(String? result) => switch (result) {
       _ => '',
     };
 
-/// Penjualan selesai: nomor nota, kembalian, cetak struk / pesanan dapur,
+/// Pesan hasil cetak tagihan / list pesanan ([what] = "Tagihan", "List pesanan").
+String draftPrintMessage(PrintResult result, String what) => switch (result) {
+      PrintResult.printed => '$what tercetak.',
+      PrintResult.noPrinter => printMessage('noPrinter'),
+      _ => '$what belum tercetak. Periksa printer lalu coba lagi.',
+    };
+
+/// Penjualan selesai: nomor nota, kembalian, cetak struk / list pesanan,
 /// kirim struk lewat WhatsApp, transaksi baru.
 class SaleDoneScreen extends ConsumerWidget {
   const SaleDoneScreen({super.key, required this.sale, this.printResult});
@@ -382,8 +389,6 @@ class SaleDoneScreen extends ConsumerWidget {
     final change = sale['change']?.toString() ?? '0';
     final unpaid = Money.sub(sale['total'], sale['paid']);
     final order = ReceiptBuilder.orderHeadline(sale);
-    // Tiket pesanan dapur hanya untuk rumah makan / kafe.
-    final dining = ref.watch(masterDataProvider).valueOrNull?.tenant.posDining ?? true;
     return Scaffold(
       body: SafeArea(
         child: LayoutBuilder(
@@ -422,26 +427,21 @@ class SaleDoneScreen extends ConsumerWidget {
                           },
                         ),
                       ),
-                      if (dining) ...[
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: _DoneAction(
-                            key: const Key('print-kitchen'),
-                            icon: Icons.soup_kitchen_outlined,
-                            label: 'Pesanan dapur',
-                            onTap: () async {
-                              final result = await ref.read(posActionsProvider).printKitchenTicket(sale);
-                              if (context.mounted) {
-                                showMessage(
-                                  context,
-                                  result == PrintResult.printed ? 'Pesanan dapur tercetak.' : printMessage(result.name).replaceFirst('Struk', 'Pesanan dapur'),
-                                  error: result != PrintResult.printed,
-                                );
-                              }
-                            },
-                          ),
+                      const SizedBox(width: 8),
+                      // List pesanan (dapur/bar, atau menyiapkan barang di toko eceran): selalu ada.
+                      Expanded(
+                        child: _DoneAction(
+                          key: const Key('print-kitchen'),
+                          icon: Icons.list_alt_outlined,
+                          label: 'Cetak list',
+                          onTap: () async {
+                            final result = await ref.read(posActionsProvider).printOrderList(sale);
+                            if (context.mounted) {
+                              showMessage(context, draftPrintMessage(result, 'List pesanan'), error: result != PrintResult.printed);
+                            }
+                          },
                         ),
-                      ],
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: _DoneAction(key: const Key('send-wa'), icon: Icons.chat_outlined, label: 'Kirim struk WA', onTap: () => _sendWhatsApp(context, ref)),

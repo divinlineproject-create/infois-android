@@ -97,6 +97,17 @@ class CartController extends Notifier<Cart> {
 
   void setNotaDiscount(String percent) => state = state.copyWith(notaDiscountPercent: percent);
 
+  /// Tambah biaya tambahan nota (ongkos kirim, ...): nama maks. 60 huruf.
+  void addCharge(String name, String amount) {
+    final cleaned = cleanNote(name, 60);
+    if (cleaned == null) {
+      return;
+    }
+    state = state.copyWith(charges: [...state.charges, CartCharge(key: PosService.newUuid(), name: cleaned, amount: Money.normalize(amount))]);
+  }
+
+  void removeCharge(String key) => state = state.copyWith(charges: state.charges.where((charge) => charge.key != key).toList());
+
   /// Pilih/ganti/hapus pelanggan; harga otomatis semua baris dihitung ulang
   /// dengan level pelanggan itu (harga manual tetap).
   void setCustomer(Customer? customer) => state = state.withCustomer(customer);
@@ -306,8 +317,9 @@ class PosActions {
 
   int _paperWidth(MasterData master) => ref.read(printerProvider).printer?.width ?? ref.read(storageProvider).printerWidth ?? master.receipt.width;
 
-  /// Cetak tiket pesanan dapur (tanpa harga) ke printer struk.
-  Future<PrintResult> printKitchenTicket(Map<String, dynamic> sale) async {
+  /// Cetak list pesanan (tanpa harga, tanpa biaya tambahan) ke printer
+  /// struk: untuk dapur/bar atau menyiapkan barang.
+  Future<PrintResult> printOrderList(Map<String, dynamic> sale) async {
     if (ref.read(printerProvider).printer == null) {
       return PrintResult.noPrinter;
     }
@@ -316,7 +328,33 @@ class PosActions {
       return PrintResult.failed;
     }
     final builder = await ref.read(receiptBuilderProvider.future);
-    return ref.read(printerProvider.notifier).printBytes(builder.kitchenTicket(sale, master.receipt, width: _paperWidth(master)));
+    return ref.read(printerProvider.notifier).printBytes(builder.orderList(sale, master.receipt, width: _paperWidth(master)));
+  }
+
+  /// Data cetak keranjang sebelum dibayar; [title] = nama pesanan tersimpan.
+  Future<Map<String, dynamic>?> _draft(String? title) async {
+    final service = await ref.read(posServiceProvider.future);
+    final cart = ref.read(cartProvider);
+    return service == null || cart.isEmpty ? null : service.draft(cart, title: title);
+  }
+
+  /// Cetak tagihan keranjang sebelum dibayar (pelanggan minta nota dulu,
+  /// bayar nanti / bon). Tidak dicatat dan tidak dikirim ke server.
+  Future<PrintResult> printDraftBill({String? title}) async {
+    if (ref.read(printerProvider).printer == null) {
+      return PrintResult.noPrinter;
+    }
+    final draft = await _draft(title);
+    return draft == null ? PrintResult.failed : ref.read(printerProvider.notifier).printBill(draft);
+  }
+
+  /// Cetak list pesanan keranjang sebelum dibayar. Tidak dicatat.
+  Future<PrintResult> printDraftList({String? title}) async {
+    if (ref.read(printerProvider).printer == null) {
+      return PrintResult.noPrinter;
+    }
+    final draft = await _draft(title);
+    return draft == null ? PrintResult.failed : printOrderList(draft);
   }
 
   /// Teks struk untuk WhatsApp / disalin.

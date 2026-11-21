@@ -100,6 +100,78 @@ class PosService {
     }
   }
 
+  /// Baris penjualan: barang dengan diskon efektif, lalu biaya tambahan
+  /// sebagai baris `charge` (tanpa barang, 1 × nominal, tanpa diskon &
+  /// pajak). Sama dengan `saleItems` kasir web.
+  static List<Map<String, dynamic>> saleItems(Cart cart, {required bool pricesIncludeTax}) => [
+        for (final line in cart.lines)
+          () {
+            final amounts = cart.amountsFor(line, pricesIncludeTax: pricesIncludeTax);
+            return <String, dynamic>{
+              'product_id': line.product?.id,
+              'description': line.description,
+              'quantity': amounts.quantity,
+              'unit': line.unit,
+              'unit_price': amounts.unitPrice,
+              'discount_percent': amounts.discountPercent,
+              'tax_rate': amounts.taxRate,
+              'gross_amount': amounts.grossAmount,
+              'discount_amount': amounts.discountAmount,
+              'line_total': amounts.lineTotal,
+              if (line.note != null) 'note': line.note,
+            };
+          }(),
+        for (final charge in cart.charges)
+          () {
+            final amounts = charge.amounts(pricesIncludeTax: pricesIncludeTax);
+            return <String, dynamic>{
+              'product_id': null,
+              'description': charge.name,
+              'quantity': amounts.quantity,
+              'unit': null,
+              'unit_price': amounts.unitPrice,
+              'discount_percent': amounts.discountPercent,
+              'tax_rate': amounts.taxRate,
+              'gross_amount': amounts.grossAmount,
+              'discount_amount': amounts.discountAmount,
+              'line_total': amounts.lineTotal,
+              'charge': true,
+            };
+          }(),
+      ];
+
+  /// Data cetak sebelum dibayar (tagihan / list pesanan): bentuknya sama
+  /// dengan penjualan, tanpa nomor & pembayaran. Tidak disimpan dan tidak
+  /// dikirim ke server. [title] = nama pesanan tersimpan (bila ada).
+  Map<String, dynamic> draft(Cart cart, {String? title, DateTime? now}) {
+    final inclusive = master.tenant.pricesIncludeTax;
+    final totals = cart.totals(pricesIncludeTax: inclusive);
+    final customer = cart.customer;
+    final dining = master.tenant.posDining;
+    return {
+      'draft': true,
+      'title': cleanNote(title, 60),
+      'number': null,
+      'created_at': (now ?? DateTime.now()).toUtc().toIso8601String(),
+      'customer_name': customer == null || customer.isWalkIn ? 'Pelanggan Umum' : customer.name,
+      'notes': cart.note,
+      'order_type': dining ? cart.orderType?.code : null,
+      'order_label': dining ? cart.orderLabel : null,
+      'items': saleItems(cart, pricesIncludeTax: inclusive),
+      'payments': const [],
+      'subtotal': totals.subtotal,
+      'discount_total': totals.discountTotal,
+      'tax_total': totals.taxTotal,
+      'total': totals.total,
+      'paid': '0.00',
+      'change': '0.00',
+      'cashier': user.name,
+      'tax_name': master.tenant.salesTaxName,
+      'prices_include_tax': inclusive,
+      'verification_url': null,
+    };
+  }
+
   /// Simpan penjualan. [clientUuid] dibuat sekali saat layar Bayar dibuka,
   /// sehingga tombol Bayar yang ditekan dua kali tidak membuat nota dobel.
   Future<Map<String, dynamic>> checkout({required String clientUuid, required Cart cart, required PaymentInput payment, String? shiftClientUuid, DateTime? now}) => local.guard(() async {
@@ -119,25 +191,7 @@ class PosService {
     }
 
     final createdAt = now ?? DateTime.now();
-    final items = [
-      for (final line in cart.lines)
-        () {
-          final amounts = cart.amountsFor(line, pricesIncludeTax: inclusive);
-          return {
-            'product_id': line.product?.id,
-            'description': line.description,
-            'quantity': amounts.quantity,
-            'unit': line.unit,
-            'unit_price': amounts.unitPrice,
-            'discount_percent': amounts.discountPercent,
-            'tax_rate': amounts.taxRate,
-            'gross_amount': amounts.grossAmount,
-            'discount_amount': amounts.discountAmount,
-            'line_total': amounts.lineTotal,
-            if (line.note != null) 'note': line.note,
-          };
-        }(),
-    ];
+    final items = saleItems(cart, pricesIncludeTax: inclusive);
 
     final receipt = master.receipt;
     final sale = <String, dynamic>{
@@ -235,6 +289,8 @@ class PosService {
               'discount_percent': item['discount_percent'],
               'tax_rate': item['tax_rate'],
               if (item['note'] != null) 'note': item['note'],
+              // Biaya tambahan: server (`items.*.charge`) membukukan ke Pendapatan Jasa.
+              if (item['charge'] == true) 'charge': true,
             },
         ],
         'payments': [

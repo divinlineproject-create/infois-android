@@ -33,7 +33,7 @@ import 'support/fakes.dart';
 
 /// Kasir sebagai POS: grid + keranjang, catatan per barang & per pesanan,
 /// jenis pesanan + meja, simpan/lanjutkan pesanan, bayar dengan keypad,
-/// tiket dapur, kirim struk WhatsApp, dan tata letak dua panel di tablet.
+/// list pesanan, kirim struk WhatsApp, dan tata letak dua panel di tablet.
 void main() {
   setUpAll(() async {
     await initializeDateFormatting('id_ID');
@@ -101,7 +101,7 @@ void main() {
 
   Finder inPanel(Finder finder) => find.descendant(of: find.byType(PosOrderPanel), matching: finder);
 
-  testWidgets('pesanan lengkap: catatan barang & pesanan, bawa pulang + meja, bayar keypad, dapur, WhatsApp', (tester) async {
+  testWidgets('pesanan lengkap: catatan barang & pesanan, bawa pulang + meja, bayar keypad, list pesanan, WhatsApp', (tester) async {
     phone(tester);
     final (local, printer, launched) = await pumpApp(tester);
     await openShift(tester);
@@ -175,11 +175,11 @@ void main() {
     final items = [for (final item in sale['items'] as List) Map<String, dynamic>.from(item as Map)];
     expect(items.map((item) => item['note']), ['tanpa gula', 'pedas']);
 
-    // Tiket dapur: tanpa harga, dengan catatan.
+    // List pesanan (dulu tiket dapur): tanpa harga, dengan catatan.
     await tap(tester, find.byKey(const Key('print-kitchen')));
     expect(printer.printed, hasLength(2));
     final ticket = latin1.decode(printer.printed.last, allowInvalid: true);
-    for (final expected in ['PESANAN DAPUR', 'BAWA PULANG - Meja 5', 'Kopi susu', '>> tanpa gula', '>> pedas', 'Antar cepat']) {
+    for (final expected in ['LIST PESANAN', 'BAWA PULANG - Meja 5', 'Kopi susu', '>> tanpa gula', '>> pedas', 'Antar cepat']) {
       expect(ticket, contains(expected));
     }
     expect(ticket, isNot(contains('36.000')));
@@ -429,7 +429,7 @@ void main() {
       expect(state.lines[1].note, isNull);
     });
 
-    test('struk & tiket dapur dari data penjualan (juga data server tanpa kolom baru)', () async {
+    test('struk & list pesanan dari data penjualan (juga data server tanpa kolom baru)', () async {
       final builder = await ReceiptBuilder.create();
       final sale = {
         'number': 'POS-K1/000010',
@@ -452,8 +452,8 @@ void main() {
         ],
       };
       const config = ReceiptConfig(companyName: 'Warung Tes');
-      final ticket = latin1.decode(builder.kitchenTicket(sale, config, width: 58), allowInvalid: true);
-      for (final expected in ['PESANAN DAPUR', 'MAKAN DI TEMPAT - Meja 2', '2 gelas  Kopi susu', '>> less ice', 'Ulang tahun', 'Bu Ani']) {
+      final ticket = latin1.decode(builder.orderList(sale, config, width: 58), allowInvalid: true);
+      for (final expected in ['LIST PESANAN', 'MAKAN DI TEMPAT - Meja 2', '2 gelas  Kopi susu', '>> less ice', 'Ulang tahun', 'Bu Ani']) {
         expect(ticket, contains(expected));
       }
       expect(ticket, isNot(contains('36.000')));

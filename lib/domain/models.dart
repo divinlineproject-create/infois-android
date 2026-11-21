@@ -475,7 +475,7 @@ class TenantSettings {
   final int paymentTermsDays;
 
   /// Fitur rumah makan / kafe di kasir (Pengaturan Kasir di web): jenis
-  /// pesanan, meja/antrian, dan tiket pesanan dapur. Mati = toko eceran.
+  /// pesanan dan meja/antrian. Mati = toko eceran ("Cetak list" tetap ada).
   final bool posDining;
 
   Map<String, dynamic> toJson() => {
