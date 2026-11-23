@@ -1,3 +1,4 @@
+import 'dart:convert' show latin1;
 import 'dart:typed_data';
 
 import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
@@ -18,7 +19,7 @@ class ReceiptBuilder {
 
   static Future<ReceiptBuilder> create() async => ReceiptBuilder(await CapabilityProfile.load());
 
-  static const Map<String, String> methodLabels = {'cash': 'Tunai', 'transfer': 'Transfer'};
+  static const Map<String, String> methodLabels = {'cash': 'Tunai', 'transfer': 'Transfer', 'qris': 'QRIS'};
 
   Generator _generator(int width) => Generator(width == 80 ? PaperSize.mm80 : PaperSize.mm58, profile);
 
@@ -158,6 +159,9 @@ class ReceiptBuilder {
     if (reprint) {
       bytes.addAll(generator.text('-- CETAK ULANG --', styles: base.copyWith(align: PosAlign.center)));
     }
+    if (bill) {
+      bytes.addAll(_qrisBlock(generator, base, sale['qris'], paper));
+    }
     bytes.addAll(generator.hr());
     bytes.addAll(_footer(generator, config, base, sale['verification_url']?.toString()));
     bytes.addAll(generator.cut());
@@ -168,6 +172,43 @@ class ReceiptBuilder {
   static String? orderHeadline(Map<String, dynamic> sale) {
     final parts = [OrderType.fromCode(sale['order_type'])?.ticketLabel, cleanNote(sale['order_label']?.toString(), 40)].whereType<String>().toList();
     return parts.isEmpty ? null : parts.join(' - ');
+  }
+
+  /// Tagihan dengan QR QRIS yang belum dibayar ("Cetak QR"): perintah QR
+  /// ESC/POS dari isi QR (bukan gambar), nominal, dan petunjuk scan.
+  List<int> _qrisBlock(Generator generator, PosStyles base, Object? qris, int paper) {
+    if (qris is! Map) {
+      return const [];
+    }
+    final content = qris['content']?.toString() ?? '';
+    if (content.isEmpty) {
+      return const [];
+    }
+    return [
+      ...generator.hr(),
+      ...generator.text('Bayar dengan QRIS', styles: base.copyWith(align: PosAlign.center, bold: true)),
+      ...generator.setStyles(base.copyWith(align: PosAlign.center)),
+      ...qrCommand(content, moduleSize: paper == 80 ? 7 : 5),
+      ...generator.feed(1),
+      if (qris['amount'] != null) ...generator.text(rupiah(qris['amount']), styles: base.copyWith(align: PosAlign.center, bold: true)),
+      ...generator.text('Scan dengan aplikasi bank / e-wallet', styles: base.copyWith(align: PosAlign.center)),
+    ];
+  }
+
+  /// Perintah QR ESC/POS (GS ( k, model 2, koreksi M) untuk [content].
+  /// Panjang data ditulis dua byte (pL pH): isi QRIS bisa lebih dari 252
+  /// karakter, batas `Generator.qrcode` yang hanya menulis satu byte.
+  static List<int> qrCommand(String content, {int moduleSize = 5}) {
+    const header = [0x1D, 0x28, 0x6B];
+    final data = latin1.encode(clean(content));
+    final length = data.length + 3;
+    return [
+      ...header, 0x04, 0x00, 0x31, 0x41, 0x32, 0x00, // model 2
+      ...header, 0x03, 0x00, 0x31, 0x43, moduleSize.clamp(1, 16), // ukuran modul
+      ...header, 0x03, 0x00, 0x31, 0x45, 0x31, // koreksi galat M
+      ...header, length & 0xFF, length >> 8, 0x31, 0x50, 0x30, ...data, // simpan data
+      ...header, 0x03, 0x00, 0x31, 0x51, 0x30, // cetak
+    ];
   }
 
   /// Blok "Kirim ke:" + alamat pengiriman (struk, tagihan, list pesanan).
@@ -350,6 +391,9 @@ class ReceiptBuilder {
     line('Total penjualan', rupiah(report['sales_total']));
     line('Tunai', rupiah(report['cash_total']));
     line('Transfer', rupiah(report['transfer_total']));
+    if (Money.isPositive(report['qris_total'])) {
+      line('QRIS', rupiah(report['qris_total']));
+    }
     line('Bon (belum dibayar)', rupiah(report['unpaid_total']));
     bytes.addAll(generator.hr());
     line('Uang awal', rupiah(report['opening_cash']));

@@ -125,6 +125,12 @@ Tambahan 2026-11-24 (masih 1.0.2+3): **uang tunai kasir** — layar Bayar menyeb
 tunai masuk ke: Kas Kasir") bila ada lebih dari satu akun kas (akun laci dari Pengaturan Kasir web =
 `accounts.default_cash_id`); Tutup kasir menampilkan dan mencetak uang awal & setoran otomatis dari server
 (`cash_transfers` pada shift) beserta catatannya. Server lama tanpa kunci itu: tidak ada yang berubah.
+Tambahan 2026-11-24 (masih 1.0.2+3): **bayar QRIS** (keputusan pemilik merevisi "tanpa QRIS di aplikasi"):
+pilihan QRIS di layar Bayar bila `tenant.qris.enabled` — QR dinamis dari server (akun DOKU perusahaan),
+status dicek tiap 3 detik, dibayar → penjualan langsung disimpan & dikirim dengan pembayaran `qris`
+(ditolak = QR & keranjang tetap, bisa dicoba lagi); Batalkan QR / pindah cara bayar / keluar = QR dibatalkan;
+"Cetak QR" (tagihan + QR ESC/POS) bila `print_on_bill`; struk "Bayar - QRIS"; baris QRIS di laporan shift.
+Online saja. Server harus sudah punya `/api/v1/pos/qris` (backoffice 2b91647) sebelum rilis.
 
 ## 3. Membangun AAB
 

@@ -1,11 +1,17 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart' show DateFormat;
 
 import '../../core/format.dart';
 import '../../core/money.dart';
+import '../../data/api_client.dart';
+import '../../data/qris_api.dart';
 import '../../domain/models.dart';
+import '../../domain/qris.dart';
 import '../../services/pos_service.dart';
 import '../../services/printing/receipt_builder.dart';
 import '../../state/pos_state.dart';
@@ -16,6 +22,12 @@ import '../widgets/common.dart';
 import '../widgets/pos_keypad.dart';
 import 'customer_picker.dart';
 import 'shift_screens.dart';
+
+/// QRIS butuh internet (dibuat & dicek di server).
+const qrisOfflineMessage = 'QRIS butuh internet. Sambungkan internet lalu coba lagi.';
+
+/// Jeda menanyakan status QR ke server.
+const qrisPollEvery = Duration(seconds: 3);
 
 /// Nominal cepat untuk tunai: uang pas, pembulatan ke atas, 20rb/50rb/100rb.
 List<String> quickCashAmounts(String total) {
@@ -51,7 +63,8 @@ class PayScreen extends ConsumerStatefulWidget {
 
 class _PayScreenState extends ConsumerState<PayScreen> {
   /// Dibuat sekali per layar: bayar ditekan dua kali tetap satu nota.
-  final String _clientUuid = PosService.newUuid();
+  /// Diganti hanya bila penjualan QRIS ditolak lalu kasir memilih cara lain.
+  String _clientUuid = PosService.newUuid();
 
   /// Nominal tunai dari keypad (digit saja). Kosong = uang pas (mode tunai).
   String _cash = '';
@@ -59,6 +72,222 @@ class _PayScreenState extends ConsumerState<PayScreen> {
   CashAccount? _account;
   bool _busy = false;
   String? _error;
+
+  // ------------------------------------------------------------- QRIS
+  QrisPayment? _qris;
+  QrisApi? _qrisApi;
+  bool _qrisBusy = false;
+  String? _qrisError;
+  Timer? _qrisTimer;
+  bool _qrisChecking = false;
+
+  /// Penjualan QRIS sudah disimpan (lalu ditolak server): cara bayar lain
+  /// memakai nota baru.
+  bool _qrisAttempted = false;
+
+  @override
+  void dispose() {
+    // Keluar dari layar Bayar: QR yang belum dibayar dibatalkan.
+    _cancelQris();
+    super.dispose();
+  }
+
+  String _total() => ref.read(cartProvider).totals(pricesIncludeTax: ref.read(masterDataProvider).valueOrNull?.tenant.pricesIncludeTax ?? false).total;
+
+  void _setMode(PayMode mode) {
+    if (_mode == PayMode.qris && mode != PayMode.qris) {
+      _cancelQris();
+    }
+    if (_qrisAttempted && mode != PayMode.qris) {
+      _clientUuid = PosService.newUuid();
+      _qrisAttempted = false;
+    }
+    setState(() {
+      _mode = mode;
+      _cash = '';
+      _error = null;
+    });
+    // QRIS: QR langsung dibuat & tampil, statusnya ditanyakan sampai dibayar.
+    if (mode == PayMode.qris) {
+      _startQris();
+    }
+  }
+
+  Future<void> _startQris() async {
+    final current = _qris;
+    if (_qrisBusy || (current != null && (current.isPending || current.isPaid))) {
+      return;
+    }
+    final api = ref.read(qrisApiProvider);
+    final total = _total();
+    setState(() {
+      _qrisBusy = true;
+      _qrisError = null;
+      _qris = null;
+    });
+    try {
+      if (api == null) {
+        throw const ApiException(qrisOfflineMessage, offline: true);
+      }
+      final qris = await api.create(total);
+      _qrisApi = api;
+      if (!mounted || _mode != PayMode.qris) {
+        // Kasir sudah pindah cara bayar / keluar saat QR dibuat.
+        unawaited(api.cancel(qris.id).then((_) {}, onError: (Object _) {}));
+        return;
+      }
+      setState(() => _qris = qris);
+      _qrisTimer?.cancel();
+      _qrisTimer = Timer.periodic(qrisPollEvery, (_) => _checkQris());
+    } on ApiException catch (error) {
+      if (mounted) {
+        setState(() => _qrisError = error.offline ? qrisOfflineMessage : error.message);
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _qrisError = 'QR belum bisa dibuat. Coba lagi.');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _qrisBusy = false);
+      }
+    }
+  }
+
+  Future<void> _checkQris() async {
+    final qris = _qris;
+    final api = _qrisApi;
+    if (!mounted || qris == null || !qris.isPending || _mode != PayMode.qris || api == null) {
+      _qrisTimer?.cancel();
+      return;
+    }
+    if (_qrisChecking) {
+      return;
+    }
+    _qrisChecking = true;
+    try {
+      final next = await api.status(qris.id);
+      if (!mounted || _qris?.id != next.id) {
+        return;
+      }
+      final merged = _qris!.merge(next);
+      setState(() => _qris = merged);
+      if (!merged.isPending) {
+        _qrisTimer?.cancel();
+      }
+      if (merged.isPaid) {
+        showMessage(context, 'Pembayaran QRIS diterima.');
+        await _pay(_total());
+      }
+    } on ApiException {
+      // Jaringan sesaat: dicoba lagi pada putaran berikutnya.
+    } finally {
+      _qrisChecking = false;
+    }
+  }
+
+  /// Hentikan pengecekan; QR yang belum dibayar dibatalkan (tanpa menunggu).
+  /// QR yang sudah dibayar tetap disimpan.
+  void _cancelQris() {
+    _qrisTimer?.cancel();
+    _qrisTimer = null;
+    final qris = _qris;
+    final api = _qrisApi;
+    if (qris != null && qris.isPending && api != null) {
+      unawaited(api.cancel(qris.id).then((_) {}, onError: (Object _) {}));
+    }
+    if (qris == null || !qris.isPaid) {
+      _qris = null;
+    }
+    _qrisError = null;
+  }
+
+  Future<void> _printQris() async {
+    final qris = _qris;
+    if (qris == null) {
+      return;
+    }
+    final result = await ref.read(posActionsProvider).printQrisBill(qris);
+    if (mounted) {
+      showMessage(context, draftPrintMessage(result, 'Tagihan QRIS'), error: result != PrintResult.printed);
+    }
+  }
+
+  Widget _qrisPanel(BuildContext context, {required bool printOnBill}) {
+    final qris = _qris;
+    if (_qrisBusy) {
+      return const Padding(
+        key: Key('qris-creating'),
+        padding: EdgeInsets.symmetric(vertical: Space.l),
+        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.5)),
+          SizedBox(width: Space.m),
+          Text('Membuat QR…'),
+        ]),
+      );
+    }
+    if (qris == null) {
+      if (_qrisError == null) {
+        return const SizedBox.shrink();
+      }
+      return Column(children: [
+        Text(_qrisError!, key: const Key('qris-error'), textAlign: TextAlign.center, style: TextStyle(color: dangerText(context), fontWeight: FontWeight.w500)),
+        const SizedBox(height: Space.s),
+        OutlinedButton(key: const Key('qris-retry'), onPressed: _startQris, child: const Text('Coba lagi')),
+      ]);
+    }
+    final image = qris.isPending ? qris.imageBytes : null;
+    final expires = qris.expiresAt == null ? null : DateFormat('HH:mm').format(qris.expiresAt!.toLocal());
+    final status = qris.isPending
+        ? 'Scan dengan aplikasi bank / e-wallet${expires == null ? '' : ' · berlaku sampai $expires'}'
+        : (qris.isPaid ? 'Pembayaran diterima${qris.issuer == null ? '' : ' · ${qris.issuer}'}' : (qris.statusLabel ?? 'QR tidak berlaku lagi'));
+    return Container(
+      key: const Key('qris-panel'),
+      padding: const EdgeInsets.all(Space.l),
+      decoration: BoxDecoration(border: Border.all(color: Theme.of(context).colorScheme.outlineVariant), borderRadius: BorderRadius.circular(Radii.l)),
+      child: Column(children: [
+        if (image != null) ...[
+          Container(
+            color: Colors.white,
+            padding: const EdgeInsets.all(Space.s),
+            child: Image.memory(image, key: const Key('qris-image'), width: 240, height: 240, filterQuality: FilterQuality.none, gaplessPlayback: true),
+          ),
+          const SizedBox(height: Space.m),
+        ],
+        Text(rupiah(qris.amount), key: const Key('qris-amount'), style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700)),
+        const SizedBox(height: Space.xs),
+        Text(
+          status,
+          key: const Key('qris-status'),
+          textAlign: TextAlign.center,
+          style: TextStyle(color: qris.isPaid ? Brand.green : (qris.isOver ? warningText(context) : mutedText(context)), fontWeight: qris.isPending ? FontWeight.w400 : FontWeight.w600),
+        ),
+        if (qris.isPending) ...[
+          const SizedBox(height: Space.m),
+          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+            const SizedBox(width: Space.s),
+            Text('Menunggu pembayaran…', style: TextStyle(fontSize: 13, color: mutedText(context))),
+          ]),
+        ],
+        const SizedBox(height: Space.m),
+        Wrap(alignment: WrapAlignment.center, spacing: Space.s, runSpacing: Space.s, children: [
+          if (qris.isPending && printOnBill)
+            OutlinedButton.icon(key: const Key('qris-print'), onPressed: _printQris, icon: const Icon(Icons.print_outlined), label: const Text('Cetak QR')),
+          if (qris.isOver)
+            OutlinedButton(
+              key: const Key('qris-new'),
+              onPressed: () {
+                setState(() => _qris = null);
+                _startQris();
+              },
+              child: const Text('Buat QR baru'),
+            ),
+          if (qris.isPending) TextButton(key: const Key('qris-cancel'), onPressed: () => _setMode(PayMode.cash), child: const Text('Batalkan QR')),
+        ]),
+      ]),
+    );
+  }
 
   Future<void> _pay(String total) async {
     if (_busy) {
@@ -80,14 +309,20 @@ class _PayScreenState extends ConsumerState<PayScreen> {
       setState(() => _error = 'Isi jumlah uang tunai.');
       return;
     }
+    if (_mode == PayMode.qris && !(_qris?.isPaid ?? false)) {
+      return;
+    }
     setState(() {
       _busy = true;
       _error = null;
     });
     try {
+      if (_mode == PayMode.qris) {
+        _qrisAttempted = true;
+      }
       final outcome = await ref.read(posActionsProvider).checkout(
             clientUuid: _clientUuid,
-            payment: PaymentInput(mode: _mode, cashReceived: cash, transferAccountId: _account?.id, transferAccountName: _account?.name),
+            payment: PaymentInput(mode: _mode, cashReceived: cash, transferAccountId: _account?.id, transferAccountName: _account?.name, qrisPaymentId: _mode == PayMode.qris ? _qris?.id : null),
           );
       if (mounted) {
         context.pushReplacement('/selesai', extra: {'sale': outcome.sale, 'print': outcome.print?.name});
@@ -123,6 +358,8 @@ class _PayScreenState extends ConsumerState<PayScreen> {
     final change = _mode == PayMode.cash && cashValue != null && Money.compare(cashValue, total) >= 0 ? Money.sub(cashValue, total) : null;
     final short = _mode == PayMode.cash && cashValue != null && Money.compare(cashValue, total) < 0 ? Money.sub(total, cashValue) : null;
     final transferPart = _mode == PayMode.mixed && cashValue != null ? Money.sub(total, cashValue) : null;
+    final qrisEnabled = master?.tenant.qrisEnabled ?? false;
+    final qrisWaiting = _mode == PayMode.qris && !(_qris?.isPaid ?? false);
     final orderInfo = (master?.tenant.posDining ?? true) ? [cart.orderType?.label, cart.orderLabel].whereType<String>().join(' · ') : '';
     final screen = MediaQuery.sizeOf(context);
     // Layar miring yang pendek (tablet kasir): total & tombol lebih rapat.
@@ -195,11 +432,14 @@ class _PayScreenState extends ConsumerState<PayScreen> {
       SegmentedButton<PayMode>(
         // HP sempit: tanpa ikon dan label tidak dipenggal ("Tun/ai").
         segments: [
-          for (final (mode, label, icon) in const [
+          for (final (mode, label, icon) in [
             (PayMode.cash, 'Tunai', Icons.payments_outlined),
             (PayMode.transfer, 'Transfer', Icons.account_balance_outlined),
             (PayMode.bon, 'Bon', Icons.schedule_outlined),
             (PayMode.mixed, 'Campur', Icons.call_split),
+            // QRIS dinamis bila dinyalakan perusahaan (online saja). Tetap tampil
+            // bila sedang dipilih walau dimatikan lewat sinkron di tengah jalan.
+            if (qrisEnabled || _mode == PayMode.qris) (PayMode.qris, 'QRIS', Icons.qr_code),
           ])
             ButtonSegment(
               value: mode,
@@ -209,11 +449,7 @@ class _PayScreenState extends ConsumerState<PayScreen> {
         ],
         selected: {_mode},
         showSelectedIcon: false,
-        onSelectionChanged: (value) => setState(() {
-          _mode = value.first;
-          _cash = '';
-          _error = null;
-        }),
+        onSelectionChanged: (value) => _setMode(value.first),
       ),
       // Lebih dari satu akun kas: jelaskan ke mana uang tunai dicatat (akun laci
       // kasir dari Pengaturan Kasir web = `accounts.default_cash_id`).
@@ -224,6 +460,10 @@ class _PayScreenState extends ConsumerState<PayScreen> {
       const SizedBox(height: 20),
     ];
     final details = <Widget>[
+      if (_mode == PayMode.qris) ...[
+        _qrisPanel(context, printOnBill: master?.tenant.qrisPrintOnBill ?? false),
+        const SizedBox(height: 8),
+      ],
       if (_mode == PayMode.transfer || _mode == PayMode.mixed) ...[
         DropdownButtonFormField<int>(
           value: _account?.id,
@@ -283,7 +523,7 @@ class _PayScreenState extends ConsumerState<PayScreen> {
             padding: EdgeInsets.fromLTRB(Space.l, dense ? Space.s : Space.m, Space.l, dense ? Space.s : Space.m),
             child: FilledButton(
               key: const Key('pay-submit'),
-              onPressed: _busy || cart.isEmpty
+              onPressed: _busy || cart.isEmpty || qrisWaiting
                   ? null
                   : () {
                       HapticFeedback.mediumImpact();
@@ -292,7 +532,11 @@ class _PayScreenState extends ConsumerState<PayScreen> {
               style: FilledButton.styleFrom(minimumSize: Size.fromHeight(dense ? 48 : 56), textStyle: const TextStyle(fontFamily: 'Poppins', fontSize: 17, fontWeight: FontWeight.w700)),
               child: _busy
                   ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
-                  : Text(_mode == PayMode.bon ? 'Simpan bon' : (_mode == PayMode.cash && change != null && Money.isPositive(change) ? 'Bayar · kembali ${rupiah(change)}' : 'Bayar')),
+                  : Text(switch (_mode) {
+                      PayMode.bon => 'Simpan bon',
+                      PayMode.qris => qrisWaiting ? 'Menunggu pembayaran QRIS…' : 'Simpan penjualan',
+                      _ => _mode == PayMode.cash && change != null && Money.isPositive(change) ? 'Bayar · kembali ${rupiah(change)}' : 'Bayar',
+                    }),
             ),
           ),
         ),

@@ -4,10 +4,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../core/money.dart';
+import '../data/outbox_store.dart';
 import '../data/pos_ai_api.dart';
+import '../data/qris_api.dart';
 import '../domain/cart.dart';
 import '../domain/models.dart';
 import '../domain/pos_ai.dart';
+import '../domain/qris.dart';
 import '../services/file_downloads.dart' show whatsappUri;
 import '../services/pos_service.dart';
 import '../services/printing/receipt_builder.dart';
@@ -136,6 +139,12 @@ class CartController extends Notifier<Cart> {
 
 final cartProvider = NotifierProvider<CartController, Cart>(CartController.new);
 
+/// Klien QRIS kasir untuk perusahaan aktif (null bila belum ada perusahaan).
+final qrisApiProvider = Provider<QrisApi?>((ref) {
+  final workspace = ref.watch(workspaceProvider).valueOrNull;
+  return workspace == null ? null : QrisApi(workspace.api);
+});
+
 /// Klien Input AI kasir untuk perusahaan aktif (null bila belum ada perusahaan).
 final posAiApiProvider = Provider<PosAiApi?>((ref) {
   final workspace = ref.watch(workspaceProvider).valueOrNull;
@@ -184,25 +193,83 @@ class PosActions {
       throw const CheckoutException('Data kasir belum siap. Tunggu sinkron selesai.');
     }
     final shift = await ref.read(openShiftProvider.future);
-    final sale = await service.checkout(
+    final saved = await service.checkout(
       clientUuid: clientUuid,
       cart: ref.read(cartProvider),
       payment: payment,
       shiftClientUuid: shift?['client_uuid'] as String?,
     );
+    var sale = saved;
+    if (payment.mode == PayMode.qris) {
+      // QRIS (online): langsung dikirim. Ditolak server = keranjang & QR yang
+      // sudah dibayar tetap, kasir bisa mencoba lagi.
+      sale = await _pushQrisSale(clientUuid) ?? saved;
+    }
     final phone = ref.read(cartProvider).customer?.phone;
     if (phone != null && phone.isNotEmpty) {
       sale['customer_phone'] = phone;
     }
     ref.read(cartProvider.notifier).clear();
     ref.read(dataVersionProvider.notifier).state++;
-    unawaited(ref.read(syncProvider.notifier).refreshPending().then((_) => ref.read(syncProvider.notifier).syncNow()));
+    if (payment.mode != PayMode.qris) {
+      unawaited(ref.read(syncProvider.notifier).refreshPending().then((_) => ref.read(syncProvider.notifier).syncNow()));
+    }
 
     PrintResult? printed;
     if (autoPrint && ref.read(storageProvider).autoPrint) {
       printed = await ref.read(printerProvider.notifier).printSale(sale);
     }
     return CheckoutOutcome(sale, printed);
+  }
+
+  /// Kirim penjualan QRIS [clientUuid] sekarang (paling lama [qrisPushWait]).
+  /// Ditolak → [CheckoutException] dengan pesan server (penjualan yang sama
+  /// dikirim ulang saat dicoba lagi). Offline / lambat: tetap di antrean.
+  /// Kembalikan data struk terbaru (nomor final dari server).
+  Future<Map<String, dynamic>?> _pushQrisSale(String clientUuid) async {
+    final workspace = await ref.read(workspaceProvider.future);
+    if (workspace == null || !workspace.usable) {
+      return null;
+    }
+    final outbox = OutboxStore(workspace.local);
+    if ((await outbox.find(clientUuid))?.status == OutboxStatus.rejected) {
+      await outbox.retry(clientUuid);
+    }
+    final sync = ref.read(syncProvider.notifier);
+    await sync.refreshPending();
+    try {
+      await sync.syncNow().timeout(qrisPushWait);
+    } on TimeoutException {
+      // Server lambat: penjualan tetap di antrean dan terkirim nanti.
+    }
+    final item = await outbox.find(clientUuid);
+    if (item?.status == OutboxStatus.rejected) {
+      ref.read(dataVersionProvider.notifier).state++;
+      throw CheckoutException(item?.lastError ?? 'Penjualan QRIS ditolak server. Coba lagi.');
+    }
+    return workspace.local.sale(clientUuid);
+  }
+
+  /// Batas tunggu kirim penjualan QRIS sebelum lanjut ke struk.
+  static const Duration qrisPushWait = Duration(seconds: 15);
+
+  /// Cetak tagihan + QR QRIS yang belum dibayar ("Cetak QR"), bila
+  /// `tenant.qris.print_on_bill`. Tidak dicatat.
+  Future<PrintResult> printQrisBill(QrisPayment qris) async {
+    if (ref.read(printerProvider).printer == null) {
+      return PrintResult.noPrinter;
+    }
+    final cart = ref.read(cartProvider);
+    final store = await _heldStore();
+    final title = cart.heldId == null ? null : (await store?.find(cart.heldId!))?.name;
+    final draft = await _draft(title);
+    if (draft == null || qris.qrContent == null) {
+      return PrintResult.failed;
+    }
+    return ref.read(printerProvider.notifier).printBill({
+      ...draft,
+      'qris': {'content': qris.qrContent, 'amount': qris.amount},
+    });
   }
 
   /// Barang untuk kode hasil scan kamera / scanner / ketik: barcode dulu,

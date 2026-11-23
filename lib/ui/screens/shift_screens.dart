@@ -221,6 +221,7 @@ class _ShiftCloseScreenState extends ConsumerState<ShiftCloseScreen> {
                     AmountRow('Total penjualan', rupiah(summary['sales_total'])),
                     AmountRow('Tunai', rupiah(summary['cash_total'])),
                     AmountRow('Transfer', rupiah(summary['transfer_total'])),
+                    if (Money.isPositive(summary['qris_total'])) AmountRow('QRIS', rupiah(summary['qris_total'])),
                     AmountRow('Bon (belum dibayar)', rupiah(summary['unpaid_total'])),
                     const Divider(),
                     AmountRow('Uang awal', rupiah(summary['opening_cash'])),

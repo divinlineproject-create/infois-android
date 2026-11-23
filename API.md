@@ -176,7 +176,7 @@ Tanpa `since` = tarikan penuh. Dengan `since` = barang/pelanggan yang berubah se
   "cursor": "2026-10-07T10:00:00.123456+07:00",
   "full": false,
   "server_time": "2026-10-07T10:00:05+07:00",
-  "tenant": { "id": 1, "name": "Warung Bu Sri", "prices_include_tax": false, "sales_tax_name": "PPN", "sales_tax_rate": "11.00", "auto_stock_adjustment": true, "payment_terms_days": 14, "pos_dining": true },
+  "tenant": { "id": 1, "name": "Warung Bu Sri", "prices_include_tax": false, "sales_tax_name": "PPN", "sales_tax_rate": "11.00", "auto_stock_adjustment": true, "payment_terms_days": 14, "pos_dining": true, "qris": { "enabled": false, "print_on_bill": false } },
   "receipt": {
     "width": 58, "font_size": "normal", "show_logo": true, "show_address": true, "show_phone": true, "show_cashier": true,
     "show_customer": true, "show_tax": true, "show_payment": true, "show_qr": true,
@@ -225,6 +225,7 @@ Tanpa `since` = tarikan penuh. Dengan `since` = barang/pelanggan yang berubah se
   - `category_id` + `category` (`{id, name}` atau `null`): kategori barang di Katalog web. `categories` = **semua** kategori perusahaan (selalu lengkap, urut `sort` lalu nama). HP menampilkan chip "Semua" + kategori yang punya barang di kasir + "Lainnya" (barang tanpa kategori). Kategori diganti nama/dihapus → barangnya ikut terkirim ulang di tarikan `since`.
   - `has_photo` + `photo_version` (12 karakter, berubah setiap foto diganti; `null` tanpa foto) = **kunci cache** foto di HP. Foto diunduh dari `GET /products/{id}/photo` (asli) atau `?size=thumb` (persegi 256 px) dengan token + `X-Tenant`; HP selalu memakai rute relatif ke server aplikasi (token tidak dikirim ke host lain) dan menambahkan `&v=<photo_version>`. `photo_url` / `photo_thumb_url` hanya informasi. Foto disimpan di HP per perusahaan (`{id}_{versi}_{t|f}`), jadi tetap tampil offline setelah pertama dimuat; versi lama dihapus.
 
+- **`tenant.qris`** (aplikasi ≥ 1.0.2, build 3): `{enabled, print_on_bill}`. `enabled` = QRIS dinamis (akun DOKU perusahaan) dinyalakan di web → layar Bayar menampilkan pilihan **QRIS** (online saja, lihat `/pos/qris`). `print_on_bill` = tombol "Cetak QR" (tagihan + QR) saat QR menunggu dibayar. Kunci tidak ada (server lama) = QRIS mati.
 - **`menus.pos_settings`** (bool, aplikasi ≥ 1.0.2, build 3): `true` untuk pengguna yang boleh mengelola perusahaan (dan memakai kasir) → Akun › Pengaturan kasir menampilkan bagian "Untuk semua kasir di usaha ini" (lihat `PUT /pos/settings`). Lainnya hanya melihat printer di perangkat ini.
 - **`customers.items[].address`**: alamat pelanggan (atau `null`), dipakai sebagai isian awal Alamat pengiriman di kasir.
 - **`tenant.pos_dining`** (bool, aplikasi ≥ 1.0.2, build 3): fitur rumah makan / kafe di kasir (web: Pengaturan Kasir › "Fitur rumah makan / kafe"; bawaannya nyala hanya untuk usaha F&B). `false` = HP menyembunyikan jenis pesanan (Makan di tempat / Bawa pulang / Pesan antar), dan isian Meja / antrian (tombol "Cetak list" tetap ada, juga untuk toko eceran), dan penjualan dikirim **tanpa** `order_type` / `order_label` walau keranjang atau pesanan tersimpan lama masih membawanya. Kunci tidak ada / `null` (server lama) = `true` (perilaku lama).
@@ -286,7 +287,7 @@ Jawaban:
 - Tanpa pelanggan → "Pelanggan Umum". `customer_client_uuid` = pelanggan baru dari HP (item `customer` dikirim lebih dulu di antrean yang sama).
 - **Data pesanan** (opsional): `notes` = catatan pesanan (maks. 1000), `order_type` = `dine_in` | `take_away` | `delivery` (lainnya → `ditolak`), `order_label` = meja/antrian (maks. 40), `items[].note` = catatan barang (maks. 200). Disimpan di `invoices.order_type`, `invoices.order_label`, `invoice_items.note`; `invoices.notes` berisi ringkasan yang tampil di web/PDF dan di `records/sales/{id}(/receipt).notes`: `Pesanan: Bawa pulang · Meja 5` ⏎ `Catatan: Antar ke lantai 2` ⏎ `- Kopi susu: tanpa gula` (tanpa jenis/meja: hanya catatan apa adanya).
 - **Alamat pengiriman** (aplikasi ≥ 1.0.2, build 3): `delivery_address` (maks. 500, dirapikan; `null`/tidak dikirim bila kosong) hanya dikirim bila barang dikirim — jenis pesanan `delivery` (Pesan antar, hanya saat `tenant.pos_dining`) atau ada biaya tambahan yang namanya cocok `/kirim|antar|ongkir|ekspedisi/i` (sama dengan `needsDelivery` kasir web). Server menyimpannya di nota. Di HP tersimpan di keranjang & pesanan tersimpan (`delivery_address`); isian awal = alamat pelanggan (`customers.items[].address` dari `sync/pull`). Struk, tagihan, dan List pesanan mencetak blok `Kirim ke:` + alamat setelah jenis pesanan / baris pelanggan.
-- **Bon**: `payments: []` (wajib pelanggan). **Campuran**: dua pembayaran `cash` + `transfer`. `method` hanya `cash` | `transfer` (tidak ada QRIS).
+- **Bon**: `payments: []` (wajib pelanggan). **Campuran**: dua pembayaran `cash` + `transfer`. `method` = `cash` | `transfer` | `qris`. **QRIS** (aplikasi ≥ 1.0.2, build 3, online saja): satu pembayaran `{ "client_uuid", "method": "qris", "amount": <total>, "account_id": <default_cash_id>, "qris_payment_id": <id dari /pos/qris> }`; server memakai akun Kas QRIS dari pengaturan QRIS (bukan `account_id`) dan **menolak** (`ditolak`) bila QR belum dibayar, nominalnya beda, atau QR sudah dipakai nota lain. HP mengirim penjualan QRIS langsung setelah QR dibayar (menunggu jawaban paling lama 15 detik); ditolak = keranjang & QR yang sudah dibayar tetap di layar Bayar dengan pesan server, "Simpan penjualan" mengirim ulang penjualan yang sama (`client_uuid` sama).
 - `discount_percent` = diskon efektif per baris (diskon barang digabung diskon nota di HP, 2 desimal). `total` dipakai untuk cek paritas; beda → `perlu_ditinjau`.
 - **Biaya tambahan** (aplikasi ≥ 1.0.2, build 3): ongkos kirim, biaya layanan, dll. dikirim setelah baris barang sebagai `items[]` dengan `"charge": true`, `product_id: null`, `unit: null`, `quantity: "1.000000"`, `unit_price` = nominal, `discount_percent: "0.00"`, `tax_rate: "0.00"` (diskon nota tidak berlaku untuk biaya). Server membukukan baris `charge` ke Pendapatan Jasa; server lama mengabaikan tandanya (baris tanpa barang biasa). `total` = barang (dengan diskon nota & pajak) + biaya. Di HP biaya disimpan di keranjang & pesanan tersimpan sebagai `charges: [{key, name, amount}]` (JSON lama tanpa kunci = tanpa biaya). Struk lunas menampilkan biaya sebagai baris biasa; **List pesanan** (dulu "Pesanan dapur") tidak memuat biaya.
 - **Cetak sebelum dibayar** (HP, offline, printer Bluetooth): **Cetak tagihan** (tampilan struk berjudul TAGIHAN, "Bukan bukti pembayaran", No = nama pesanan tersimpan atau `-`, Sisa tagihan = total, cap BELUM DIBAYAR) dan **Cetak list** (list pesanan tanpa harga & biaya, No = nama pesanan tersimpan atau "Belum dibayar"). Tidak ada yang dicatat atau dikirim ke server.
@@ -311,6 +312,21 @@ Jawaban:
 Uang seharusnya = uang awal + pembayaran tunai penjualan shift itu yang sudah sampai di server.
 
 ## 5. Kasir 🏢
+
+### `POST /pos/qris` · `GET /pos/qris/{id}` · `DELETE /pos/qris/{id}` (online saja)
+QRIS dinamis untuk total nota (hanya bila `tenant.qris.enabled`; permission `issue-invoice`).
+- `POST /pos/qris` `{ "amount": "18000.00" }` → 201 `{ "qris": {…} }`. Galat: 422 `qris_gagal` + `message` (QRIS mati, total bersen, galat DOKU), 403 `tidak_berhak`.
+- `GET /pos/qris/{id}` → `{ "qris": {…} }`. Server mengecek DOKU paling sering tiap 3 detik; HP menanyakan tiap 3 detik selama layar Bayar terbuka di pilihan QRIS dan status `pending`.
+- `DELETE /pos/qris/{id}` → `{ "qris": {…} }` membatalkan QR yang belum dibayar (HP: "Batalkan QR", pindah cara bayar, atau keluar dari layar Bayar; tanpa menunggu jawaban).
+- QR tidak ditemukan → 404 `tidak_ditemukan`.
+```json
+{ "qris": { "id": 31, "status": "pending", "status_label": "Menunggu pembayaran", "amount": "18000.00",
+  "qr_content": "000201010212…", "qr_image": "data:image/png;base64,…", "expires_at": "2026-11-24T07:35:00Z",
+  "paid_at": null, "issuer": null, "reference": null, "invoice_id": null } }
+```
+- `status` = `pending` | `paid` | `expired` | `failed` | `canceled`. `qr_content` & `qr_image` hanya ada selama `pending` (HP menyimpan yang terakhir). `issuer` = bank / e-wallet pembayar ("Pembayaran diterima · GoPay").
+- "Cetak QR" (bila `print_on_bill`): tagihan sebelum dibayar + blok "Bayar dengan QRIS" dengan perintah QR ESC/POS (GS ( k, panjang data dua byte) dari `qr_content`, dan "Scan dengan aplikasi bank / e-wallet". Tidak dicatat.
+- Laporan shift: `summary.qris_total` (server baru; tidak ada = 0) dan ringkasan shift di HP menampilkan baris "QRIS" bila > 0.
 
 ### `PUT /pos/settings` (online saja)
 Pengaturan kasir untuk **semua kasir** usaha ini, dari Akun › Pengaturan kasir di HP. Hanya bila `menus.pos_settings` (`sync/pull`) = `true` (boleh mengelola perusahaan dan memakai kasir). Body JSON, semua opsional: `{ "dining": false, "shift_required": true }`.

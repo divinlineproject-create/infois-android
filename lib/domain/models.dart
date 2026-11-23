@@ -507,6 +507,8 @@ class TenantSettings {
     this.autoStockAdjustment = false,
     this.paymentTermsDays = 14,
     this.posDining = true,
+    this.qrisEnabled = false,
+    this.qrisPrintOnBill = false,
   });
 
   factory TenantSettings.fromJson(Map<String, dynamic> json) => TenantSettings(
@@ -519,6 +521,9 @@ class TenantSettings {
         paymentTermsDays: _i(json['payment_terms_days']) ?? 14,
         // Server lama tanpa `pos_dining`: fitur rumah makan tetap tampil.
         posDining: json['pos_dining'] == null || _b(json['pos_dining']),
+        // Server lama tanpa `qris`: QRIS mati.
+        qrisEnabled: json['qris'] is Map && _b((json['qris'] as Map)['enabled']),
+        qrisPrintOnBill: json['qris'] is Map && _b((json['qris'] as Map)['print_on_bill']),
       );
 
   final int id;
@@ -533,6 +538,12 @@ class TenantSettings {
   /// pesanan dan meja/antrian. Mati = toko eceran ("Cetak list" tetap ada).
   final bool posDining;
 
+  /// Bayar QRIS dinamis (akun DOKU perusahaan) dinyalakan di web.
+  final bool qrisEnabled;
+
+  /// QR boleh dicetak di tagihan sebelum dibayar ("Cetak QR").
+  final bool qrisPrintOnBill;
+
   Map<String, dynamic> toJson() => {
         'id': id,
         'name': name,
@@ -542,6 +553,7 @@ class TenantSettings {
         'auto_stock_adjustment': autoStockAdjustment,
         'payment_terms_days': paymentTermsDays,
         'pos_dining': posDining,
+        'qris': {'enabled': qrisEnabled, 'print_on_bill': qrisPrintOnBill},
       };
 }
 

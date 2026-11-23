@@ -13,11 +13,11 @@ import '../domain/models.dart';
 import '../domain/numbering.dart';
 import 'sync_engine.dart';
 
-enum PayMode { cash, transfer, bon, mixed }
+enum PayMode { cash, transfer, bon, mixed, qris }
 
 /// Pilihan bayar dari layar Bayar.
 class PaymentInput {
-  const PaymentInput({required this.mode, this.cashReceived, this.transferAccountId, this.transferAccountName});
+  const PaymentInput({required this.mode, this.cashReceived, this.transferAccountId, this.transferAccountName, this.qrisPaymentId});
 
   final PayMode mode;
 
@@ -25,6 +25,9 @@ class PaymentInput {
   final String? cashReceived;
   final int? transferAccountId;
   final String? transferAccountName;
+
+  /// QR QRIS yang sudah dibayar (`/pos/qris/{id}`).
+  final int? qrisPaymentId;
 }
 
 class CheckoutException implements Exception {
@@ -79,6 +82,17 @@ class PosService {
         );
       case PayMode.bon:
         return (const [], '0.00');
+      case PayMode.qris:
+        if (input.qrisPaymentId == null) {
+          throw const CheckoutException('Pembayaran QRIS belum diterima.');
+        }
+        // Server memakai akun Kas QRIS dari pengaturan QRIS; akun kas di sini hanya cadangan.
+        return (
+          [
+            {'client_uuid': newUuid(), 'method': 'qris', 'amount': Money.normalize(total), 'account_id': cashAccount, 'qris_payment_id': input.qrisPaymentId},
+          ],
+          '0.00',
+        );
       case PayMode.mixed:
         final cash = Money.normalize(input.cashReceived ?? '0');
         if (!Money.isPositive(cash) || Money.compare(cash, total) >= 0) {
@@ -305,6 +319,7 @@ class PosService {
               'amount': payment['amount'],
               'account_id': payment['account_id'],
               if (payment['tendered'] != null) 'tendered': payment['tendered'],
+              if (payment['qris_payment_id'] != null) 'qris_payment_id': payment['qris_payment_id'],
             },
         ],
       };
@@ -360,15 +375,19 @@ class PosService {
     var total = '0';
     var cash = '0';
     var transfer = '0';
+    var qris = '0';
     var paid = '0';
     for (final sale in sales) {
       total = Money.add([total, sale['total']]);
       for (final payment in (sale['payments'] as List? ?? const [])) {
         paid = Money.add([paid, payment['amount']]);
-        if (payment['method'] == 'cash') {
-          cash = Money.add([cash, payment['amount']]);
-        } else {
-          transfer = Money.add([transfer, payment['amount']]);
+        switch (payment['method']) {
+          case 'cash':
+            cash = Money.add([cash, payment['amount']]);
+          case 'qris':
+            qris = Money.add([qris, payment['amount']]);
+          default:
+            transfer = Money.add([transfer, payment['amount']]);
         }
       }
     }
@@ -377,6 +396,7 @@ class PosService {
       'sales_total': Money.normalize(total),
       'cash_total': Money.normalize(cash),
       'transfer_total': Money.normalize(transfer),
+      'qris_total': Money.normalize(qris),
       'unpaid_total': Money.sub(total, paid),
       'opening_cash': Money.normalize(shift['opening_cash']),
       'expected_cash': Money.add([shift['opening_cash'], cash]),

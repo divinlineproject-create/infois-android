@@ -763,6 +763,7 @@ class ShiftDetailScreen extends ConsumerWidget {
       ('Total penjualan', rupiah(live.salesTotal)),
       ('Tunai', rupiah(live.cashTotal)),
       ('Transfer', rupiah(live.transferTotal)),
+      if (Money.isPositive(live.qrisTotal)) ('QRIS', rupiah(live.qrisTotal)),
       ('Bon (belum dibayar)', rupiah(live.unpaidTotal)),
       ('Uang awal', rupiah(live.openingCash)),
       ('Seharusnya di laci', rupiah(live.expectedCash)),

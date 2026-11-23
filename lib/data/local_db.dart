@@ -384,6 +384,12 @@ class LocalDb {
     );
   }
 
+  /// Satu penjualan di HP menurut `client_uuid` (data struk terbaru).
+  Future<Map<String, dynamic>?> sale(String clientUuid) async {
+    final rows = await db.query('sales', where: 'client_uuid = ?', whereArgs: [clientUuid], limit: 1);
+    return rows.isEmpty ? null : Map<String, dynamic>.from(jsonDecode(rows.first['data'] as String) as Map);
+  }
+
   Future<void> updateSaleSync(String clientUuid, {required String status, String? number, String? message, Map<String, dynamic>? patch}) async {
     final rows = await db.query('sales', where: 'client_uuid = ?', whereArgs: [clientUuid], limit: 1);
     if (rows.isEmpty) {

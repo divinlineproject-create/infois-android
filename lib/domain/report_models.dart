@@ -581,6 +581,7 @@ class ShiftSummary {
     this.salesTotal = '0.00',
     this.cashTotal = '0.00',
     this.transferTotal = '0.00',
+    this.qrisTotal = '0.00',
     this.unpaidTotal = '0.00',
     this.openingCash = '0.00',
     this.expectedCash = '0.00',
@@ -591,6 +592,8 @@ class ShiftSummary {
         salesTotal: _m(json['sales_total']),
         cashTotal: _m(json['cash_total']),
         transferTotal: _m(json['transfer_total']),
+        // Server lama tanpa `qris_total`: 0.
+        qrisTotal: _m(json['qris_total']),
         unpaidTotal: _m(json['unpaid_total']),
         openingCash: _m(json['opening_cash']),
         expectedCash: _m(json['expected_cash']),
@@ -600,6 +603,7 @@ class ShiftSummary {
   final String salesTotal;
   final String cashTotal;
   final String transferTotal;
+  final String qrisTotal;
   final String unpaidTotal;
   final String openingCash;
   final String expectedCash;
@@ -681,6 +685,7 @@ class ShiftReport {
         'sales_total': live.salesTotal,
         'cash_total': live.cashTotal,
         'transfer_total': live.transferTotal,
+        'qris_total': live.qrisTotal,
         'unpaid_total': live.unpaidTotal,
         'opening_cash': live.openingCash,
         'expected_cash': live.expectedCash,
