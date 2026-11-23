@@ -171,6 +171,7 @@ class PosService {
       'notes': cart.note,
       'order_type': dining ? cart.orderType?.code : null,
       'order_label': dining ? cart.orderLabel : null,
+      'queue_number': dining ? cart.queueNumber : null,
       'delivery_address': cart.deliveryAddressFor(dining: dining),
       'items': saleItems(cart, pricesIncludeTax: inclusive),
       'payments': const [],
@@ -224,6 +225,7 @@ class PosService {
       // keranjang/pesanan tersimpan lama masih membawanya.
       'order_type': master.tenant.posDining ? cart.orderType?.code : null,
       'order_label': master.tenant.posDining ? cart.orderLabel : null,
+      'queue_number': master.tenant.posDining ? cart.queueNumber : null,
       // Hanya bila barang dikirim (Pesan antar / ada ongkos kirim).
       'delivery_address': cart.deliveryAddressFor(dining: master.tenant.posDining),
       'items': items,
@@ -293,6 +295,7 @@ class PosService {
         if (sale['order_type'] != null) 'order_type': sale['order_type'],
         if (sale['order_label'] != null) 'order_label': sale['order_label'],
         if (sale['delivery_address'] != null) 'delivery_address': sale['delivery_address'],
+        if (sale['queue_number'] != null) 'queue_number': sale['queue_number'],
         // Tablet kasir bersama: tercatat atas nama kasir yang membuat nota.
         if (sale['cashier_user_id'] != null) 'cashier_user_id': sale['cashier_user_id'],
         'total': sale['total'],
@@ -349,6 +352,20 @@ class PosService {
       if ((customer.address ?? '').isNotEmpty) 'address': customer.address,
     });
     return customer;
+  });
+
+  /// Nomor antrian berikutnya: 6 angka ("000001"), per HP, mulai lagi dari 1
+  /// setiap tengah malam (waktu HP). Disimpan di database HP.
+  Future<String> nextQueueNumber({DateTime? now}) => local.guard(() async {
+    final today = isoDate(now ?? DateTime.now());
+    return local.db.transaction((txn) async {
+      final date = await _meta(txn, MetaKeys.queueDate);
+      final last = date == today ? int.tryParse(await _meta(txn, MetaKeys.queueSeq) ?? '') ?? 0 : 0;
+      final next = last >= 999999 ? 1 : last + 1;
+      await txn.insert('meta', {'key': MetaKeys.queueDate, 'value': today}, conflictAlgorithm: ConflictAlgorithm.replace);
+      await txn.insert('meta', {'key': MetaKeys.queueSeq, 'value': '$next'}, conflictAlgorithm: ConflictAlgorithm.replace);
+      return next.toString().padLeft(6, '0');
+    });
   });
 
   // ------------------------------------------------------------------ shift

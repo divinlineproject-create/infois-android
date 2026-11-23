@@ -13,7 +13,6 @@ import '../../state/sync_controller.dart';
 import '../../state/workspace.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
-import 'pay_screen.dart';
 
 /// Akun › Pengaturan kasir: pengaturan untuk semua kasir usaha ini (hanya
 /// yang boleh mengelola perusahaan, `menus.pos_settings`), lalu printer di
@@ -26,9 +25,7 @@ class PrinterSettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _PrinterSettingsScreenState extends ConsumerState<PrinterSettingsScreen> {
-  List<PrinterDevice>? _devices;
   bool _scanning = false;
-  late int _width = ref.read(printerProvider).printer?.width ?? ref.read(masterDataProvider).valueOrNull?.receipt.width ?? 58;
   bool _savingDining = false;
 
   /// Simpan fitur rumah makan / kafe ke server (online saja). Gagal = nilai
@@ -55,38 +52,167 @@ class _PrinterSettingsScreenState extends ConsumerState<PrinterSettingsScreen> {
     }
   }
 
-  Future<void> _scan() async {
+  /// Pilih printer Bluetooth yang sudah dipasangkan untuk [role].
+  Future<void> _choose(PrinterRole role) async {
     // Jelaskan dulu kenapa izin Bluetooth (Perangkat sekitar) diminta.
     if (!await explainPermission(context, ref, AppPermission.bluetoothPrinter) || !mounted) {
       return;
     }
     setState(() => _scanning = true);
+    List<PrinterDevice> devices;
     try {
-      final devices = await ref.read(printerProvider.notifier).scan();
-      setState(() => _devices = devices);
+      devices = await ref.read(printerProvider.notifier).scan();
     } on PrinterException catch (error) {
       if (mounted) {
         showMessage(context, error.message, error: true);
       }
+      return;
     } finally {
       if (mounted) {
         setState(() => _scanning = false);
       }
     }
+    if (!mounted) {
+      return;
+    }
+    final state = ref.read(printerProvider);
+    final current = role == PrinterRole.dapur ? state.kitchen : state.printer;
+    final device = await showModalBottomSheet<PrinterDevice>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (sheet) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+            child: Text(role == PrinterRole.dapur ? 'Pilih printer dapur' : 'Pilih printer kasir', style: Theme.of(sheet).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
+          ),
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: Text('Pasangkan printer dulu di Pengaturan › Bluetooth HP (PIN biasanya 0000 atau 1234).', style: TextStyle(fontSize: 13)),
+          ),
+          if (devices.isEmpty) const Padding(padding: EdgeInsets.all(16), child: Text('Belum ada printer yang terpasang di HP ini.')),
+          Flexible(
+            child: ListView(shrinkWrap: true, children: [
+              for (final device in devices)
+                ListTile(
+                  key: Key('printer-device-${device.mac}'),
+                  leading: const Icon(Icons.bluetooth),
+                  title: Text(device.name.isEmpty ? device.mac : device.name),
+                  subtitle: Text(device.mac),
+                  trailing: current?.mac == device.mac ? const Icon(Icons.check_circle, color: Brand.green) : null,
+                  onTap: () => Navigator.pop(sheet, device),
+                ),
+            ]),
+          ),
+        ]),
+      ),
+    );
+    if (device == null || !mounted) {
+      return;
+    }
+    final width = current?.width ?? ref.read(masterDataProvider).valueOrNull?.receipt.width ?? 58;
+    await ref.read(printerProvider.notifier).choose(device, width, role: role);
+    if (mounted) {
+      showMessage(context, '${device.name} dipilih sebagai ${role == PrinterRole.dapur ? 'printer dapur' : 'printer kasir'}.');
+    }
+  }
+
+  Future<void> _test(PrinterRole role) async {
+    final result = await ref.read(printerProvider.notifier).testPrint(role: role);
+    if (!mounted) {
+      return;
+    }
+    final name = role == PrinterRole.dapur ? 'Printer dapur' : 'Printer kasir';
+    showMessage(
+      context,
+      switch (result) {
+        PrintResult.printed => 'Tes cetak terkirim ke ${name.toLowerCase()}.',
+        PrintResult.noPrinter => '$name belum dipilih.',
+        PrintResult.failed => '$name belum tersambung. Pastikan printer menyala dan dekat.',
+      },
+      error: result != PrintResult.printed,
+    );
+  }
+
+  static String _statusLabel(PrinterStatus status) => switch (status) {
+        PrinterStatus.connected => 'Tersambung',
+        PrinterStatus.connecting => 'Menyambung…',
+        PrinterStatus.printing => 'Mencetak…',
+        PrinterStatus.disconnected => 'Tidak tersambung',
+        PrinterStatus.none => 'Belum dipilih',
+      };
+
+  /// Satu printer (kasir / dapur): status, lebar kertas, cetak otomatis, tes cetak, pilih / lupakan.
+  List<Widget> _section(BuildContext context, PrinterState state, PrinterRole role) {
+    final kitchen = role == PrinterRole.dapur;
+    final printer = kitchen ? state.kitchen : state.printer;
+    final status = kitchen ? state.kitchenStatus : state.status;
+    final message = kitchen ? state.kitchenMessage : state.message;
+    final storage = ref.watch(storageProvider);
+    final width = printer?.width ?? ref.read(masterDataProvider).valueOrNull?.receipt.width ?? 58;
+    final key = kitchen ? 'dapur' : 'kasir';
+    return [
+      Text(kitchen ? 'Printer dapur' : 'Printer kasir', key: Key('printer-title-$key'), style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+      const SizedBox(height: 2),
+      Text(
+        kitchen ? 'Untuk Cetak list (dapur / bar / gudang). Opsional: tanpa printer dapur, list dicetak di printer kasir.' : 'Untuk struk, tagihan, laporan tutup kasir, dan tes cetak.',
+        style: TextStyle(fontSize: 13, color: mutedText(context)),
+      ),
+      const SizedBox(height: 8),
+      Card(
+        child: ListTile(
+          key: Key('printer-status-$key'),
+          leading: Icon(Icons.print, color: status == PrinterStatus.connected ? Brand.green : Colors.grey),
+          title: Text(printer?.name ?? (kitchen ? 'Belum ada printer dapur' : 'Belum ada printer')),
+          subtitle: Text(message ?? (printer == null && kitchen ? 'List dicetak di printer kasir' : _statusLabel(status))),
+          trailing: printer == null ? null : IconButton(tooltip: 'Sambungkan', onPressed: () => ref.read(printerProvider.notifier).connect(role: role), icon: const Icon(Icons.refresh)),
+        ),
+      ),
+      if (printer != null) ...[
+        const SizedBox(height: 12),
+        const Text('Lebar kertas', style: TextStyle(fontWeight: FontWeight.w600)),
+        const SizedBox(height: 8),
+        SegmentedButton<int>(
+          key: Key('printer-width-$key'),
+          segments: const [ButtonSegment(value: 58, label: Text('58 mm')), ButtonSegment(value: 80, label: Text('80 mm'))],
+          selected: {width},
+          onSelectionChanged: (value) async {
+            await ref.read(printerProvider.notifier).setWidth(value.first, role: role);
+            setState(() {});
+          },
+        ),
+      ],
+      SwitchListTile(
+        key: Key('printer-auto-$key'),
+        contentPadding: EdgeInsets.zero,
+        title: Text(kitchen ? 'Cetak list ke dapur otomatis setelah bayar' : 'Cetak struk otomatis setelah bayar'),
+        value: kitchen ? storage.autoPrintKitchen : storage.autoPrint,
+        onChanged: (value) async {
+          await (kitchen ? storage.setAutoPrintKitchen(value) : storage.setAutoPrint(value));
+          setState(() {});
+        },
+      ),
+      const SizedBox(height: 4),
+      Wrap(spacing: 8, runSpacing: 8, children: [
+        OutlinedButton.icon(
+          key: Key('printer-choose-$key'),
+          onPressed: _scanning ? null : () => _choose(role),
+          icon: const Icon(Icons.bluetooth_searching),
+          label: Text(_scanning ? 'Mencari…' : (printer == null ? 'Pilih printer' : 'Ganti printer')),
+        ),
+        if (printer != null)
+          FilledButton.icon(key: Key('printer-test-$key'), onPressed: () => _test(role), icon: const Icon(Icons.receipt_outlined), label: const Text('Tes cetak')),
+        if (!kitchen && state.hasFailedJob) OutlinedButton(onPressed: () => ref.read(printerProvider.notifier).retryFailed(), child: const Text('Cetak ulang')),
+        if (printer != null)
+          TextButton(key: Key('printer-forget-$key'), onPressed: () => ref.read(printerProvider.notifier).forget(role: role), child: const Text('Lupakan printer ini')),
+      ]),
+    ];
   }
 
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(printerProvider);
-    final autoPrint = ref.watch(storageProvider).autoPrint;
-    final statusLabel = switch (state.status) {
-      PrinterStatus.connected => 'Tersambung',
-      PrinterStatus.connecting => 'Menyambung…',
-      PrinterStatus.printing => 'Mencetak…',
-      PrinterStatus.disconnected => 'Tidak tersambung',
-      PrinterStatus.none => 'Belum dipilih',
-    };
-
     final master = ref.watch(masterDataProvider).valueOrNull;
     final canManage = master?.menus.posSettings ?? false;
 
@@ -105,87 +231,11 @@ class _PrinterSettingsScreenState extends ConsumerState<PrinterSettingsScreen> {
           ),
           const Divider(height: 24),
           const Text('Printer di perangkat ini', style: TextStyle(fontWeight: FontWeight.w600)),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
         ],
-        Card(
-          child: ListTile(
-            leading: Icon(Icons.print, color: state.status == PrinterStatus.connected ? Brand.green : Colors.grey),
-            title: Text(state.printer?.name ?? 'Belum ada printer'),
-            subtitle: Text(state.message ?? statusLabel),
-            trailing: state.printer == null ? null : IconButton(tooltip: 'Sambungkan', onPressed: () => ref.read(printerProvider.notifier).connect(), icon: const Icon(Icons.refresh)),
-          ),
-        ),
-        const SizedBox(height: 16),
-        const Text('Lebar kertas', style: TextStyle(fontWeight: FontWeight.w600)),
-        const SizedBox(height: 8),
-        SegmentedButton<int>(
-          segments: const [ButtonSegment(value: 58, label: Text('58 mm')), ButtonSegment(value: 80, label: Text('80 mm'))],
-          selected: {_width},
-          onSelectionChanged: (value) {
-            setState(() => _width = value.first);
-            ref.read(printerProvider.notifier).setWidth(value.first);
-          },
-        ),
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: const Text('Cetak struk otomatis setelah bayar'),
-          value: autoPrint,
-          onChanged: (value) async {
-            await ref.read(storageProvider).setAutoPrint(value);
-            setState(() {});
-          },
-        ),
-        const SizedBox(height: 8),
-        Row(children: [
-          Expanded(
-            child: FilledButton.icon(
-              onPressed: state.printer == null
-                  ? null
-                  : () async {
-                      final result = await ref.read(printerProvider.notifier).testPrint();
-                      if (context.mounted) {
-                        showMessage(context, result == PrintResult.printed ? 'Tes cetak terkirim ke printer.' : printMessage(result.name), error: result != PrintResult.printed);
-                      }
-                    },
-              icon: const Icon(Icons.receipt_outlined),
-              label: const Text('Tes cetak'),
-            ),
-          ),
-          if (state.hasFailedJob) ...[
-            const SizedBox(width: 12),
-            Expanded(
-              child: OutlinedButton(onPressed: () => ref.read(printerProvider.notifier).retryFailed(), child: const Text('Cetak ulang')),
-            ),
-          ],
-        ]),
+        ..._section(context, state, PrinterRole.kasir),
         const Divider(height: 32),
-        Row(children: [
-          const Expanded(child: Text('Pilih printer', style: TextStyle(fontWeight: FontWeight.w600))),
-          TextButton.icon(onPressed: _scanning ? null : _scan, icon: const Icon(Icons.bluetooth_searching), label: Text(_scanning ? 'Mencari…' : 'Cari printer')),
-        ]),
-        const Text(
-          'Pasangkan printer dulu di Pengaturan › Bluetooth HP (PIN biasanya 0000 atau 1234), lalu tekan Cari printer.',
-          style: TextStyle(fontSize: 13),
-        ),
-        const SizedBox(height: 8),
-        if (_devices != null && _devices!.isEmpty) const Padding(padding: EdgeInsets.all(16), child: Text('Belum ada printer yang terpasang di HP ini.')),
-        for (final device in _devices ?? const <PrinterDevice>[])
-          ListTile(
-            leading: const Icon(Icons.bluetooth),
-            title: Text(device.name.isEmpty ? device.mac : device.name),
-            subtitle: Text(device.mac),
-            trailing: state.printer?.mac == device.mac ? const Icon(Icons.check_circle, color: Brand.green) : null,
-            onTap: () async {
-              await ref.read(printerProvider.notifier).choose(device, _width);
-              if (context.mounted) {
-                showMessage(context, '${device.name} dipilih sebagai printer struk.');
-              }
-            },
-          ),
-        if (state.printer != null) ...[
-          const SizedBox(height: 16),
-          TextButton(onPressed: () => ref.read(printerProvider.notifier).forget(), child: const Text('Lupakan printer ini')),
-        ],
+        ..._section(context, state, PrinterRole.dapur),
       ]),
     );
   }

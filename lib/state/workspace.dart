@@ -122,6 +122,9 @@ final workspaceProvider = FutureProvider<Workspace?>((ref) async {
       unawaited(controller.dropTenant(tenant.id, error));
     } else if (error.maintenance && !workspace.disposed) {
       ref.read(maintenanceProvider.notifier).state = error.message;
+    } else if (error.deviceOwnerOnly && !workspace.disposed) {
+      // Perangkat baru hanya boleh didaftarkan pemilik: kembali ke Masuk.
+      unawaited(controller.deviceNotAllowed(error));
     } else if (error.companyClosed && !workspace.disposed) {
       // Perusahaan ditutup (dari rute mana pun): pesan + lepas perusahaan.
       unawaited(controller.companyGone(tenant.id, reason: GoneReason.closed, message: error.message, local: local));

@@ -332,7 +332,10 @@ class _AkunScreenState extends ConsumerState<AkunScreen> {
                   key: const Key('akun-pos-settings'),
                   leading: const Icon(Icons.print_outlined),
                   title: const Text('Pengaturan kasir'),
-                  subtitle: Text(printer.printer == null ? 'Belum diatur' : '${printer.printer!.name} · ${printer.printer!.width} mm'),
+                  subtitle: Text([
+                    printer.printer == null ? 'Printer belum diatur' : '${printer.printer!.name} · ${printer.printer!.width} mm',
+                    if (printer.kitchen != null) 'Dapur: ${printer.kitchen!.name}',
+                  ].join(' · ')),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => context.push('/printer'),
                 ),
@@ -447,7 +450,9 @@ class _SharedTabletCard extends ConsumerWidget {
     }
     final storage = ref.watch(storageProvider);
     final hasPin = current.tenant!.hasPin;
-    final lockOn = storage.pinLock;
+    // Perangkat diaktifkan pemilik usaha: kunci PIN selalu aktif (otomatis).
+    final required = storage.pinRequired;
+    final lockOn = storage.pinLockActive;
     final isHost = !current.isOperator;
 
     Future<void> toggleLock(bool enable) async {
@@ -496,7 +501,14 @@ class _SharedTabletCard extends ConsumerWidget {
             trailing: const Icon(Icons.chevron_right),
             onTap: () => showPinSetupSheet(context, hasPin: hasPin),
           ),
-          if (isHost)
+          if (required)
+            ListTile(
+              key: const Key('akun-pin-lock-auto'),
+              leading: const Icon(Icons.lock_outline),
+              title: const Text('Kunci dengan PIN'),
+              subtitle: const Text('Otomatis di perangkat kasir: setiap dibuka, pilih nama lalu ketik PIN. Penjualan tercatat atas nama kasirnya.'),
+            )
+          else if (isHost)
             SwitchListTile(
               key: const Key('akun-pin-lock'),
               secondary: const Icon(Icons.lock_outline),

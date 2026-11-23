@@ -16,6 +16,9 @@ import '../data/outbox_store.dart';
 import '../domain/models.dart';
 import '../services/product_photos.dart';
 
+/// Login penuh di perangkat kasir hanya untuk akun pemilik usaha.
+const ownerOnlyDeviceMessage = 'Perangkat kasir hanya bisa diaktifkan dengan akun pemilik (super admin). Minta pemilik masuk di perangkat ini, lalu masuk dengan PIN Anda.';
+
 /// Diisi di main() dengan penyimpanan yang sudah dimuat.
 final storageProvider = Provider<AppStorage>((ref) => throw UnimplementedError('storageProvider belum diisi'));
 
@@ -61,7 +64,7 @@ class DeniedTenant {
 
 /// Pesan "aplikasi HP tidak tersedia" untuk layar Masuk / Pilih perusahaan.
 class AccessNotice {
-  const AccessNotice({required this.message, this.tenants = const []});
+  const AccessNotice({required this.message, this.tenants = const [], this.title});
 
   /// Dari galat 403 `akses_hp_tidak_tersedia` / `langganan_tidak_aktif`.
   /// [fallbackTenant] dipakai bila server tidak menyertakan daftar perusahaan.
@@ -83,6 +86,9 @@ class AccessNotice {
 
   final String message;
   final List<DeniedTenant> tenants;
+
+  /// Judul kartu pesan (bawaan: "Aplikasi HP belum tersedia").
+  final String? title;
 
   /// Perusahaan yang halaman Langganan-nya dibuka tombol "Lihat paket".
   String? get billingSlug => tenants.map((tenant) => tenant.slug).whereType<String>().firstOrNull;
@@ -252,8 +258,9 @@ class SessionController extends AsyncNotifier<SessionState> {
       tenantId: token == null ? null : storage.tenantId,
       gone: goneIn(storage),
       host: token == null ? null : saved?.user,
-      // Tablet kasir bersama: setiap kali aplikasi dibuka, pilih nama + PIN.
-      locked: token != null && saved != null && storage.pinLock,
+      // Tablet kasir bersama: setiap kali aplikasi dibuka, pilih nama + PIN
+      // (selalu bila perangkat diaktifkan pemilik usaha).
+      locked: token != null && saved != null && storage.pinLockActive,
     );
     final activeId = storage.activeUserId;
     if (!base.loggedIn || base.locked || activeId == null || activeId == base.host?.id) {
@@ -285,11 +292,18 @@ class SessionController extends AsyncNotifier<SessionState> {
   /// login diulang dengan [code] (6 angka atau kode pemulihan). "Kirim ulang
   /// kode" = login tanpa [code] dengan [resend]; terlalu cepat → 429 +
   /// `retry_after` (server membatasi 1 email kode per 60 detik).
-  Future<void> login({required String email, required String password, required String deviceName, String? code, bool resend = false}) async {
+  ///
+  /// Perangkat kasir hanya diaktifkan akun pemilik usaha: perusahaan dengan
+  /// role selain `owner` tidak bisa dipilih; bila tidak ada satu pun
+  /// perusahaan sebagai pemilik, login ditolak ([ownerOnlyDeviceMessage]).
+  /// Setelah login pemilik, layar PIN wajib (lihat [SessionState.locked]).
+  Future<void> login({required String email, required String password, String? deviceName, String? code, bool resend = false}) async {
+    final name = (deviceName ?? '').trim().isNotEmpty ? deviceName!.trim() : (ApiClient.deviceModel ?? 'HP Android');
     final response = await _api().post('auth/login', data: {
       'email': email.trim(),
       'password': password,
-      'device_name': deviceName.trim().isEmpty ? 'HP Android' : deviceName.trim(),
+      // Server baru menamai perangkat dari X-Device-Model; server lama dari ini.
+      'device_name': name,
       'device_uid': await _storage.deviceUid(),
       'platform': Platform.isAndroid ? 'android' : Platform.operatingSystem,
       'app_version': AppConfig.version,
@@ -299,13 +313,30 @@ class SessionController extends AsyncNotifier<SessionState> {
     final token = response['token'] as String;
     final user = SessionUser.fromJson(Map<String, dynamic>.from(response['user'] as Map));
     final tenants = _eligible(response['tenants']);
+    if (tenants.isNotEmpty && tenants.every((tenant) => tenant.deviceLoginBlocked)) {
+      _revokeQuietly(token);
+      throw const ApiException(ownerOnlyDeviceMessage, code: ApiException.deviceOwnerOnlyCode, status: 403);
+    }
     await _storage.clearOperators();
     await _storage.setToken(token);
     await _storage.setSession(user, tenants);
     final tenantId = tenants.length == 1 ? tenants.first.id : null;
     await _storage.setTenantId(tenantId);
     final gone = await _forgetGoneListed(user.id, tenants);
-    state = AsyncData(SessionState(token: token, user: user, tenants: tenants, tenantId: tenantId, gone: gone, host: user));
+    state = AsyncData(SessionState(token: token, user: user, tenants: tenants, tenantId: tenantId, gone: gone, host: user, locked: _storage.pinRequired));
+  }
+
+  /// Server menolak perangkat ini (403 `perangkat_khusus_pemilik`: perangkat
+  /// baru hanya bisa didaftarkan pemilik): kembali ke Masuk dengan pesannya.
+  /// Data HP tidak dihapus.
+  Future<void> deviceNotAllowed(ApiException error) async {
+    final current = _current;
+    if (!current.loggedIn) {
+      return;
+    }
+    final token = current.host == null ? current.token : await _storage.token();
+    await _forgetLogin(notice: AccessNotice(title: 'Perangkat kasir khusus pemilik', message: error.message.trim().isEmpty ? ownerOnlyDeviceMessage : error.message));
+    _revokeQuietly(token);
   }
 
   /// Perbarui daftar perusahaan + hak akses (mis. role diubah di web).
@@ -341,6 +372,8 @@ class SessionController extends AsyncNotifier<SessionState> {
     } on ApiException catch (error) {
       if (error.unauthenticated) {
         await _forgetLogin();
+      } else if (error.deviceOwnerOnly) {
+        await deviceNotAllowed(error);
       } else if (error.status == 403 && error.code == ApiException.mobileAccessDeniedCode) {
         if (notMemberOf != null && !AccessNotice.fromError(error).tenants.any((tenant) => tenant.id == notMemberOf)) {
           await companyGone(notMemberOf, reason: GoneReason.removed, local: local);
@@ -398,9 +431,20 @@ class SessionController extends AsyncNotifier<SessionState> {
     }
     if (refresh) {
       try {
-        final response = await _hostApi(await _storage.token(), tenantId).get('pin/users', timeout: const Duration(seconds: 8));
+        // Semua anggota aktif (yang belum punya PIN tampil redup); server lama
+        // mengabaikan parameter ini dan hanya mengirim anggota ber-PIN.
+        final response = await _hostApi(await _storage.token(), tenantId).get('pin/users', query: {'include_without_pin': '1'}, timeout: const Duration(seconds: 8));
         await _storage.setPinUsers(tenantId, [for (final item in response['users'] as List? ?? const []) Map<String, dynamic>.from(item as Map)]);
-      } on ApiException {
+        // `has_pin` = pengguna login perangkat (pemilik) sudah punya PIN.
+        final hostHasPin = response['has_pin'];
+        if (hostHasPin is bool && !_current.isOperator && _current.user?.id == host.id) {
+          await _setHostHasPin(tenantId, hostHasPin);
+        }
+      } on ApiException catch (error) {
+        if (error.deviceOwnerOnly) {
+          await deviceNotAllowed(error);
+          return const [];
+        }
         // Offline: pakai daftar terakhir.
       }
     }
@@ -409,7 +453,8 @@ class SessionController extends AsyncNotifier<SessionState> {
     for (final item in _storage.pinUsers(tenantId)) {
       add(PinUser.fromJson(item, isHost: item['id'] == host.id));
     }
-    add(PinUser(id: host.id, name: host.name, avatarUrl: host.avatarUrl, isHost: true));
+    final hostTenant = _storage.session()?.tenants.where((tenant) => tenant.id == tenantId).firstOrNull;
+    add(PinUser(id: host.id, name: host.name, avatarUrl: host.avatarUrl, isHost: true, role: hostTenant?.role, roleLabel: hostTenant?.roleLabel, hasPin: hostTenant?.hasPin ?? true));
     for (final item in _storage.operators()) {
       if (item.tenants.any((tenant) => tenant.id == tenantId)) {
         add(PinUser(id: item.user.id, name: item.user.name, avatarUrl: item.user.avatarUrl, roleLabel: item.tenants.first.roleLabel));
@@ -417,6 +462,31 @@ class SessionController extends AsyncNotifier<SessionState> {
     }
     final list = users.values.toList()..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
     return list;
+  }
+
+  /// Tanda PIN pemilik login perangkat untuk perusahaan [tenantId].
+  Future<void> _setHostHasPin(int tenantId, bool hasPin) async {
+    final saved = _storage.session();
+    if (saved == null || !saved.tenants.any((tenant) => tenant.id == tenantId && tenant.hasPin != hasPin)) {
+      return;
+    }
+    final tenants = [for (final tenant in saved.tenants) tenant.id == tenantId ? tenant.copyWith(hasPin: hasPin) : tenant];
+    await _storage.setSession(saved.user, tenants);
+    final now = _current;
+    if (!now.isOperator && now.user?.id == saved.user.id) {
+      state = AsyncData(now.copyWith(tenants: tenants));
+    }
+  }
+
+  /// Pemilik login perangkat (pemilik usaha) belum punya PIN di perusahaan
+  /// aktif: layar PIN meminta "Buat PIN 6 angka untuk Anda" dulu.
+  bool get hostNeedsPin {
+    final current = _current;
+    if (current.isOperator || !_storage.pinRequired) {
+      return false;
+    }
+    final tenant = _storage.session()?.tenants.where((item) => item.id == current.tenantId).firstOrNull;
+    return tenant != null && !tenant.hasPin;
   }
 
   /// Buka tablet sebagai [user] dengan [pin]. Online: dicek server (token PIN
@@ -447,6 +517,10 @@ class SessionController extends AsyncNotifier<SessionState> {
       await _storage.saveOperator(operator, tenants);
       await _activateOperator(operator, token, tenants, tenantId);
     } on ApiException catch (error) {
+      if (error.deviceOwnerOnly) {
+        await deviceNotAllowed(error);
+        rethrow;
+      }
       if (!error.offline) {
         rethrow;
       }
@@ -494,7 +568,7 @@ class SessionController extends AsyncNotifier<SessionState> {
   /// Kunci tablet (Ganti pengguna / ditinggal lama). Hanya bila kunci PIN aktif.
   void lock() {
     final current = state.valueOrNull;
-    if (current != null && current.loggedIn && current.tenant != null && _storage.pinLock && !current.locked) {
+    if (current != null && current.loggedIn && current.tenant != null && _storage.pinLockActive && !current.locked) {
       state = AsyncData(current.copyWith(locked: true));
     }
   }
@@ -515,7 +589,14 @@ class SessionController extends AsyncNotifier<SessionState> {
     if (user == null || current.tenantId == null) {
       return;
     }
-    await ref.read(apiFactoryProvider)(current.serverUrl, current.token, current.tenantId, () => null).put('pin', data: {'pin': pin, if (currentPin != null && currentPin.isNotEmpty) 'current_pin': currentPin});
+    try {
+      await ref.read(apiFactoryProvider)(current.serverUrl, current.token, current.tenantId, () => null).put('pin', data: {'pin': pin, if (currentPin != null && currentPin.isNotEmpty) 'current_pin': currentPin});
+    } on ApiException catch (error) {
+      if (error.deviceOwnerOnly) {
+        await deviceNotAllowed(error);
+      }
+      rethrow;
+    }
     await _storage.setPinVerifier(user.id, PinCode.verifier(pin));
     await _storage.setPinFailures(user.id, 0);
     final tenants = [for (final tenant in _current.tenants) tenant.id == current.tenantId ? tenant.copyWith(hasPin: true) : tenant];
@@ -553,7 +634,7 @@ class SessionController extends AsyncNotifier<SessionState> {
       await _forgetLogin();
       return;
     }
-    state = AsyncData(SessionState(token: hostToken, user: saved.user, tenants: saved.tenants, tenantId: current.tenantId, gone: current.gone, host: saved.user, locked: _storage.pinLock));
+    state = AsyncData(SessionState(token: hostToken, user: saved.user, tenants: saved.tenants, tenantId: current.tenantId, gone: current.gone, host: saved.user, locked: _storage.pinLockActive));
   }
 
   /// Kunci SharedPreferences untuk daftar [GoneCompany] yang belum "Mengerti".
@@ -755,9 +836,18 @@ class SessionController extends AsyncNotifier<SessionState> {
     }
   }
 
+  /// Pilih perusahaan aktif. Perangkat kasir: perusahaan dengan role selain
+  /// pemilik ditolak ([ownerOnlyDeviceMessage]); perusahaan sebagai pemilik
+  /// langsung ke layar PIN (wajib).
   Future<void> selectTenant(int? tenantId) async {
+    final current = _current;
+    final chosen = current.tenants.where((tenant) => tenant.id == tenantId).firstOrNull;
+    if (tenantId != null && !current.isOperator && (chosen?.deviceLoginBlocked ?? false)) {
+      throw const ApiException(ownerOnlyDeviceMessage, code: ApiException.deviceOwnerOnlyCode, status: 403);
+    }
     await _storage.setTenantId(tenantId);
-    state = AsyncData(_current.copyWith(tenantId: tenantId, clearTenant: tenantId == null, clearNotice: tenantId != null));
+    final lock = tenantId != null && !current.isOperator && _storage.pinRequired;
+    state = AsyncData(_current.copyWith(tenantId: tenantId, clearTenant: tenantId == null, clearNotice: tenantId != null, locked: lock ? true : null));
   }
 
   /// Batas waktu mencabut token saat keluar: offline / server lambat tidak
@@ -776,7 +866,7 @@ class SessionController extends AsyncNotifier<SessionState> {
       final saved = _storage.session();
       final hostToken = await _storage.token();
       if (saved != null && hostToken != null) {
-        state = AsyncData(SessionState(token: hostToken, user: saved.user, tenants: saved.tenants, tenantId: current.tenantId, gone: current.gone, host: saved.user, locked: _storage.pinLock));
+        state = AsyncData(SessionState(token: hostToken, user: saved.user, tenants: saved.tenants, tenantId: current.tenantId, gone: current.gone, host: saved.user, locked: _storage.pinLockActive));
         return;
       }
     }

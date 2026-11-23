@@ -24,6 +24,14 @@ import java.io.FileInputStream
 class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        // Model perangkat untuk header X-Device-Model (nama perangkat otomatis di web).
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "id.infois/device").setMethodCallHandler { call, result ->
+            if (call.method == "model") {
+                result.success(mapOf("manufacturer" to (Build.MANUFACTURER ?: ""), "model" to (Build.MODEL ?: "")))
+            } else {
+                result.notImplemented()
+            }
+        }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "id.infois/downloads").setMethodCallHandler { call, result ->
             if (call.method != "saveToDownloads") {
                 result.notImplemented()

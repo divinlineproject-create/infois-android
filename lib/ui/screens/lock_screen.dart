@@ -6,7 +6,9 @@ import '../../domain/models.dart';
 import '../../state/session.dart';
 import '../theme.dart';
 import '../widgets/auth_layout.dart';
+import '../widgets/common.dart';
 import '../widgets/pin_pad.dart';
+import 'pin_settings.dart';
 
 /// Daftar orang yang bisa membuka tablet ini (server bila online, cadangan tersimpan).
 final pinUsersProvider = FutureProvider.autoDispose<List<PinUser>>((ref) async {
@@ -67,17 +69,30 @@ class _LockScreenState extends ConsumerState<LockScreen> {
     final session = ref.watch(sessionProvider).valueOrNull;
     final users = ref.watch(pinUsersProvider);
     final tenantName = session?.tenant?.name ?? 'Infois';
+    // Pemilik baru mengaktifkan perangkat dan belum punya PIN: buat dulu.
+    final needsPin = ref.read(sessionProvider.notifier).hostNeedsPin;
     return AuthSplitLayout(
       headline: tenantName,
-      lead: 'Tablet kasir bersama. Pilih nama Anda, lalu ketik PIN 6 angka.',
-      child: _selected == null ? _picker(context, users) : _pinStep(context, _selected!),
+      lead: 'Perangkat kasir. Pilih nama Anda, lalu ketik PIN 6 angka.',
+      child: needsPin
+          ? PinSetupForm(
+              key: const Key('lock-create-pin'),
+              hasPin: false,
+              title: 'Buat PIN 6 angka untuk Anda',
+              intro: 'Anda masuk sebagai pemilik. Semua orang di perangkat ini, termasuk Anda, membukanya dengan memilih nama lalu mengetik PIN. Jangan pakai angka yang sama semua atau berurutan.',
+              onSaved: () {
+                showMessage(context, 'PIN disimpan. Pilih nama Anda lalu ketik PIN itu.');
+                ref.invalidate(pinUsersProvider);
+              },
+            )
+          : (_selected == null ? _picker(context, users) : _pinStep(context, _selected!)),
     );
   }
 
   Widget _picker(BuildContext context, AsyncValue<List<PinUser>> users) {
     final list = users.valueOrNull ?? const <PinUser>[];
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      Text('Siapa yang bertugas?', key: const Key('lock-title'), style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700)),
+      Text('Pilih Karyawan', key: const Key('lock-title'), style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700)),
       const SizedBox(height: 6),
       Text('Ketuk nama Anda.', style: TextStyle(color: mutedText(context))),
       const SizedBox(height: 20),
@@ -86,10 +101,13 @@ class _LockScreenState extends ConsumerState<LockScreen> {
         for (final user in list)
           _UserTile(
             user: user,
-            onTap: () => setState(() {
-              _selected = user;
-              _error = null;
-            }),
+            // Belum punya PIN: tampil redup, tidak bisa dipilih.
+            onTap: user.hasPin
+                ? () => setState(() {
+                      _selected = user;
+                      _error = null;
+                    })
+                : null,
           ),
       ]),
       const SizedBox(height: 24),
@@ -131,15 +149,18 @@ class _LockScreenState extends ConsumerState<LockScreen> {
   }
 }
 
+/// Keterangan anggota yang belum punya PIN di daftar Pilih Karyawan.
+const pinMissingNote = 'PIN belum dibuat. Pemilik bisa membuatnya di web (Tim & Akses).';
+
 class _UserTile extends StatelessWidget {
   const _UserTile({required this.user, required this.onTap});
 
   final PinUser user;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
+    final tile = SizedBox(
       width: 124,
       child: Material(
         color: Theme.of(context).colorScheme.surfaceContainerLow,
@@ -154,13 +175,18 @@ class _UserTile extends StatelessWidget {
               _Avatar(user: user, size: 48),
               const SizedBox(height: 8),
               Text(user.name, maxLines: 2, textAlign: TextAlign.center, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600)),
-              if (user.isHost || user.roleLabel != null)
-                Text(user.isHost ? 'Pemilik tablet' : user.roleLabel!, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: mutedText(context))),
+              if (user.roleLabel != null || user.isHost)
+                Text(user.roleLabel ?? 'Pemilik tablet', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: mutedText(context))),
+              if (!user.hasPin) ...[
+                const SizedBox(height: 4),
+                Text(pinMissingNote, key: Key('lock-user-nopin-${user.id}'), textAlign: TextAlign.center, style: TextStyle(fontSize: 11, height: 1.25, color: mutedText(context))),
+              ],
             ]),
           ),
         ),
       ),
     );
+    return user.hasPin ? tile : Opacity(opacity: 0.55, child: tile);
   }
 }
 

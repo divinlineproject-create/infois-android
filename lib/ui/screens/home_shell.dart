@@ -100,7 +100,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
                       if (cashierLine != null) Text(cashierLine, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w400, color: mutedText(context))),
                     ]),
               actions: [
-                if (ref.read(storageProvider).pinLock)
+                if (ref.read(storageProvider).pinLockActive)
                   IconButton(
                     key: const Key('shell-lock'),
                     tooltip: 'Kunci / ganti pengguna',

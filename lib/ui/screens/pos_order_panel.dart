@@ -13,7 +13,7 @@ import '../widgets/common.dart';
 import '../widgets/product_image.dart';
 import 'cart_sheet.dart';
 import 'customer_picker.dart';
-import 'pay_screen.dart' show draftPrintMessage;
+import 'pay_screen.dart' show draftPrintMessage, listPrintMessage;
 import 'pos_held_orders.dart';
 import 'pos_item_sheet.dart';
 
@@ -65,20 +65,26 @@ class PosOrderPanel extends ConsumerWidget {
     final actions = ref.read(posActionsProvider);
     final result = bill ? await actions.printDraftBill(title: title) : await actions.printDraftList(title: title);
     if (context.mounted) {
-      showMessage(context, draftPrintMessage(result, bill ? 'Tagihan' : 'List pesanan'), error: result != PrintResult.printed);
+      showMessage(context, bill ? draftPrintMessage(result, 'Tagihan') : listPrintMessage(result, kitchen: ref.read(printerProvider).kitchen != null), error: result != PrintResult.printed);
     }
   }
 
-  Future<void> _editLabel(BuildContext context, WidgetRef ref, Cart cart) async {
-    final value = await askText(
-      context,
-      title: 'Meja / nomor antrian',
-      initial: cart.orderLabel,
-      hint: 'mis. Meja 5 atau Antrian 12',
-      maxLength: 40,
-      fieldKey: const Key('order-label-field'),
-      suggestions: const ['Meja ', 'Antrian '],
-    );
+  /// Meja: pilih dari daftar meja (Pengaturan Kasir web) atau "Tanpa meja";
+  /// tanpa daftar = isian bebas.
+  Future<void> _editLabel(BuildContext context, WidgetRef ref, Cart cart, List<String> tables) async {
+    final Future<String?> asked = tables.isEmpty
+        ? askText(
+            context,
+            title: 'Meja',
+            initial: cart.orderLabel,
+            hint: 'mis. Meja 5',
+            helper: 'Atur daftar meja di web: Pengaturan Kasir.',
+            maxLength: 40,
+            fieldKey: const Key('order-label-field'),
+            suggestions: const ['Meja '],
+          )
+        : pickTable(context, tables, cart.orderLabel);
+    final value = await asked;
     if (value != null) {
       ref.read(cartProvider.notifier).setOrderLabel(value);
     }
@@ -91,6 +97,7 @@ class PosOrderPanel extends ConsumerWidget {
     final inclusive = master?.tenant.pricesIncludeTax ?? false;
     // Fitur rumah makan / kafe (jenis pesanan, meja/antrian); mati untuk toko eceran.
     final dining = master?.tenant.posDining ?? true;
+    final tables = master?.tenant.posTables ?? const <String>[];
     final totals = cart.totals(pricesIncludeTax: inclusive);
     final notifier = ref.read(cartProvider.notifier);
     final held = ref.watch(heldOrdersProvider).valueOrNull ?? const [];
@@ -103,7 +110,13 @@ class PosOrderPanel extends ConsumerWidget {
         child: Row(children: [
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Pesanan', style: (dense ? Theme.of(context).textTheme.titleMedium : Theme.of(context).textTheme.titleLarge)?.copyWith(fontWeight: FontWeight.w700)),
+              Row(children: [
+                Text('Pesanan', style: (dense ? Theme.of(context).textTheme.titleMedium : Theme.of(context).textTheme.titleLarge)?.copyWith(fontWeight: FontWeight.w700)),
+                if (dining && cart.queueNumber != null && !cart.isEmpty) ...[
+                  const SizedBox(width: Space.s),
+                  Flexible(child: Text('Antrian ${cart.queueNumber}', key: const Key('order-queue'), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w700, color: scheme.primary))),
+                ],
+              ]),
               if (heldName != null)
                 Text('Pesanan tersimpan: $heldName', key: const Key('held-active'), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12.5, color: mutedText(context)))
               else if (!cart.isEmpty)
@@ -139,10 +152,10 @@ class PosOrderPanel extends ConsumerWidget {
                     _OptionTile(
                       key: const Key('order-label'),
                       icon: Icons.table_restaurant_outlined,
-                      title: cart.orderLabel ?? 'Meja / antrian',
-                      subtitle: cart.orderLabel == null ? 'mis. Meja 5 atau Antrian 12' : 'Meja / antrian',
+                      title: cart.orderLabel ?? 'Meja',
+                      subtitle: cart.orderLabel == null ? (tables.isEmpty ? 'mis. Meja 5' : 'Pilih meja') : 'Meja',
                       highlight: cart.orderLabel != null,
-                      onTap: () => _editLabel(context, ref, cart),
+                      onTap: () => _editLabel(context, ref, cart, tables),
                     ),
                   _OptionTile(
                     key: const Key('order-customer'),
@@ -595,6 +608,43 @@ Future<(String, String)?> askCharge(BuildContext context) async {
   return result;
 }
 
+/// Pilih meja dari daftar meja usaha. Kembalikan nama meja, '' untuk
+/// "Tanpa meja", atau null bila ditutup.
+Future<String?> pickTable(BuildContext context, List<String> tables, String? current) => showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      useSafeArea: true,
+      builder: (sheet) => SafeArea(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(sheet).height * 0.8),
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(Space.l, 0, Space.l, Space.s),
+              child: Text('Meja', style: Theme.of(sheet).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
+            ),
+            Flexible(
+              child: ListView(shrinkWrap: true, children: [
+                ListTile(
+                  key: const Key('table-none'),
+                  leading: Icon(current == null ? Icons.radio_button_checked : Icons.radio_button_unchecked),
+                  title: const Text('Tanpa meja'),
+                  onTap: () => Navigator.pop(sheet, ''),
+                ),
+                for (final table in tables)
+                  ListTile(
+                    key: Key('table-$table'),
+                    leading: Icon(table == current ? Icons.radio_button_checked : Icons.radio_button_unchecked, color: table == current ? Theme.of(sheet).colorScheme.primary : null),
+                    title: Text(table, style: TextStyle(fontWeight: table == current ? FontWeight.w700 : FontWeight.w500)),
+                    onTap: () => Navigator.pop(sheet, table),
+                  ),
+              ]),
+            ),
+          ]),
+        ),
+      ),
+    );
+
 /// Dialog isian teks satu baris. Kembalikan teks (boleh kosong = hapus) atau
 /// null bila dibatalkan.
 Future<String?> askText(
@@ -606,6 +656,7 @@ Future<String?> askText(
   Key? fieldKey,
   List<String> suggestions = const [],
   bool multiline = false,
+  String? helper,
 }) async {
   final controller = TextEditingController(text: initial ?? '');
   final result = await showDialog<String>(
@@ -622,7 +673,7 @@ Future<String?> askText(
           maxLines: multiline ? 4 : 1,
           keyboardType: multiline ? TextInputType.multiline : TextInputType.text,
           textCapitalization: TextCapitalization.sentences,
-          decoration: InputDecoration(hintText: hint, counterText: ''),
+          decoration: InputDecoration(hintText: hint, counterText: '', helperText: helper, helperMaxLines: 2),
           onSubmitted: multiline ? null : (value) => Navigator.pop(context, value),
         ),
         if (suggestions.isNotEmpty) ...[

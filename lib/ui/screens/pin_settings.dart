@@ -15,23 +15,41 @@ Future<bool> showPinSetupSheet(BuildContext context, {required bool hasPin}) asy
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
-    builder: (_) => _PinSetupSheet(hasPin: hasPin),
+    builder: (sheet) => SafeArea(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+        child: PinSetupForm(
+          hasPin: hasPin,
+          onSaved: () {
+            Navigator.pop(sheet, true);
+            showMessage(sheet, 'PIN disimpan. Pakai PIN ini untuk membuka tablet kasir.');
+          },
+        ),
+      ),
+    ),
   );
   return saved == true;
 }
 
-class _PinSetupSheet extends ConsumerStatefulWidget {
-  const _PinSetupSheet({required this.hasPin});
+/// Isian buat / ganti PIN sendiri: PIN lama (bila ada), PIN baru, ulangi.
+/// Dipakai lembar Akun dan layar PIN (pemilik yang belum punya PIN).
+class PinSetupForm extends ConsumerStatefulWidget {
+  const PinSetupForm({super.key, required this.hasPin, required this.onSaved, this.title, this.intro});
 
   final bool hasPin;
+  final VoidCallback onSaved;
+
+  /// Judul (bawaan: "Buat PIN aplikasi" / "Ganti PIN aplikasi").
+  final String? title;
+  final String? intro;
 
   @override
-  ConsumerState<_PinSetupSheet> createState() => _PinSetupSheetState();
+  ConsumerState<PinSetupForm> createState() => _PinSetupFormState();
 }
 
 enum _Step { current, fresh, confirm }
 
-class _PinSetupSheetState extends ConsumerState<_PinSetupSheet> {
+class _PinSetupFormState extends ConsumerState<PinSetupForm> {
   late _Step _step = widget.hasPin ? _Step.current : _Step.fresh;
   final _pad = PinPadController();
   String? _current;
@@ -90,8 +108,7 @@ class _PinSetupSheetState extends ConsumerState<_PinSetupSheet> {
     try {
       await ref.read(sessionProvider.notifier).setOwnPin(pin, currentPin: _current);
       if (mounted) {
-        Navigator.pop(context, true);
-        showMessage(context, 'PIN disimpan. Pakai PIN ini untuk membuka tablet kasir.');
+        widget.onSaved();
       }
     } on ApiException catch (error) {
       if (!mounted) {
@@ -112,21 +129,16 @@ class _PinSetupSheetState extends ConsumerState<_PinSetupSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Text(widget.hasPin ? 'Ganti PIN aplikasi' : 'Buat PIN aplikasi', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
-          const SizedBox(height: 6),
-          Text(
-            'PIN 6 angka untuk membuka tablet kasir dengan cepat: pilih nama, ketik PIN, tanpa email dan kode. Jangan pakai angka yang sama semua atau berurutan.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: mutedText(context), fontSize: 13),
-          ),
-          const SizedBox(height: 16),
-          PinPad(key: ValueKey(_step), controller: _pad, label: _label, error: _error, busy: _busy, onCompleted: _entered),
-        ]),
+    return Column(mainAxisSize: MainAxisSize.min, children: [
+      Text(widget.title ?? (widget.hasPin ? 'Ganti PIN aplikasi' : 'Buat PIN aplikasi'), key: const Key('pin-setup-title'), textAlign: TextAlign.center, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
+      const SizedBox(height: 6),
+      Text(
+        widget.intro ?? 'PIN 6 angka untuk membuka tablet kasir dengan cepat: pilih nama, ketik PIN, tanpa email dan kode. Jangan pakai angka yang sama semua atau berurutan.',
+        textAlign: TextAlign.center,
+        style: TextStyle(color: mutedText(context), fontSize: 13),
       ),
-    );
+      const SizedBox(height: 16),
+      PinPad(key: ValueKey(_step), controller: _pad, label: _label, error: _error, busy: _busy, onCompleted: _entered),
+    ]);
   }
 }

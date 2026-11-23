@@ -84,7 +84,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/selesai',
         builder: (_, state) {
           final extra = Map<String, dynamic>.from(state.extra as Map? ?? const {});
-          return SaleDoneScreen(sale: Map<String, dynamic>.from(extra['sale'] as Map? ?? const {}), printResult: extra['print'] as String?);
+          return SaleDoneScreen(sale: Map<String, dynamic>.from(extra['sale'] as Map? ?? const {}), printResult: extra['print'] as String?, kitchenResult: extra['kitchen'] as String?);
         },
       ),
       GoRoute(path: '/riwayat', builder: (_, __) => const HistoryScreen()),

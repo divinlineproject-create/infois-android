@@ -358,6 +358,7 @@ class Cart {
     this.heldId,
     this.charges = const [],
     this.deliveryAddress,
+    this.queueNumber,
   });
 
   factory Cart.fromJson(Map<String, dynamic> json) => Cart(
@@ -369,6 +370,7 @@ class Cart {
         orderLabel: cleanNote(json['order_label']?.toString(), 40),
         heldId: json['held_id']?.toString(),
         deliveryAddress: cleanNote(json['delivery_address']?.toString(), 500),
+        queueNumber: cleanNote(json['queue_number']?.toString(), 10),
         // Keranjang/pesanan tersimpan lama tanpa `charges`: tanpa biaya tambahan.
         charges: [
           for (final charge in (json['charges'] as List? ?? const []))
@@ -385,6 +387,10 @@ class Cart {
 
   /// Alamat pengiriman (hanya dipakai bila barang dikirim, lihat [needsDelivery]).
   final String? deliveryAddress;
+
+  /// Nomor antrian ("000012", per HP, mulai lagi tiap tengah malam): diberi
+  /// sekali per pesanan saat Simpan, Cetak list, atau bayar (rumah makan).
+  final String? queueNumber;
 
   /// Nama biaya yang berarti barang dikirim (ongkos kirim, biaya antar, ...).
   static final deliveryChargePattern = RegExp('kirim|pengiriman|antar|ongkir|ekspedisi|kurir', caseSensitive: false);
@@ -470,6 +476,7 @@ class Cart {
         'held_id': heldId,
         'charges': [for (final charge in charges) charge.toJson()],
         'delivery_address': deliveryAddress,
+        'queue_number': queueNumber,
       };
 
   /// [note] / [orderLabel] / [deliveryAddress]: null = tidak berubah, '' = hapus.
@@ -485,11 +492,13 @@ class Cart {
     String? heldId,
     List<CartCharge>? charges,
     String? deliveryAddress,
+    String? queueNumber,
   }) =>
       Cart(
         lines: lines ?? this.lines,
         charges: charges ?? this.charges,
         deliveryAddress: deliveryAddress == null ? this.deliveryAddress : cleanNote(deliveryAddress, 500),
+        queueNumber: queueNumber ?? this.queueNumber,
         notaDiscountPercent: notaDiscountPercent == null ? this.notaDiscountPercent : Money.normalize(notaDiscountPercent),
         customer: clearCustomer ? null : (customer ?? this.customer),
         note: note == null ? this.note : cleanNote(note, 1000),

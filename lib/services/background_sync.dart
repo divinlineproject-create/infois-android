@@ -38,7 +38,9 @@ void backgroundDispatcher() {
   Workmanager().executeTask((task, _) async {
     WidgetsFlutterBinding.ensureInitialized();
     try {
-      await runBackgroundSync(storage: await AppStorage.load());
+      final storage = await AppStorage.load();
+      ApiClient.deviceModel ??= storage.deviceModel;
+      await runBackgroundSync(storage: storage);
       return true;
     } catch (_) {
       return false;

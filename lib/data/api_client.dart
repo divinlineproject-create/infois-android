@@ -29,6 +29,11 @@ class ApiException implements Exception {
   static const mobileAccessDeniedCode = 'akses_hp_tidak_tersedia';
   static const subscriptionInactiveCode = 'langganan_tidak_aktif';
 
+  /// Perangkat kasir baru hanya bisa didaftarkan akun pemilik (server baru).
+  bool get deviceOwnerOnly => status == 403 && code == deviceOwnerOnlyCode;
+
+  static const deviceOwnerOnlyCode = 'perangkat_khusus_pemilik';
+
   /// Perusahaan ini sudah ditutup pemiliknya (server baru, aplikasi ≥ 1.0.0).
   bool get companyClosed => status == 403 && code == companyClosedCode;
 
@@ -90,6 +95,10 @@ class ApiClient {
       }
       options.headers['X-App-Version'] = AppConfig.version;
       options.headers['X-Platform'] = Platform.operatingSystem;
+      final model = deviceModel;
+      if (model != null && model.isNotEmpty) {
+        options.headers['X-Device-Model'] = model;
+      }
       final pending = outboxCount?.call();
       if (pending != null) {
         options.headers['X-Outbox-Count'] = pending.toString();
@@ -102,6 +111,10 @@ class ApiClient {
   final String? token;
   final int? tenantId;
   final int? Function()? outboxCount;
+
+  /// Model perangkat ("Samsung SM-A155F") untuk header `X-Device-Model`;
+  /// diisi saat aplikasi / sinkron latar dimulai (lihat DeviceInfo).
+  static String? deviceModel;
 
   /// Dipanggil untuk setiap galat dari server (sebelum dilempar), mis. untuk
   /// melepas perusahaan yang ditolak aplikasi HP di mana pun galat itu muncul.

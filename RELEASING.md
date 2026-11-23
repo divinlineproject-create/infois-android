@@ -131,6 +131,16 @@ status dicek tiap 3 detik, dibayar → penjualan langsung disimpan & dikirim den
 (ditolak = QR & keranjang tetap, bisa dicoba lagi); Batalkan QR / pindah cara bayar / keluar = QR dibatalkan;
 "Cetak QR" (tagihan + QR ESC/POS) bila `print_on_bill`; struk "Bayar - QRIS"; baris QRIS di laporan shift.
 Online saja. Server harus sudah punya `/api/v1/pos/qris` (backoffice 2b91647) sebelum rilis.
+Tambahan 2026-11-24 (masih 1.0.2+3), **login perangkat seperti Majoo**: login penuh hanya untuk akun
+pemilik (`role: owner`; selain itu ditolak di aplikasi, dan 403 `perangkat_khusus_pemilik` dari server →
+kembali ke Masuk); setelah pemilik masuk layar PIN "Pilih Karyawan" selalu tampil (pemilik tanpa PIN
+membuat PIN dulu; anggota tanpa PIN tampil redup; daftar dari `pin/users?include_without_pin=1`). Field
+"Nama HP ini" dihapus: header `X-Device-Model` (MethodChannel `id.infois/device` di MainActivity) dan
+model dikirim sebagai `device_name`. **Meja** dipilih dari `tenant.pos_tables` (kosong = isian bebas);
+**nomor antrian** 6 angka harian per HP (`queue_number`, "ANTRIAN 000012" di list). **Printer kasir & printer
+dapur** (list ke dapur, otomatis setelah bayar bila dinyalakan; cetak berurutan, pengaturan printer lama
+jadi printer kasir). Perangkat yang login sebelum versi ini dengan akun selain pemilik tetap bisa dipakai
+seperti dulu.
 
 ## 3. Membangun AAB
 

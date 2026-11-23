@@ -156,7 +156,8 @@ void main() {
     await tap(tester, find.byKey(const Key('order-type-take_away')));
     await tap(tester, find.byKey(const Key('order-label')));
     expect(find.widgetWithText(ActionChip, 'Meja'), findsOneWidget);
-    expect(find.widgetWithText(ActionChip, 'Antrian'), findsOneWidget);
+    expect(find.widgetWithText(ActionChip, 'Antrian'), findsNothing, reason: 'Nomor antrian otomatis (tanpa saran "Antrian").');
+    expect(find.text('Atur daftar meja di web: Pengaturan Kasir.'), findsOneWidget, reason: 'Tanpa daftar meja: isian bebas + petunjuk.');
     await tester.enterText(find.byKey(const Key('order-label-field')), 'Meja 5');
     await tap(tester, find.byKey(const Key('text-save')));
 

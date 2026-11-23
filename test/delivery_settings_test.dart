@@ -210,7 +210,8 @@ void main() {
       expect(find.text('Pengaturan kasir'), findsOneWidget);
       expect(find.text('Untuk semua kasir di usaha ini'), findsNothing);
       expect(find.byKey(const Key('pos-settings-dining')), findsNothing);
-      expect(find.text('Lebar kertas'), findsOneWidget);
+      expect(find.text('Printer kasir'), findsOneWidget);
+      expect(find.text('Printer dapur'), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
       await tester.runAsync(local.close);
     });
@@ -237,7 +238,7 @@ void main() {
       expect(find.text('Untuk semua kasir di usaha ini'), findsOneWidget);
       expect(find.text('Printer di perangkat ini'), findsOneWidget);
       expect(find.text('Fitur rumah makan / kafe (jenis pesanan, meja/antrian)'), findsOneWidget);
-      expect(find.byType(SwitchListTile), findsNWidgets(2), reason: 'Fitur rumah makan + cetak otomatis (tanpa pilihan shift wajib).');
+      expect(find.byType(SwitchListTile), findsNWidgets(3), reason: 'Fitur rumah makan + cetak struk otomatis + list dapur otomatis (tanpa pilihan shift wajib).');
       bool switchValue() => tester.widget<SwitchListTile>(find.byKey(const Key('pos-settings-dining'))).value;
       expect(switchValue(), isTrue);
 

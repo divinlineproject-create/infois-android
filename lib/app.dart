@@ -35,7 +35,7 @@ class _InfoisAppState extends ConsumerState<InfoisApp> with WidgetsBindingObserv
   void _lockIfIdle() {
     final storage = ref.read(storageProvider);
     final minutes = storage.pinLockMinutes;
-    if (storage.pinLock && minutes > 0 && DateTime.now().difference(_lastActive) >= Duration(minutes: minutes)) {
+    if (storage.pinLockActive && minutes > 0 && DateTime.now().difference(_lastActive) >= Duration(minutes: minutes)) {
       ref.read(sessionProvider.notifier).lock();
     }
   }

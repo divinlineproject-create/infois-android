@@ -332,7 +332,7 @@ class _SaleDetailScreenState extends ConsumerState<SaleDetailScreen> {
             ]),
             const SizedBox(height: 10),
             OutlinedButton.icon(key: const Key('pdf'), onPressed: _busy ? null : () => _pdf(sale), icon: const Icon(Icons.picture_as_pdf_outlined), label: const Text('Unduh PDF nota')),
-            if (!hasPrinter) Padding(padding: const EdgeInsets.only(top: 6), child: Text('Belum ada printer. Atur di Akun › Printer.', style: TextStyle(fontSize: 12, color: mutedText(context)))),
+            if (!hasPrinter) Padding(padding: const EdgeInsets.only(top: 6), child: Text('Belum ada printer. Atur di Akun › Pengaturan kasir.', style: TextStyle(fontSize: 12, color: mutedText(context)))),
             const SizedBox(height: 10),
             if (sale.canReceivePayment && Money.isPositive(s.balanceDue) && s.status != 'void') ...[
               FilledButton.icon(

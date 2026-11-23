@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../data/api_client.dart';
 import '../../domain/models.dart';
 import '../../state/session.dart';
 import '../theme.dart';
@@ -131,14 +132,26 @@ class _TenantPickerScreenState extends ConsumerState<TenantPickerScreen> {
                         child: Text(tenant.name.isEmpty ? '?' : tenant.name[0].toUpperCase(), style: TextStyle(color: Theme.of(context).colorScheme.onPrimaryContainer, fontWeight: FontWeight.w700, fontSize: 18)),
                       ),
                       title: Text(tenant.name, style: const TextStyle(fontWeight: FontWeight.w600)),
-                      subtitle: Text(tenant.active ? (tenant.roleLabel ?? 'Anggota') : 'Sedang tidak aktif · hubungi pemilik usaha', style: TextStyle(color: tenant.active ? null : warningText(context))),
+                      subtitle: Text(
+                        !tenant.active
+                            ? 'Sedang tidak aktif · hubungi pemilik usaha'
+                            : (tenant.deviceLoginBlocked ? '${tenant.roleLabel ?? 'Anggota'} · masuk dengan PIN di perangkat yang diaktifkan pemilik' : (tenant.roleLabel ?? 'Anggota')),
+                        style: TextStyle(color: tenant.active && !tenant.deviceLoginBlocked ? null : warningText(context)),
+                      ),
                       trailing: const Icon(Icons.chevron_right),
-                      onTap: () {
+                      onTap: () async {
                         if (!tenant.active) {
                           showMessage(context, '${tenant.name} sedang tidak aktif. Hubungi pemilik usaha atau admin Infois Anda.', error: true);
                           return;
                         }
-                        ref.read(sessionProvider.notifier).selectTenant(tenant.id);
+                        try {
+                          await ref.read(sessionProvider.notifier).selectTenant(tenant.id);
+                        } on ApiException catch (error) {
+                          // Perangkat kasir hanya diaktifkan akun pemilik usaha.
+                          if (context.mounted) {
+                            showMessage(context, error.message, error: true);
+                          }
+                        }
                       },
                     ),
                   );

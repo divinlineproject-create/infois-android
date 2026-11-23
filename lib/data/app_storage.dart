@@ -74,6 +74,11 @@ class AppStorage {
   static const _printerName = 'printer_name';
   static const _printerWidth = 'printer_width';
   static const _autoPrint = 'auto_print';
+  static const _deviceModel = 'device_model';
+  static const _kitchenMac = 'printer_kitchen_mac';
+  static const _kitchenName = 'printer_kitchen_name';
+  static const _kitchenWidth = 'printer_kitchen_width';
+  static const _autoPrintKitchen = 'auto_print_kitchen';
   static const _themeMode = 'theme_mode';
   static const _foregroundAt = 'foreground_at';
 
@@ -303,6 +308,39 @@ class AppStorage {
 
   Future<void> setPrinterWidth(int width) => prefs.setInt(_printerWidth, width);
 
+  /// Model perangkat terakhir yang terbaca (dipakai sinkron latar untuk
+  /// header `X-Device-Model`).
+  String? get deviceModel => prefs.getString(_deviceModel);
+
+  Future<void> setDeviceModel(String? model) => model == null || model.isEmpty ? prefs.remove(_deviceModel) : prefs.setString(_deviceModel, model);
+
+  /// Printer dapur (opsional) untuk "Cetak list"; null = list ke printer kasir.
+  /// Printer kasir = [printer] (kunci lama, jadi pengaturan lama tetap terpakai).
+  SavedPrinter? get kitchenPrinter {
+    final mac = prefs.getString(_kitchenMac);
+    if (mac == null || mac.isEmpty) {
+      return null;
+    }
+    return SavedPrinter(mac: mac, name: prefs.getString(_kitchenName) ?? mac, width: prefs.getInt(_kitchenWidth) ?? 58);
+  }
+
+  Future<void> setKitchenPrinter(SavedPrinter? printer) async {
+    if (printer == null) {
+      await prefs.remove(_kitchenMac);
+      await prefs.remove(_kitchenName);
+      await prefs.remove(_kitchenWidth);
+      return;
+    }
+    await prefs.setString(_kitchenMac, printer.mac);
+    await prefs.setString(_kitchenName, printer.name);
+    await prefs.setInt(_kitchenWidth, printer.width);
+  }
+
+  /// Cetak list ke printer dapur otomatis setelah bayar (bawaan mati).
+  bool get autoPrintKitchen => prefs.getBool(_autoPrintKitchen) ?? false;
+
+  Future<void> setAutoPrintKitchen(bool value) => prefs.setBool(_autoPrintKitchen, value);
+
   bool get autoPrint => prefs.getBool(_autoPrint) ?? true;
 
   Future<void> setAutoPrint(bool value) => prefs.setBool(_autoPrint, value);
@@ -413,6 +451,18 @@ class AppStorage {
 
   /// Tablet dikunci dengan PIN (dibuka dengan pilih nama + PIN).
   bool get pinLock => prefs.getBool(_pinLock) ?? false;
+
+  /// Perangkat diaktifkan pemilik usaha (login penuh dengan role `owner` di
+  /// perusahaan aktif): layar PIN selalu tampil untuk semua orang, termasuk
+  /// pemilik. Server lama tanpa role: tetap pilihan [pinLock].
+  bool get pinRequired {
+    final saved = session();
+    final id = tenantId;
+    return saved != null && id != null && saved.tenants.any((tenant) => tenant.id == id && tenant.isOwner);
+  }
+
+  /// Kunci PIN berlaku di perangkat ini (wajib atau dinyalakan).
+  bool get pinLockActive => pinLock || pinRequired;
 
   Future<void> setPinLock(bool value) => prefs.setBool(_pinLock, value);
 

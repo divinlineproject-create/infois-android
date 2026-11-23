@@ -4,7 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
 import 'app.dart';
+import 'data/api_client.dart';
 import 'data/app_storage.dart';
+import 'services/device_info.dart';
 import 'services/background_sync.dart';
 import 'state/session.dart';
 
@@ -13,6 +15,12 @@ Future<void> main() async {
   await initializeDateFormatting('id_ID');
   await lockPhoneToPortrait();
   final storage = await AppStorage.load();
+  // Model perangkat untuk header X-Device-Model (nama perangkat otomatis di web).
+  final model = await DeviceInfo.loadModel() ?? storage.deviceModel;
+  ApiClient.deviceModel = model;
+  if (model != null) {
+    await storage.setDeviceModel(model);
+  }
   try {
     await registerBackgroundSync();
   } on Exception {

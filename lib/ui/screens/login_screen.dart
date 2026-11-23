@@ -39,7 +39,7 @@ class AccessNoticeCard extends StatelessWidget {
               children: [
                 Icon(Icons.phonelink_lock_outlined, color: color),
                 const SizedBox(width: 10),
-                Expanded(child: Text('Aplikasi HP belum tersedia', style: TextStyle(fontWeight: FontWeight.w700, color: color))),
+                Expanded(child: Text(notice.title ?? 'Aplikasi HP belum tersedia', style: TextStyle(fontWeight: FontWeight.w700, color: color))),
                 if (onClose != null) IconButton(visualDensity: VisualDensity.compact, tooltip: 'Tutup', icon: const Icon(Icons.close, size: 18), onPressed: onClose),
               ],
             ),
@@ -72,7 +72,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _form = GlobalKey<FormState>();
   final _email = TextEditingController();
   final _password = TextEditingController();
-  final _deviceName = TextEditingController(text: 'HP Kasir');
   final _code = TextEditingController();
   bool _busy = false;
   bool _hidePassword = true;
@@ -102,7 +101,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     _resendTimer?.cancel();
     _email.dispose();
     _password.dispose();
-    _deviceName.dispose();
     _code.dispose();
     super.dispose();
   }
@@ -177,7 +175,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     });
     ref.read(sessionProvider.notifier).clearNotice();
     try {
-      await ref.read(sessionProvider.notifier).login(email: _email.text, password: _password.text, deviceName: _deviceName.text, code: code, resend: resend);
+      await ref.read(sessionProvider.notifier).login(email: _email.text, password: _password.text, code: code, resend: resend);
     } on ApiException catch (error) {
       if (!mounted) {
         return;
@@ -376,11 +374,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ),
                 validator: (value) => (value ?? '').isEmpty ? 'Isi kata sandi.' : null,
                 onFieldSubmitted: (_) => _submit(),
-              ),
-              const SizedBox(height: 14),
-              TextFormField(
-                controller: _deviceName,
-                decoration: const InputDecoration(labelText: 'Nama HP ini', helperText: 'Tampil di web (Tim & Akses › Perangkat).', prefixIcon: Icon(Icons.smartphone)),
               ),
               if (_error != null) ...[const SizedBox(height: 16), Text(_error!, style: TextStyle(color: dangerText(context), fontWeight: FontWeight.w500))],
               const SizedBox(height: 24),

@@ -88,6 +88,10 @@ class ReceiptBuilder {
     if (order != null) {
       bytes.addAll(generator.text(clean(order), styles: base.copyWith(align: PosAlign.center, bold: true)));
     }
+    final queue = queueNumberOf(sale);
+    if (queue != null) {
+      bytes.addAll(generator.text('Antrian $queue', styles: base.copyWith(align: PosAlign.center, bold: true)));
+    }
     bytes.addAll(_deliveryAddress(generator, base, sale));
     bytes.addAll(generator.hr());
 
@@ -168,6 +172,9 @@ class ReceiptBuilder {
     return bytes;
   }
 
+  /// Nomor antrian pesanan ("000012"), atau null.
+  static String? queueNumberOf(Map<String, dynamic> sale) => cleanNote(sale['queue_number']?.toString(), 10);
+
   /// Baris jenis pesanan + meja/antrian: "BAWA PULANG - Meja 5". Null bila kosong.
   static String? orderHeadline(Map<String, dynamic> sale) {
     final parts = [OrderType.fromCode(sale['order_type'])?.ticketLabel, cleanNote(sale['order_label']?.toString(), 40)].whereType<String>().toList();
@@ -245,6 +252,10 @@ class ReceiptBuilder {
     final base = _base(config);
     final bytes = <int>[...generator.reset()];
     bytes.addAll(generator.text('LIST PESANAN', styles: base.copyWith(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2)));
+    final queue = queueNumberOf(sale);
+    if (queue != null) {
+      bytes.addAll(generator.text('ANTRIAN $queue', styles: base.copyWith(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2)));
+    }
     final order = orderHeadline(sale);
     if (order != null) {
       bytes.addAll(generator.text(clean(order), styles: base.copyWith(align: PosAlign.center, bold: true, height: PosTextSize.size2)));
@@ -314,6 +325,10 @@ class ReceiptBuilder {
     final label = cleanNote(sale['order_label']?.toString(), 40);
     if (type != null || label != null) {
       out.writeln([type, label].whereType<String>().join(' · '));
+    }
+    final queue = queueNumberOf(sale);
+    if (queue != null) {
+      out.writeln('Antrian $queue');
     }
     final address = cleanNote(sale['delivery_address']?.toString(), 500);
     if (address != null) {
@@ -421,13 +436,16 @@ class ReceiptBuilder {
   }
 
   /// Halaman tes printer.
-  List<int> testPage(ReceiptConfig config, {required int width, List<int>? logo}) {
+  List<int> testPage(ReceiptConfig config, {required int width, List<int>? logo, String? title}) {
     final generator = _generator(width);
     final base = _base(config);
     final bytes = <int>[...generator.reset()];
     bytes.addAll(_header(generator, config, base, logo, width));
     bytes.addAll(generator.hr());
     bytes.addAll(generator.text('Tes cetak berhasil', styles: base.copyWith(align: PosAlign.center, bold: true)));
+    if (title != null) {
+      bytes.addAll(generator.text(clean(title), styles: base.copyWith(align: PosAlign.center)));
+    }
     bytes.addAll(generator.text('Kertas $width mm', styles: base.copyWith(align: PosAlign.center)));
     bytes.addAll(generator.row([
       PosColumn(text: 'Contoh barang', width: 8, styles: base),

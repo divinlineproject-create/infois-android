@@ -10,6 +10,10 @@ import '../domain/numbering.dart';
 /// Kunci data di tabel meta.
 class MetaKeys {
   static const cursor = 'sync_cursor';
+
+  /// Nomor antrian harian (tanggal `yyyy-MM-dd` + nomor terakhir).
+  static const queueDate = 'queue_date';
+  static const queueSeq = 'queue_seq';
   static const lastFullPull = 'last_full_pull';
   static const lastSyncAt = 'last_sync_at';
   static const tenant = 'tenant_settings';

@@ -509,6 +509,7 @@ class TenantSettings {
     this.posDining = true,
     this.qrisEnabled = false,
     this.qrisPrintOnBill = false,
+    this.posTables = const [],
   });
 
   factory TenantSettings.fromJson(Map<String, dynamic> json) => TenantSettings(
@@ -524,6 +525,11 @@ class TenantSettings {
         // Server lama tanpa `qris`: QRIS mati.
         qrisEnabled: json['qris'] is Map && _b((json['qris'] as Map)['enabled']),
         qrisPrintOnBill: json['qris'] is Map && _b((json['qris'] as Map)['print_on_bill']),
+        // Daftar meja dari Pengaturan Kasir web; server lama: kosong (isian bebas).
+        posTables: [
+          for (final table in json['pos_tables'] is List ? json['pos_tables'] as List : const [])
+            if ((table?.toString().trim() ?? '').isNotEmpty) table.toString().trim(),
+        ],
       );
 
   final int id;
@@ -544,6 +550,10 @@ class TenantSettings {
   /// QR boleh dicetak di tagihan sebelum dibayar ("Cetak QR").
   final bool qrisPrintOnBill;
 
+  /// Nama meja (mis. "Meja 1", "VIP 2") untuk dipilih di kasir. Kosong =
+  /// isian meja bebas.
+  final List<String> posTables;
+
   Map<String, dynamic> toJson() => {
         'id': id,
         'name': name,
@@ -554,6 +564,7 @@ class TenantSettings {
         'payment_terms_days': paymentTermsDays,
         'pos_dining': posDining,
         'qris': {'enabled': qrisEnabled, 'print_on_bill': qrisPrintOnBill},
+        'pos_tables': posTables,
       };
 }
 
@@ -754,6 +765,13 @@ class TenantSummary {
   final String? slug;
   final String name;
   final String? role;
+
+  /// Pemilik usaha (super admin) perusahaan ini.
+  bool get isOwner => role == 'owner';
+
+  /// Server mengirim role selain pemilik: perangkat kasir tidak boleh
+  /// diaktifkan dengan akun ini (server lama tanpa role: tidak dibatasi).
+  bool get deviceLoginBlocked => role != null && role!.isNotEmpty && role != 'owner';
   final String? roleLabel;
   final bool active;
   final Menus menus;
@@ -791,15 +809,27 @@ class SessionUser {
 
 /// Anggota yang bisa membuka tablet kasir bersama dengan PIN.
 class PinUser {
-  const PinUser({required this.id, required this.name, this.roleLabel, this.avatarUrl, this.isHost = false});
+  const PinUser({required this.id, required this.name, this.roleLabel, this.avatarUrl, this.isHost = false, this.hasPin = true, this.role});
 
-  factory PinUser.fromJson(Map<String, dynamic> json, {bool isHost = false}) =>
-      PinUser(id: _i(json['id'])!, name: _s(json['name']), roleLabel: json['role_label']?.toString(), avatarUrl: json['avatar_url']?.toString(), isHost: isHost);
+  factory PinUser.fromJson(Map<String, dynamic> json, {bool isHost = false}) => PinUser(
+        id: _i(json['id'])!,
+        name: _s(json['name']),
+        role: _blank(json['role']),
+        roleLabel: json['role_label']?.toString(),
+        avatarUrl: json['avatar_url']?.toString(),
+        isHost: isHost,
+        // Server lama hanya mengirim anggota ber-PIN (tanpa `has_pin`).
+        hasPin: json['has_pin'] == null || _b(json['has_pin']),
+      );
 
   final int id;
   final String name;
+  final String? role;
   final String? roleLabel;
   final String? avatarUrl;
+
+  /// Sudah punya PIN aplikasi di perusahaan ini. Belum = tampil redup.
+  final bool hasPin;
 
   /// Pemilik login tablet ini.
   final bool isHost;

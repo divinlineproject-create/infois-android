@@ -325,7 +325,7 @@ class _PayScreenState extends ConsumerState<PayScreen> {
             payment: PaymentInput(mode: _mode, cashReceived: cash, transferAccountId: _account?.id, transferAccountName: _account?.name, qrisPaymentId: _mode == PayMode.qris ? _qris?.id : null),
           );
       if (mounted) {
-        context.pushReplacement('/selesai', extra: {'sale': outcome.sale, 'print': outcome.print?.name});
+        context.pushReplacement('/selesai', extra: {'sale': outcome.sale, 'print': outcome.print?.name, 'kitchen': outcome.kitchen?.name});
       }
     } on CheckoutException catch (error) {
       setState(() => _error = error.message);
@@ -580,7 +580,7 @@ class _CashDisplay extends StatelessWidget {
 /// Pesan hasil cetak untuk ditampilkan.
 String printMessage(String? result) => switch (result) {
       'printed' => 'Struk tercetak.',
-      'noPrinter' => 'Belum ada printer. Atur di Akun › Printer.',
+      'noPrinter' => 'Belum ada printer. Atur di Akun › Pengaturan kasir.',
       'failed' => 'Struk belum tercetak. Periksa printer lalu tekan Cetak ulang.',
       _ => '',
     };
@@ -592,13 +592,20 @@ String draftPrintMessage(PrintResult result, String what) => switch (result) {
       _ => '$what belum tercetak. Periksa printer lalu coba lagi.',
     };
 
+/// Pesan hasil "Cetak list": gagal di printer dapur disebut printernya.
+String listPrintMessage(PrintResult result, {required bool kitchen}) =>
+    kitchen && result == PrintResult.failed ? 'Printer dapur belum tersambung. List pesanan belum tercetak.' : draftPrintMessage(result, 'List pesanan');
+
 /// Penjualan selesai: nomor nota, kembalian, cetak struk / list pesanan,
 /// kirim struk lewat WhatsApp, transaksi baru.
 class SaleDoneScreen extends ConsumerWidget {
-  const SaleDoneScreen({super.key, required this.sale, this.printResult});
+  const SaleDoneScreen({super.key, required this.sale, this.printResult, this.kitchenResult});
 
   final Map<String, dynamic> sale;
   final String? printResult;
+
+  /// Hasil list otomatis ke printer dapur (null = tidak dicetak otomatis).
+  final String? kitchenResult;
 
   Future<void> _sendWhatsApp(BuildContext context, WidgetRef ref) async {
     var phone = sale['customer_phone']?.toString();
@@ -665,6 +672,8 @@ class SaleDoneScreen extends ConsumerWidget {
                     if (Money.isPositive(unpaid)) AmountRow('Belum dibayar (bon)', rupiah(unpaid), bold: true, color: warningText(context)),
                     const SizedBox(height: 16),
                     if (printResult != null && printResult != 'printed') Text(printMessage(printResult), textAlign: TextAlign.center, style: TextStyle(color: warningText(context))),
+                    if (kitchenResult == 'failed')
+                      Text('Printer dapur belum tersambung. List pesanan belum tercetak; tekan Cetak list untuk mencoba lagi.', key: const Key('done-kitchen-failed'), textAlign: TextAlign.center, style: TextStyle(color: warningText(context))),
                     const SizedBox(height: 24),
                     Row(children: [
                       Expanded(
@@ -690,7 +699,7 @@ class SaleDoneScreen extends ConsumerWidget {
                           onTap: () async {
                             final result = await ref.read(posActionsProvider).printOrderList(sale);
                             if (context.mounted) {
-                              showMessage(context, draftPrintMessage(result, 'List pesanan'), error: result != PrintResult.printed);
+                              showMessage(context, listPrintMessage(result, kitchen: ref.read(printerProvider).kitchen != null), error: result != PrintResult.printed);
                             }
                           },
                         ),
