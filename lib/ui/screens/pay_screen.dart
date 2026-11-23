@@ -115,6 +115,9 @@ class _PayScreenState extends ConsumerState<PayScreen> {
     final inclusive = master?.tenant.pricesIncludeTax ?? false;
     final total = cart.totals(pricesIncludeTax: inclusive).total;
     final accounts = master?.transferAccounts ?? const <CashAccount>[];
+    final cashAccounts = master?.cashAccounts ?? const <CashAccount>[];
+    // Akun yang dipakai penjualan tunai (PosService: `default_cash_id`).
+    final drawerAccount = cashAccounts.length > 1 ? master?.accounts.where((account) => account.id == master.defaultCashId).firstOrNull : null;
     _account ??= accounts.where((account) => account.id == master?.defaultTransferId).firstOrNull ?? accounts.firstOrNull;
     final cashValue = parseMoneyInput(_cash);
     final change = _mode == PayMode.cash && cashValue != null && Money.compare(cashValue, total) >= 0 ? Money.sub(cashValue, total) : null;
@@ -212,6 +215,12 @@ class _PayScreenState extends ConsumerState<PayScreen> {
           _error = null;
         }),
       ),
+      // Lebih dari satu akun kas: jelaskan ke mana uang tunai dicatat (akun laci
+      // kasir dari Pengaturan Kasir web = `accounts.default_cash_id`).
+      if (drawerAccount != null && (_mode == PayMode.cash || _mode == PayMode.mixed)) ...[
+        const SizedBox(height: 6),
+        Text('Uang tunai masuk ke: ${drawerAccount.name}', key: const Key('pay-cash-account'), textAlign: TextAlign.center, style: TextStyle(fontSize: 12.5, color: mutedText(context))),
+      ],
       const SizedBox(height: 20),
     ];
     final details = <Widget>[

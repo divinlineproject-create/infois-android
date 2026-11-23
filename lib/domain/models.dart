@@ -442,6 +442,61 @@ class CashAccount {
   Map<String, dynamic> toJson() => {'id': id, 'name': name, 'code': code, 'kind': kind};
 }
 
+/// Pindah uang otomatis server untuk satu shift (Pengaturan Kasir › "Uang
+/// tunai kasir"): uang awal kas usaha → laci, atau setoran laci → kas usaha.
+class CashTransfer {
+  const CashTransfer({required this.amount, this.number, this.from, this.to, this.status});
+
+  static CashTransfer? fromJson(Object? json) {
+    if (json is! Map) {
+      return null;
+    }
+    return CashTransfer(
+      amount: Money.normalize(json['amount']),
+      number: _blank(json['number']),
+      from: _blank(json['from']),
+      to: _blank(json['to']),
+      status: _blank(json['status']),
+    );
+  }
+
+  final String amount;
+  final String? number;
+  final String? from;
+  final String? to;
+
+  /// "Tercatat", "Menunggu persetujuan", atau "Dibatalkan".
+  final String? status;
+
+  Map<String, dynamic> toJson() => {'number': number, 'amount': amount, 'from': from, 'to': to, 'status': status};
+}
+
+/// `cash_transfers` pada data shift dari server (buka/tutup kasir, sync/pull
+/// `open_shift`). Null bila server lama tanpa kunci ini.
+class ShiftCashTransfers {
+  const ShiftCashTransfers({this.float, this.deposit, this.note});
+
+  static ShiftCashTransfers? fromJson(Object? json) {
+    if (json is! Map) {
+      return null;
+    }
+    return ShiftCashTransfers(float: CashTransfer.fromJson(json['float']), deposit: CashTransfer.fromJson(json['deposit']), note: _blank(json['note']));
+  }
+
+  /// Uang awal: kas usaha → laci kasir.
+  final CashTransfer? float;
+
+  /// Setoran: laci kasir → kas usaha.
+  final CashTransfer? deposit;
+
+  /// Pesan bila pindah uang tidak tercatat otomatis.
+  final String? note;
+
+  bool get isEmpty => float == null && deposit == null && note == null;
+
+  Map<String, dynamic> toJson() => {'float': float?.toJson(), 'deposit': deposit?.toJson(), 'note': note};
+}
+
 class TenantSettings {
   const TenantSettings({
     required this.id,

@@ -361,6 +361,39 @@ class PosActions {
     return draft == null ? PrintResult.failed : printOrderList(draft);
   }
 
+  /// Tutup kasir: simpan di HP, lalu kirim ke server sebentar (bila online,
+  /// paling lama [wait]) supaya uang awal & setoran otomatis yang dicatat
+  /// server (`cash_transfers`) ikut tampil dan tercetak. Offline: laporan
+  /// tanpa data itu.
+  Future<Map<String, dynamic>> closeShift(Map<String, dynamic> shift, String counted, {Duration wait = const Duration(seconds: 8)}) async {
+    final service = await ref.read(posServiceProvider.future);
+    if (service == null) {
+      throw const CheckoutException('Data kasir belum siap.');
+    }
+    final report = await service.closeShift(shift, counted);
+    ref.read(dataVersionProvider.notifier).state++;
+    final sync = ref.read(syncProvider.notifier);
+    await sync.refreshPending();
+    try {
+      await sync.syncNow().timeout(wait);
+    } on TimeoutException {
+      // Server lambat: laporan tanpa data pindah uang (tampil saat sinkron selesai).
+    }
+    final transfers = await shiftTransfers(shift['client_uuid'] as String);
+    return {...report, if (transfers != null) 'cash_transfers': transfers.toJson()};
+  }
+
+  /// `cash_transfers` shift [clientUuid] dari jawaban server yang tersimpan di HP.
+  Future<ShiftCashTransfers?> shiftTransfers(String clientUuid) async {
+    final workspace = await ref.read(workspaceProvider.future);
+    if (workspace == null || !workspace.usable) {
+      return null;
+    }
+    final stored = await workspace.local.shift(clientUuid);
+    final server = stored?['server'];
+    return server is Map ? ShiftCashTransfers.fromJson(server['cash_transfers']) : null;
+  }
+
   /// Pengaturan kasir untuk semua kasir di usaha ini: fitur rumah makan /
   /// kafe (`PUT /pos/settings`, online saja; hanya `menus.pos_settings`).
   /// Berhasil = pengaturan di HP langsung diganti (tanpa menunggu sinkron).

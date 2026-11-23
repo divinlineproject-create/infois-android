@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/format.dart';
 import '../../core/money.dart';
+import '../../domain/models.dart';
 import '../../state/pos_state.dart';
 import '../../state/printer_controller.dart';
 import '../../state/sync_controller.dart';
@@ -104,6 +105,14 @@ Future<bool> showOpenShiftDialog(BuildContext context, WidgetRef ref) async {
   return true;
 }
 
+/// Satu pindah uang otomatis untuk layar tutup kasir:
+/// "Uang awal Rp 200.000: Kas → Kas Kasir (TRF/…, tercatat)".
+String cashTransferLine(String label, CashTransfer transfer) {
+  final route = [transfer.from, transfer.to].whereType<String>().join(' → ');
+  final details = [transfer.number, transfer.status?.toLowerCase()].whereType<String>().join(', ');
+  return '$label ${rupiah(transfer.amount)}${route.isEmpty ? '' : ': $route'}${details.isEmpty ? '' : ' ($details)'}';
+}
+
 /// Tutup kasir: hitung uang fisik, lihat selisih, cetak laporan.
 class ShiftCloseScreen extends ConsumerStatefulWidget {
   const ShiftCloseScreen({super.key});
@@ -117,6 +126,20 @@ class _ShiftCloseScreenState extends ConsumerState<ShiftCloseScreen> {
   Map<String, dynamic>? _summary;
   Map<String, dynamic>? _report;
   bool _busy = false;
+  String? _shiftUuid;
+
+  /// Sinkron selesai setelah laporan tampil: ambil uang awal & setoran
+  /// otomatis dari jawaban server (bila belum ada).
+  Future<void> _refreshTransfers() async {
+    final uuid = _shiftUuid;
+    if (_report == null || _report!['cash_transfers'] != null || uuid == null) {
+      return;
+    }
+    final transfers = await ref.read(posActionsProvider).shiftTransfers(uuid);
+    if (mounted && transfers != null && _report != null) {
+      setState(() => _report = {..._report!, 'cash_transfers': transfers.toJson()});
+    }
+  }
 
   @override
   void initState() {
@@ -163,10 +186,8 @@ class _ShiftCloseScreenState extends ConsumerState<ShiftCloseScreen> {
       }
       return;
     }
-    final report = await service.closeShift(shift, counted);
-    ref.read(dataVersionProvider.notifier).state++;
-    await ref.read(syncProvider.notifier).refreshPending();
-    ref.read(syncProvider.notifier).syncNow();
+    _shiftUuid = shift['client_uuid'] as String?;
+    final report = await ref.read(posActionsProvider).closeShift(shift, counted);
     final printed = await ref.read(printerProvider.notifier).printShiftReport(report);
     if (!mounted) {
       return;
@@ -182,7 +203,9 @@ class _ShiftCloseScreenState extends ConsumerState<ShiftCloseScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(dataVersionProvider, (_, __) => _refreshTransfers());
     final summary = _report ?? _summary;
+    final transfers = ShiftCashTransfers.fromJson(_report?['cash_transfers']);
     final counted = parseMoneyInput(_counted.text);
     final difference = _report?['difference'] ?? (summary != null && counted != null ? Money.sub(counted, summary['expected_cash']) : null);
     return Scaffold(
@@ -225,9 +248,29 @@ class _ShiftCloseScreenState extends ConsumerState<ShiftCloseScreen> {
                   color: Money.isZero(difference) ? Brand.green : Brand.amber,
                 ),
               ],
+              if (transfers != null && !transfers.isEmpty) ...[
+                const SizedBox(height: 16),
+                Card(
+                  key: const Key('shift-transfers'),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      if (transfers.float != null) Text(cashTransferLine('Uang awal', transfers.float!), key: const Key('shift-transfer-float')),
+                      if (transfers.deposit != null) ...[
+                        if (transfers.float != null) const SizedBox(height: 6),
+                        Text(cashTransferLine('Setoran', transfers.deposit!), key: const Key('shift-transfer-deposit')),
+                      ],
+                      if (transfers.note != null) ...[
+                        if (transfers.float != null || transfers.deposit != null) const SizedBox(height: 8),
+                        Text(transfers.note!, key: const Key('shift-transfer-note'), style: TextStyle(color: warningText(context), fontWeight: FontWeight.w500)),
+                      ],
+                    ]),
+                  ),
+                ),
+              ],
               const SizedBox(height: 24),
               if (_report == null)
-                FilledButton(onPressed: _busy ? null : _close, child: const Text('Tutup kasir & cetak laporan'))
+                FilledButton(onPressed: _busy ? null : _close, child: Text(_busy ? 'Menutup kasir…' : 'Tutup kasir & cetak laporan'))
               else ...[
                 OutlinedButton.icon(
                   onPressed: () => ref.read(printerProvider.notifier).printShiftReport(_report!),

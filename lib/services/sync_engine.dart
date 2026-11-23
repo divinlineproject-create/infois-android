@@ -209,6 +209,8 @@ class SyncEngine {
         'opening_cash': openShift['opening_cash'],
         'closing_cash': null,
         'server_id': openShift['id'],
+        // Data server (mis. `cash_transfers`: uang awal otomatis).
+        'server': Map<String, dynamic>.from(openShift),
       });
     }
 

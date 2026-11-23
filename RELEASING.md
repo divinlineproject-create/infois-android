@@ -121,6 +121,10 @@ di struk, tagihan, dan list, dikirim sebagai `delivery_address`. Akun › **Peng
 mematikan "Fitur rumah makan / kafe" untuk semua kasir lewat `PUT /api/v1/pos/settings` (online saja);
 printer tetap di bagian "Printer di perangkat ini". Server harus sudah punya endpoint itu (backoffice
 565e431) sebelum rilis; server lama menjawab 404 dan HP menampilkan pesan galat biasa.
+Tambahan 2026-11-24 (masih 1.0.2+3): **uang tunai kasir** — layar Bayar menyebut akun kas tujuan ("Uang
+tunai masuk ke: Kas Kasir") bila ada lebih dari satu akun kas (akun laci dari Pengaturan Kasir web =
+`accounts.default_cash_id`); Tutup kasir menampilkan dan mencetak uang awal & setoran otomatis dari server
+(`cash_transfers` pada shift) beserta catatannya. Server lama tanpa kunci itu: tidak ada yang berubah.
 
 ## 3. Membangun AAB
 

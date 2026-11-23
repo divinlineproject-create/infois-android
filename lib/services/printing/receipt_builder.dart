@@ -29,6 +29,8 @@ class ReceiptBuilder {
       .replaceAll(RegExp('[“”]'), '"')
       .replaceAll(RegExp('[–—]'), '-')
       .replaceAll('·', '-')
+      .replaceAll('→', '->')
+      .replaceAll('›', '>')
       .replaceAll(RegExp(r'[^\x0A\x20-\x7E]'), '');
 
   PosStyles _base(ReceiptConfig config) => PosStyles(fontType: config.fontSize == 'small' ? PosFontType.fontB : PosFontType.fontA);
@@ -354,6 +356,20 @@ class ReceiptBuilder {
     line('Seharusnya di laci', rupiah(report['expected_cash']), bold: true);
     line('Uang dihitung', rupiah(report['closing_cash']), bold: true);
     line('Selisih', rupiah(report['difference']), bold: true);
+    // Pindah uang otomatis dari server (uang awal & setoran); server lama: tidak ada.
+    final transfers = ShiftCashTransfers.fromJson(report['cash_transfers']);
+    if (transfers != null && !transfers.isEmpty) {
+      bytes.addAll(generator.hr());
+      if (transfers.float != null) {
+        line('Uang awal ke ${transfers.float!.to ?? 'laci'}', rupiah(transfers.float!.amount));
+      }
+      if (transfers.deposit != null) {
+        line('Setoran ke ${transfers.deposit!.to ?? 'kas'}', rupiah(transfers.deposit!.amount));
+      }
+      if (transfers.note != null) {
+        bytes.addAll(generator.text(clean(transfers.note), styles: base));
+      }
+    }
     bytes.addAll(generator.hr());
     bytes.addAll(generator.text('Dicetak ${receiptDateTime(DateTime.now())}', styles: base.copyWith(align: PosAlign.center)));
     bytes.addAll(generator.cut());

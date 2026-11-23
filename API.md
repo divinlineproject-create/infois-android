@@ -213,6 +213,7 @@ Tanpa `since` = tarikan penuh. Dengan `since` = barang/pelanggan yang berubah se
   "open_shift": null
 }
 ```
+- `accounts.default_cash_id` = akun kas tempat penjualan tunai HP dicatat: akun laci yang dipilih di web (Pengaturan Kasir › "Uang tunai kasir" › akun kas laci, `drawer_account_id`), atau akun kas bawaan bila belum dipilih. Bila perusahaan punya lebih dari satu akun `kind: "cash"`, layar Bayar menampilkan "Uang tunai masuk ke: {nama akun}" untuk Tunai & Campur.
 - `stock_quantity` = stok di gudang HP (diatur di web, default gudang utama); `null` untuk barang tanpa stok.
 - `stock_source`: `"own"` = stok barang itu sendiri; `"recipe"` = produk resep tanpa stok sendiri (menu/paket, "Kelola stok" mati) — `stock_quantity` dihitung dari stok bahan di gudang HP (porsi yang bisa dibuat, dibulatkan ke bawah; `0` bila salah satu bahan habis) dan `track_inventory` dikirim `true` supaya lencana stok & redup "Habis" tampil; `null` = tidak dikelola stok. Saat dijual, server tetap mengurangi bahannya, bukan produk resepnya. Tarikan `since` ikut mengirim ulang produk resep yang stok/data salah satu bahannya berubah.
 - Hanya barang dengan **Tampilkan di POS** aktif yang dikirim (`items` dan `ids`). Barang yang dimatikan (mis. bahan baku) tidak ada di `ids`, sehingga HP menghapusnya di tarikan berikutnya; bila dinyalakan lagi, barang terkirim lagi karena `updated_at`-nya berubah. Penjualan dari HP lama yang masih memuat barang itu tetap diterima.
@@ -339,6 +340,17 @@ Buka shift saat online (offline: item `shift_open` di outbox). Idempoten per `cl
 { "closing_cash": 119000, "closed_at": "2026-10-07T10:00:00Z" }
 ```
 → `{ "shift": { …, "expected_cash": "120000.00", "difference": "-1000.00", "summary": { … } }, "status": "ok" }`. Shift harus milik HP ini.
+
+**`cash_transfers` pada data shift** (jawaban `POST /pos/shifts`, `PATCH /pos/shifts/{id}/close`, hasil `shift_open` / `shift_close` di `sync/push`, dan `sync/pull.open_shift`; aplikasi ≥ 1.0.2, build 3). Diisi bila Pengaturan Kasir › "Uang tunai kasir" › "Catat uang awal & setoran otomatis" nyala: buka kasir mencatat pindah uang kas usaha → laci senilai uang awal, tutup kasir mencatat setoran laci → kas usaha senilai uang yang dihitung.
+```json
+"cash_transfers": {
+  "float":   { "number": "TRF/2026/0001", "amount": "200000.00", "from": "Kas", "to": "Kas Kasir", "status": "Tercatat" },
+  "deposit": { "number": "TRF/2026/0002", "amount": "240000.00", "from": "Kas Kasir", "to": "Kas", "status": "Menunggu persetujuan" },
+  "note": "Setoran belum tercatat otomatis: … Catat lewat Kas & Bank › Pindah Uang."
+}
+```
+- `float` / `deposit` / `note` boleh `null`. `status` = "Tercatat" | "Menunggu persetujuan" | "Dibatalkan".
+- HP menyimpan data shift server di shift lokal (`server`). Tutup kasir menyimpan di HP lalu menunggu sinkron sebentar (paling lama 8 detik bila online) supaya baris "Uang awal Rp …: Kas → Kas Kasir (TRF/…, tercatat)" / "Setoran Rp …" dan `note` (warna peringatan) tampil dan tercetak di laporan tutup kasir ("Uang awal ke {to}", "Setoran ke {to}" setelah Selisih). Offline / server lama tanpa kunci: tidak ada baris itu.
 
 ### `POST /pos/ai-input` (multipart/form-data, online saja)
 Input AI kasir: pesanan diketik, diucapkan, atau difoto → barang kasir. Hak sama dengan menu Kasir

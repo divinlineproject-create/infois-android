@@ -431,6 +431,12 @@ class LocalDb {
     );
   }
 
+  /// Satu shift di HP menurut `client_uuid` (sudah ditutup atau belum).
+  Future<Map<String, dynamic>?> shift(String clientUuid) async {
+    final rows = await db.query('shifts', where: 'client_uuid = ?', whereArgs: [clientUuid], limit: 1);
+    return rows.isEmpty ? null : Map<String, dynamic>.from(jsonDecode(rows.first['data'] as String) as Map);
+  }
+
   Future<Map<String, dynamic>?> openShift() async {
     final rows = await db.query('shifts', where: 'closed_at IS NULL', orderBy: 'opened_at DESC', limit: 1);
     return rows.isEmpty ? null : Map<String, dynamic>.from(jsonDecode(rows.first['data'] as String) as Map);
