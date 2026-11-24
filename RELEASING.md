@@ -89,7 +89,7 @@ itu jalur server ↔ payment gateway, terpisah dari `/api/v1`. Setelah rollout P
 `INFOIS_MOBILE_LATEST_VERSION=1.0.1` di `.env` backoffice (biarkan `INFOIS_MOBILE_MIN_VERSION=1.0.0`
 dan `INFOIS_MOBILE_CLOSED_CODE_MIN_VERSION=1.0.0`).
 
-**1.0.2+3** (2026-11-21, belum dibangun): **harga bertingkat per level pelanggan** (Member, Reseller,
+**1.0.2+3** (2026-11-21; AAB dibangun 2026-11-24 dari android 2ed7292 → `~/Desktop/Infois-POS-PlayStore/1-AAB-rilis/infois-1.0.2+3.aab`, 45,3 MB, ditandatangani kunci unggah CN=Infois): **harga bertingkat per level pelanggan** (Member, Reseller,
 Agen: `level_tiers` barang + `level_id` pelanggan, lihat API.md › sync/pull), daftar **Harga
 bertingkat** di lembar barang (baris yang berlaku disorot), keterangan "harga grosir" / "harga
 {level}" di baris pesanan, nama level di samping nama pelanggan, dan chip catatan cepat ("Tanpa
