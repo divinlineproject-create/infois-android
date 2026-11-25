@@ -3,9 +3,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../core/store_policy.dart';
 import '../../data/api_client.dart';
+import '../../services/google_auth.dart';
 import '../../state/session.dart';
 import '../theme.dart';
 import '../widgets/auth_layout.dart';
@@ -74,6 +76,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _password = TextEditingController();
   final _code = TextEditingController();
   bool _busy = false;
+
+  /// Sedang membuka lembar pilih akun Google / meminta Client ID.
+  bool _googleBusy = false;
+
+  /// ID token Google yang sedang dipakai masuk (juga untuk langkah kode
+  /// aplikasi autentikator); null = masuk dengan email & kata sandi.
+  String? _googleToken;
+
   bool _hidePassword = true;
   String? _error;
   AccessNotice? _notice;
@@ -132,6 +142,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   void _backToPassword() => setState(_resetCodeStep);
 
   void _resetCodeStep() {
+    _googleToken = null;
     _resendTimer?.cancel();
     _code.clear();
     _methods = null;
@@ -155,7 +166,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (_busy) {
       return;
     }
-    if (!_codeStep && !_form.currentState!.validate()) {
+    final google = _googleToken;
+    if (!_codeStep && google == null && !_form.currentState!.validate()) {
       return;
     }
     String? code;
@@ -175,7 +187,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     });
     ref.read(sessionProvider.notifier).clearNotice();
     try {
-      await ref.read(sessionProvider.notifier).login(email: _email.text, password: _password.text, code: code, resend: resend);
+      final session = ref.read(sessionProvider.notifier);
+      if (google != null) {
+        await session.loginWithGoogle(idToken: google, code: code);
+      } else {
+        await session.login(email: _email.text, password: _password.text, code: code, resend: resend);
+      }
     } on ApiException catch (error) {
       if (!mounted) {
         return;
@@ -214,8 +231,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         } else if (_codeStep && (error.code == ApiException.twoFactorInvalidCode || error.code == ApiException.twoFactorThrottledCode)) {
           _codeError = error.message;
           _code.clear();
-        } else if (_codeStep && error.code == 'login_gagal') {
-          // Kata sandi diganti di tempat lain: ulangi dari awal.
+        } else if (_codeStep && (error.code == 'login_gagal' || error.code == googleTokenInvalidCode)) {
+          // Kata sandi diganti di tempat lain / token Google kedaluwarsa: ulangi dari awal.
           _resetCodeStep();
           _error = error.message;
         } else if (_codeStep) {
@@ -223,16 +240,76 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         } else {
           _error = error.message;
         }
+        if (!_codeStep) {
+          _googleToken = null;
+        }
       });
     } catch (_) {
       if (mounted) {
-        setState(() => _codeStep ? _codeError = 'Belum bisa masuk. Coba lagi.' : _error = 'Belum bisa masuk. Coba lagi.');
+        setState(() {
+          if (_codeStep) {
+            _codeError = 'Belum bisa masuk. Coba lagi.';
+          } else {
+            _error = 'Belum bisa masuk. Coba lagi.';
+            _googleToken = null;
+          }
+        });
       }
     } finally {
       if (mounted) {
         setState(() => _busy = false);
       }
     }
+  }
+
+  /// Jawaban server untuk ID token Google yang rusak / kedaluwarsa.
+  static const googleTokenInvalidCode = 'google_token_tidak_sah';
+
+  /// Pilih akun Google di HP, lalu masuk dengan ID token-nya.
+  Future<void> _signInWithGoogle() async {
+    if (_busy) {
+      return;
+    }
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _busy = true;
+      _googleBusy = true;
+      _error = null;
+      _notice = null;
+    });
+    ref.read(sessionProvider.notifier).clearNotice();
+    String? token;
+    try {
+      final clientId = await ref.read(sessionProvider.notifier).googleClientId();
+      if (clientId == null) {
+        throw const GoogleAuthFailure('Masuk dengan Google belum tersedia. Silakan masuk dengan email dan kata sandi.');
+      }
+      token = await ref.read(googleAuthProvider).idToken(serverClientId: clientId);
+    } on GoogleAuthFailure catch (error) {
+      if (mounted) {
+        setState(() => _error = error.message);
+      }
+    } on ApiException catch (error) {
+      if (mounted) {
+        setState(() => _error = error.message);
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _error = 'Belum bisa masuk dengan Google. Coba lagi.');
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _googleBusy = false;
+        });
+      }
+    }
+    if (token == null || !mounted) {
+      return;
+    }
+    _googleToken = token;
+    await _submit();
   }
 
   String get _codeHint {
@@ -380,7 +457,26 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               FilledButton(
                 key: const Key('login-submit'),
                 onPressed: _busy ? null : () => _submit(),
-                child: _busy ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white)) : const Text('Masuk'),
+                child: _busy && !_googleBusy && _googleToken == null ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white)) : const Text('Masuk'),
+              ),
+              const SizedBox(height: 16),
+              Row(children: [
+                const Expanded(child: Divider()),
+                Padding(padding: const EdgeInsets.symmetric(horizontal: 12), child: Text('atau', style: TextStyle(fontSize: 13, color: mutedText(context)))),
+                const Expanded(child: Divider()),
+              ]),
+              const SizedBox(height: 16),
+              OutlinedButton(
+                key: const Key('login-google'),
+                style: OutlinedButton.styleFrom(minimumSize: const Size(48, 52), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
+                onPressed: _busy ? null : _signInWithGoogle,
+                child: _googleBusy || (_busy && _googleToken != null)
+                    ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.5))
+                    : Row(mainAxisSize: MainAxisSize.min, children: [
+                        SvgPicture.asset('assets/images/google-g.svg', width: 20, height: 20),
+                        const SizedBox(width: 12),
+                        const Flexible(child: Text('Masuk dengan Google', maxLines: 1, overflow: TextOverflow.ellipsis)),
+                      ]),
               ),
             ],
             const SizedBox(height: 12),

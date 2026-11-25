@@ -142,6 +142,24 @@ dapur** (list ke dapur, otomatis setelah bayar bila dinyalakan; cetak berurutan,
 jadi printer kasir). Perangkat yang login sebelum versi ini dengan akun selain pemilik tetap bisa dipakai
 seperti dulu.
 
+**1.0.3+5** (2026-11-25): **Masuk dengan Google** (tombol di bawah "Masuk"; paket baru `google_sign_in`
+7.2.0 + `google_sign_in_android` 7.2.1 = versi terakhir untuk Flutter 3.29/Dart 3.7, lolos build dengan
+Kotlin Gradle plugin 1.8.22) dan **tampilan awal hijau** dengan logo web (layar pembuka Android, layar
+pembuka aplikasi, dan panel Masuk/Kunci: latar `#0A7F3E`, logo `assets/images/infois-logo-web-on-green.png`
+= logo Administrator › Brand Aplikasi versi putih). Server harus sudah punya `GET/POST /api/v1/auth/google`
+(backoffice, 2026-11-25) sebelum rilis; server lama menjawab 404 → "Masuk dengan Google belum tersedia".
+
+Sebelum rilis, buat **OAuth client jenis Android** di project Google Cloud yang sama dengan Client ID web
+(Administrator › Login Google › bagian "Aplikasi Android" menuliskan langkahnya):
+
+| Untuk | Package | SHA-1 |
+|---|---|---|
+| Aplikasi dari Play Store | `id.infois.infois` | Play Console › App integrity › **App signing key certificate** |
+| APK rilis yang dipasang manual | `id.infois.infois` | Kunci unggah `CN=Infois`: `4C:F6:B0:75:5E:8B:F3:57:22:8F:8E:C2:EF:F1:4E:7C:98:46:24:58` |
+| Build debug di mesin pengembang | `id.infois.infois` | `keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android` |
+
+SHA-1 kunci unggah bisa dicek ulang tanpa kata sandi: `keytool -printcert -jarfile infois-x.y.z+n.aab`.
+
 ## 3. Membangun AAB
 
 ```bash

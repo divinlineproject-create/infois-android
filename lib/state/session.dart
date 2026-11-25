@@ -298,18 +298,56 @@ class SessionController extends AsyncNotifier<SessionState> {
   /// perusahaan sebagai pemilik, login ditolak ([ownerOnlyDeviceMessage]).
   /// Setelah login pemilik, layar PIN wajib (lihat [SessionState.locked]).
   Future<void> login({required String email, required String password, String? deviceName, String? code, bool resend = false}) async {
-    final name = (deviceName ?? '').trim().isNotEmpty ? deviceName!.trim() : (ApiClient.deviceModel ?? 'HP Android');
     final response = await _api().post('auth/login', data: {
       'email': email.trim(),
       'password': password,
-      // Server baru menamai perangkat dari X-Device-Model; server lama dari ini.
-      'device_name': name,
-      'device_uid': await _storage.deviceUid(),
-      'platform': Platform.isAndroid ? 'android' : Platform.operatingSystem,
-      'app_version': AppConfig.version,
+      ...await _deviceFields(deviceName),
       if (code != null && code.trim().isNotEmpty) 'code': code.trim(),
       if (resend) 'resend': true,
     });
+    await _signedIn(response);
+  }
+
+  /// Client ID web untuk "Masuk dengan Google" (`GET auth/google`), atau
+  /// null bila login Google dimatikan admin / server lama belum punya.
+  Future<String?> googleClientId() async {
+    try {
+      final response = await _api().get('auth/google');
+      final clientId = response['client_id'];
+      return response['enabled'] == true && clientId is String && clientId.isNotEmpty ? clientId : null;
+    } on ApiException catch (error) {
+      if (error.status == 404) {
+        return null;
+      }
+      rethrow;
+    }
+  }
+
+  /// Masuk dengan ID token Google (lihat [googleClientId]). Akun dengan
+  /// aplikasi autentikator: 401 `butuh_kode_2fa` (`metode_2fa`: aplikasi),
+  /// lalu diulang dengan [idToken] yang sama + [code]. Kode email tidak
+  /// diminta (sama dengan login Google di web). Aturan perangkat pemilik &
+  /// layar PIN sama dengan [login].
+  Future<void> loginWithGoogle({required String idToken, String? deviceName, String? code}) async {
+    final response = await _api().post('auth/google', data: {
+      'id_token': idToken,
+      ...await _deviceFields(deviceName),
+      if (code != null && code.trim().isNotEmpty) 'code': code.trim(),
+    });
+    await _signedIn(response);
+  }
+
+  Future<Map<String, dynamic>> _deviceFields(String? deviceName) async => {
+        // Server baru menamai perangkat dari X-Device-Model; server lama dari ini.
+        'device_name': (deviceName ?? '').trim().isNotEmpty ? deviceName!.trim() : (ApiClient.deviceModel ?? 'HP Android'),
+        'device_uid': await _storage.deviceUid(),
+        'platform': Platform.isAndroid ? 'android' : Platform.operatingSystem,
+        'app_version': AppConfig.version,
+      };
+
+  /// Jawaban login berhasil (email & kata sandi atau Google): simpan token +
+  /// perusahaan, kecuali tidak ada perusahaan sebagai pemilik.
+  Future<void> _signedIn(Map<String, dynamic> response) async {
     final token = response['token'] as String;
     final user = SessionUser.fromJson(Map<String, dynamic>.from(response['user'] as Map));
     final tenants = _eligible(response['tenants']);

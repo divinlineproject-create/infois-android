@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -21,7 +22,8 @@ import 'screens/report_screens.dart';
 import 'screens/settings_screens.dart';
 import 'screens/shift_screens.dart';
 import 'screens/tenant_picker_screen.dart';
-import 'widgets/common.dart';
+import 'theme.dart';
+import 'widgets/auth_layout.dart';
 
 /// Memberi tahu router saat sesi berubah (login, pilih perusahaan, keluar).
 class _SessionListenable extends ChangeNotifier {
@@ -63,15 +65,16 @@ final routerProvider = Provider<GoRouter>((ref) {
       return null;
     },
     routes: [
+      // Layar pembuka: hijau Infois + logo web (sama dengan layar pembuka
+      // Android sebelum Flutter tampil).
       GoRoute(
         path: '/mulai',
-        builder: (context, __) => Scaffold(
-          body: Center(
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              const BrandMark(size: 72),
-              const SizedBox(height: 16),
-              Text(AppConfig.name, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Theme.of(context).colorScheme.onSurface)),
-            ]),
+        builder: (context, __) => AnnotatedRegion<SystemUiOverlayStyle>(
+          value: SystemUiOverlayStyle.light,
+          child: Scaffold(
+            key: const Key('splash'),
+            backgroundColor: Brand.green,
+            body: Center(child: Image.asset(brandLogoOnGreen, width: 200, height: 200 / brandLogoAspect, semanticLabel: AppConfig.name)),
           ),
         ),
       ),

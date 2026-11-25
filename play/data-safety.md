@@ -11,7 +11,7 @@ https://infois.ai/kebijakan-privasi (versi 2026-10). Isi ulang bila aplikasi men
 | Apakah aplikasi mengumpulkan atau membagikan data pengguna yang wajib dilaporkan? | **Ya** |
 | Apakah semua data pengguna dienkripsi saat transit? | **Ya**. Semua permintaan ke `https://dashboard.infois.ai` memakai HTTPS; `usesCleartextTraffic=false` di build rilis. |
 | Apakah Anda menyediakan cara bagi pengguna untuk meminta penghapusan data? | **Ya**. Di aplikasi: Akun › Hapus akun. Di web: lihat `account-deletion.md` (URL untuk kolom "Delete account URL"). |
-| Login | Aplikasi memakai akun Infois (email + kata sandi). |
+| Login | Aplikasi memakai akun Infois: email + kata sandi, atau **Masuk dengan Google** (≥ 1.0.3; token Google hanya dikirim ke server Infois untuk mencocokkan akun, tidak ada SDK Google lain). |
 
 ## "Dibagikan" (shared)
 
@@ -33,7 +33,7 @@ sementara saja** (disimpan), dienkripsi saat transit, bisa dihapus (hapus akun).
 | Kategori Play | Jenis data | Wajib/opsional | Tujuan (pilihan Play) | Dari mana di aplikasi |
 |---|---|---|---|---|
 | Personal info | **Name** | Wajib | App functionality, Account management | Profil akun dari server; nama pelanggan yang dicatat kasir |
-| Personal info | **Email address** | Wajib | App functionality, Account management | Masuk (email + kata sandi) |
+| Personal info | **Email address** | Wajib | App functionality, Account management | Masuk (email + kata sandi, atau email dari akun Google saat Masuk dengan Google) |
 | Personal info | **User IDs** | Wajib | App functionality, Account management, Fraud prevention/security | ID pengguna & perusahaan dari server |
 | Personal info | **Phone number** | Opsional | App functionality | Nomor telepon pelanggan yang diisi kasir / untuk kirim struk WhatsApp |
 | Personal info | **Address** | Opsional | App functionality | Alamat pelanggan / pengiriman pesanan bila diisi |

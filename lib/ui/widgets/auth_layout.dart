@@ -1,12 +1,19 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
+import 'package:flutter/services.dart';
 
 import '../theme.dart';
 
-/// Layar masuk / kunci tablet: separuh layar panel brand (seperti halaman
-/// masuk dashboard web: latar Tinta, logo, kalimat utama, motif tangga),
-/// separuh lagi formulir. Layar sempit (HP tegak): panel brand menjadi
-/// spanduk di atas, formulir di bawahnya.
+/// Logo web Infois (Administrator › Brand Aplikasi) versi putih untuk latar
+/// hijau: tulisan & kubus putih, bayangan kubus hijau muda.
+const brandLogoOnGreen = 'assets/images/infois-logo-web-on-green.png';
+
+/// Lebar ÷ tinggi [brandLogoOnGreen].
+const brandLogoAspect = 1200 / 276;
+
+/// Layar masuk / kunci tablet: separuh layar panel brand (latar hijau
+/// Infois, logo web, kalimat utama, motif tangga), separuh lagi formulir.
+/// Layar sempit (HP tegak): panel brand menjadi spanduk di atas, formulir di
+/// bawahnya.
 class AuthSplitLayout extends StatelessWidget {
   const AuthSplitLayout({super.key, required this.child, this.headline = defaultHeadline, this.lead = defaultLead, this.maxFormWidth = 420});
 
@@ -38,20 +45,24 @@ class AuthSplitLayout extends StatelessWidget {
             Expanded(child: SafeArea(left: false, child: form)),
           ]);
         }
-        // HP tegak: spanduk ± sepertiga layar, ikut tergulung bersama formulir.
+        // HP tegak: spanduk ± sepertiga layar, ikut tergulung bersama
+        // formulir. Ikon status bar di atas spanduk hijau: putih.
         final bannerHeight = (constraints.maxHeight * 0.34).clamp(200.0, 300.0);
-        return SingleChildScrollView(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minHeight: constraints.maxHeight),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              SizedBox(height: bannerHeight + MediaQuery.paddingOf(context).top, child: _BrandPanel(headline: headline, lead: lead, roomy: false)),
-              Center(
-                child: Padding(
-                  padding: EdgeInsets.fromLTRB(24, 24, 24, 32 + MediaQuery.paddingOf(context).bottom),
-                  child: ConstrainedBox(constraints: BoxConstraints(maxWidth: maxFormWidth), child: child),
+        return AnnotatedRegion<SystemUiOverlayStyle>(
+          value: SystemUiOverlayStyle.light,
+          child: SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                SizedBox(height: bannerHeight + MediaQuery.paddingOf(context).top, child: _BrandPanel(headline: headline, lead: lead, roomy: false)),
+                Center(
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(24, 24, 24, 32 + MediaQuery.paddingOf(context).bottom),
+                    child: ConstrainedBox(constraints: BoxConstraints(maxWidth: maxFormWidth), child: child),
+                  ),
                 ),
-              ),
-            ]),
+              ]),
+            ),
           ),
         );
       }),
@@ -73,14 +84,22 @@ class _BrandPanel extends StatelessWidget {
     final top = MediaQuery.paddingOf(context).top;
     return Container(
       key: const Key('auth-brand-panel'),
-      color: Brand.ink,
+      color: Brand.green,
       child: Stack(children: [
         // Panel penuh: motif di sudut bawah; spanduk HP: sejajar logo di kanan atas (tidak menutupi teks).
         if (roomy) const Positioned(right: 40, bottom: 40, child: _Stairs(size: 34)) else Positioned(right: 24, top: 20 + top, child: const _Stairs(size: 12)),
         Padding(
           padding: EdgeInsets.fromLTRB(roomy ? 48 : 24, (roomy ? 48 : 20) + top, roomy ? 48 : 24, roomy ? 48 : 20),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            SvgPicture.asset('assets/images/infois-logo-on-dark.svg', height: roomy ? 52 : 34, alignment: Alignment.centerLeft),
+            Image.asset(
+              brandLogoOnGreen,
+              key: const Key('auth-brand-logo'),
+              height: roomy ? 48 : 30,
+              width: (roomy ? 48 : 30) * brandLogoAspect,
+              fit: BoxFit.contain,
+              alignment: Alignment.centerLeft,
+              semanticLabel: 'Infois',
+            ),
             const Spacer(),
             ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 460),
@@ -94,7 +113,7 @@ class _BrandPanel extends StatelessWidget {
                   lead,
                   maxLines: roomy ? 6 : 3,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: roomy ? 16 : 13, height: 1.55),
+                  style: TextStyle(color: Colors.white.withValues(alpha: 0.92), fontSize: roomy ? 16 : 13, height: 1.55),
                 ),
               ]),
             ),
@@ -106,7 +125,8 @@ class _BrandPanel extends StatelessWidget {
   }
 }
 
-/// Motif khas brand: kotak bertangga (sama dengan panel masuk web).
+/// Motif khas brand: kotak bertangga (sama dengan panel masuk web), putih
+/// tipis di atas latar hijau.
 class _Stairs extends StatelessWidget {
   const _Stairs({required this.size});
 
@@ -118,7 +138,7 @@ class _Stairs extends StatelessWidget {
     Widget cell(bool on) => Container(
           width: size,
           height: size,
-          decoration: BoxDecoration(color: on ? Brand.green : Colors.transparent, borderRadius: BorderRadius.circular(size * 0.25)),
+          decoration: BoxDecoration(color: on ? Colors.white.withValues(alpha: 0.28) : Colors.transparent, borderRadius: BorderRadius.circular(size * 0.25)),
         );
     const rows = [
       [true, false, false],

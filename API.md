@@ -112,6 +112,23 @@ Aplikasi lalu mengulang login yang sama + `"code"`: 6 angka dari aplikasi autent
 
 Aplikasi (≥ 1.2.0): langkah kode dengan papan angka, petunjuk sesuai cara (`aplikasi` / `email`), tombol "Pakai kode pemulihan", "Kirim ulang kode ke email" dan "Kembali". Tombol kirim ulang nonaktif dengan hitung mundur dari server — "Kirim ulang kode ke email (59)", atau menit:detik bila lebih dari 60 detik — memakai `resend_available_in` (server lama tanpa isian ini: 60 detik), dan `retry_after` bila 429 (pesannya ditampilkan, kode yang sudah diketik tetap).
 
+### Masuk dengan Google (aplikasi ≥ 1.0.3)
+`GET /auth/google` (tanpa token) → Client ID **web** dari Administrator › Login Google (bukan rahasia):
+```json
+{ "enabled": true, "client_id": "1234567890-abc.apps.googleusercontent.com" }
+```
+`enabled: false` (dimatikan admin) atau 404 (server lama) → tombol menjawab "Masuk dengan Google belum tersedia". Aplikasi membuka lembar pilih akun Google (Credential Manager, `google_sign_in` 7.2) dengan `serverClientId` = Client ID itu, lalu:
+
+`POST /auth/google`
+```json
+{ "id_token": "eyJhbGciOiJSUzI1NiIs…", "device_name": "Samsung SM-A155F", "device_uid": "5b0e7c1a-…", "platform": "android", "app_version": "1.0.3" }
+```
+Server memeriksa ID token (tanda tangan sertifikat Google, penerbit, `aud` = Client ID web, masa berlaku) lalu mencari akun lewat `google_id`, kemudian email — sama dengan login Google di web (akun yang emailnya belum diverifikasi diambil alih pemilik email: kata sandi & verifikasi dua langkahnya dilepas). **Tidak membuat akun baru.** Jawaban berhasil = sama dengan `POST /auth/login`; aturan perusahaan, `akses_hp_tidak_tersedia`, dan perangkat khusus pemilik juga sama. Kode email **tidak** diminta; akun dengan aplikasi autentikator → 401 `butuh_kode_2fa` + `"metode_2fa": ["aplikasi"]`, lalu diulang dengan `id_token` yang sama + `"code"` (6 angka atau kode pemulihan).
+
+Galat: 422 `google_tidak_aktif`, 422 `google_token_tidak_sah` (token rusak / bukan untuk Infois / kedaluwarsa — ketuk tombol Google lagi), 503 `google_tidak_terhubung` (sertifikat Google tidak bisa diambil), 422 `google_tanpa_email`, 422 `google_email_belum_diverifikasi`, 422 `google_belum_terdaftar` (pesan menyebut emailnya), 403 `akun_dihapus`, 403 `tanpa_perusahaan`.
+
+Syarat di Google Cloud (project yang sama dengan Client ID web): OAuth client jenis **Android**, package `id.infois.infois`, SHA-1 **App signing key certificate** dari Play Console (+ satu lagi untuk SHA-1 kunci unggah bila memasang APK manual). Tanpa itu lembar Google gagal ("belum bisa dipakai di aplikasi ini").
+
 ### `POST /auth/logout`
 Mencabut token HP ini. `{ "ok": true }`
 
