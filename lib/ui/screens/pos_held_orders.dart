@@ -42,8 +42,6 @@ Future<bool> askHoldName(BuildContext context, WidgetRef ref) async {
     builder: (context) => AlertDialog(
       title: const Text('Simpan pesanan'),
       content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Text('Pesanan disimpan di HP ini dan bisa dilanjutkan atau dibayar nanti.'),
-        const SizedBox(height: 12),
         TextField(
           key: const Key('hold-name'),
           controller: controller,
@@ -98,7 +96,7 @@ class HeldOrdersSheet extends ConsumerWidget {
       context: context,
       builder: (context) => AlertDialog(
         title: Text('Hapus "${order.name}"?'),
-        content: const Text('Pesanan tersimpan ini dihapus dari HP. Belum ada penjualan yang tercatat.'),
+        content: const Text('Pesanan ini belum dibayar dan akan dihapus.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Batal')),
           FilledButton(key: const Key('held-delete-confirm'), onPressed: () => Navigator.pop(context, true), child: const Text('Hapus')),
@@ -128,7 +126,7 @@ class HeldOrdersSheet extends ConsumerWidget {
               ? EmptyState(
                   icon: Icons.bookmarks_outlined,
                   title: 'Belum ada pesanan tersimpan',
-                  message: 'Tekan "Simpan" di keranjang untuk menyimpan pesanan yang dibayar nanti${dining ? ' (mis. open bill per meja)' : ''}.',
+                  message: 'Tekan Simpan di keranjang untuk bayar nanti.',
                 )
               : ListView.separated(
                   itemCount: items.length,
@@ -138,13 +136,15 @@ class HeldOrdersSheet extends ConsumerWidget {
                     final active = order.id == activeId;
                     final type = dining ? order.cart.orderType : null;
                     final customer = order.cart.customer;
+                    final queue = dining ? order.cart.queueNumber : null;
+                    // Satu baris: jenis pesanan sudah terlihat dari ikonnya.
                     final details = [
+                      if (queue != null) 'Antrian $queue',
                       '${order.itemCount} barang',
-                      if (type != null) type.label,
                       // Pelanggan "{nama} · {level}"; nama pesanan = nama pelanggan: levelnya saja.
                       if (customer != null && order.name != customer.name) customer.nameWithLevel,
                       if (customer != null && order.name == customer.name && customer.level != null) customer.level!,
-                      'disimpan ${_time(order.createdAt)}',
+                      _time(order.createdAt),
                     ].join(' · ');
                     return ListTile(
                       key: Key('held-${order.id}'),
@@ -157,8 +157,8 @@ class HeldOrdersSheet extends ConsumerWidget {
                           color: Brand.green,
                         ),
                       ),
-                      title: Text(order.name, style: const TextStyle(fontWeight: FontWeight.w600)),
-                      subtitle: Text(active ? 'Sedang dibuka di keranjang · $details' : details),
+                      title: Text(order.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600)),
+                      subtitle: Text(active ? 'Dibuka · $details' : details, key: Key('held-details-${order.id}'), maxLines: 1, overflow: TextOverflow.ellipsis),
                       trailing: Row(mainAxisSize: MainAxisSize.min, children: [
                         Text(rupiah(order.total), style: const TextStyle(fontWeight: FontWeight.w700)),
                         IconButton(key: Key('held-delete-${order.id}'), tooltip: 'Hapus', onPressed: () => _delete(context, ref, order), icon: const Icon(Icons.delete_outline)),

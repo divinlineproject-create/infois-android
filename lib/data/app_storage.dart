@@ -22,15 +22,81 @@ class ServerMigrationPending implements Exception {
   String toString() => message;
 }
 
-/// Printer struk yang disimpan sebagai default.
-class SavedPrinter {
-  const SavedPrinter({required this.mac, required this.name, required this.width});
+/// Cara HP tersambung ke printer.
+enum PrinterLink {
+  bluetooth,
 
+  /// Printer jaringan (Wi-Fi / LAN), ESC/POS lewat TCP port [SavedPrinter.port].
+  wifi;
+
+  static PrinterLink parse(Object? value) => value == 'wifi' ? PrinterLink.wifi : PrinterLink.bluetooth;
+}
+
+/// Printer yang disimpan di HP ini: printer kasir (struk) atau printer
+/// produksi (dapur / bar / checker) dengan kategori barangnya.
+class SavedPrinter {
+  const SavedPrinter({
+    required this.mac,
+    required this.name,
+    required this.width,
+    this.id = '',
+    this.link = PrinterLink.bluetooth,
+    this.port = 9100,
+    this.categoryIds = const [],
+  });
+
+  factory SavedPrinter.fromJson(Map<String, dynamic> json) => SavedPrinter(
+        id: json['id']?.toString() ?? '',
+        mac: json['address']?.toString() ?? '',
+        name: json['name']?.toString() ?? '',
+        width: json['width'] == 80 ? 80 : 58,
+        link: PrinterLink.parse(json['link']),
+        port: json['port'] is int ? json['port'] as int : 9100,
+        categoryIds: [for (final id in (json['category_ids'] as List? ?? const [])) if (id is int) id],
+      );
+
+  final String id;
+
+  /// Alamat printer: MAC (Bluetooth) atau IP (Wi-Fi).
   final String mac;
   final String name;
 
   /// Lebar kertas 58 atau 80 mm.
   final int width;
+  final PrinterLink link;
+  final int port;
+
+  /// Kategori barang yang dicetak printer produksi; kosong = semua.
+  final List<int> categoryIds;
+
+  String get address => mac;
+
+  bool get isWifi => link == PrinterLink.wifi;
+
+  /// "Wi-Fi 192.168.1.20" / "Bluetooth".
+  String get linkLabel => isWifi ? 'Wi-Fi $mac' : 'Bluetooth';
+
+  bool printsCategory(int? categoryId) => categoryIds.isEmpty || (categoryId != null && categoryIds.contains(categoryId));
+
+  SavedPrinter copyWith({String? id, String? mac, String? name, int? width, PrinterLink? link, int? port, List<int>? categoryIds}) => SavedPrinter(
+        id: id ?? this.id,
+        mac: mac ?? this.mac,
+        name: name ?? this.name,
+        width: width ?? this.width,
+        link: link ?? this.link,
+        port: port ?? this.port,
+        categoryIds: categoryIds ?? this.categoryIds,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'address': mac,
+        'name': name,
+        'width': width,
+        'link': link.name,
+        'port': port,
+        'category_ids': categoryIds,
+      };
 }
 
 /// Penyimpanan kecil di HP: token (aman, Keystore), ID HP, sesi terakhir
@@ -78,6 +144,9 @@ class AppStorage {
   static const _kitchenMac = 'printer_kitchen_mac';
   static const _kitchenName = 'printer_kitchen_name';
   static const _kitchenWidth = 'printer_kitchen_width';
+  static const _printerLink = 'printer_link';
+  static const _printerPort = 'printer_port';
+  static const _productionPrinters = 'production_printers';
   static const _autoPrintKitchen = 'auto_print_kitchen';
   static const _themeMode = 'theme_mode';
   static const _foregroundAt = 'foreground_at';
@@ -290,19 +359,33 @@ class AppStorage {
     if (mac == null || mac.isEmpty) {
       return null;
     }
-    return SavedPrinter(mac: mac, name: prefs.getString(_printerName) ?? mac, width: prefs.getInt(_printerWidth) ?? 58);
+    return SavedPrinter(
+      id: kasirPrinterId,
+      mac: mac,
+      name: prefs.getString(_printerName) ?? mac,
+      width: prefs.getInt(_printerWidth) ?? 58,
+      link: PrinterLink.parse(prefs.getString(_printerLink)),
+      port: prefs.getInt(_printerPort) ?? 9100,
+    );
   }
 
   Future<void> setPrinter(SavedPrinter? printer) async {
     if (printer == null) {
       await prefs.remove(_printerMac);
       await prefs.remove(_printerName);
+      await prefs.remove(_printerLink);
+      await prefs.remove(_printerPort);
       return;
     }
     await prefs.setString(_printerMac, printer.mac);
     await prefs.setString(_printerName, printer.name);
     await prefs.setInt(_printerWidth, printer.width);
+    await prefs.setString(_printerLink, printer.link.name);
+    await prefs.setInt(_printerPort, printer.port);
   }
+
+  /// ID printer kasir (printer produksi memakai ID acak).
+  static const kasirPrinterId = 'kasir';
 
   int? get printerWidth => prefs.getInt(_printerWidth);
 
@@ -314,29 +397,36 @@ class AppStorage {
 
   Future<void> setDeviceModel(String? model) => model == null || model.isEmpty ? prefs.remove(_deviceModel) : prefs.setString(_deviceModel, model);
 
-  /// Printer dapur (opsional) untuk "Cetak list"; null = list ke printer kasir.
-  /// Printer kasir = [printer] (kunci lama, jadi pengaturan lama tetap terpakai).
-  SavedPrinter? get kitchenPrinter {
+  /// Printer produksi (dapur / bar / checker) untuk "Cetak list", masing-
+  /// masing dengan kategori barangnya; kosong = list ke printer kasir.
+  /// Printer dapur versi lama (satu printer) ikut terbaca sebagai "Dapur".
+  List<SavedPrinter> get productionPrinters {
+    final raw = prefs.getString(_productionPrinters);
+    if (raw != null) {
+      try {
+        return [
+          for (final item in jsonDecode(raw) as List)
+            if (item is Map) SavedPrinter.fromJson(Map<String, dynamic>.from(item)),
+        ].where((printer) => printer.mac.isNotEmpty).toList();
+      } on FormatException {
+        return const [];
+      }
+    }
     final mac = prefs.getString(_kitchenMac);
     if (mac == null || mac.isEmpty) {
-      return null;
+      return const [];
     }
-    return SavedPrinter(mac: mac, name: prefs.getString(_kitchenName) ?? mac, width: prefs.getInt(_kitchenWidth) ?? 58);
+    return [SavedPrinter(id: 'dapur', mac: mac, name: prefs.getString(_kitchenName) ?? 'Dapur', width: prefs.getInt(_kitchenWidth) ?? 58)];
   }
 
-  Future<void> setKitchenPrinter(SavedPrinter? printer) async {
-    if (printer == null) {
-      await prefs.remove(_kitchenMac);
-      await prefs.remove(_kitchenName);
-      await prefs.remove(_kitchenWidth);
-      return;
-    }
-    await prefs.setString(_kitchenMac, printer.mac);
-    await prefs.setString(_kitchenName, printer.name);
-    await prefs.setInt(_kitchenWidth, printer.width);
+  Future<void> setProductionPrinters(List<SavedPrinter> printers) async {
+    await prefs.setString(_productionPrinters, jsonEncode([for (final printer in printers) printer.toJson()]));
+    await prefs.remove(_kitchenMac);
+    await prefs.remove(_kitchenName);
+    await prefs.remove(_kitchenWidth);
   }
 
-  /// Cetak list ke printer dapur otomatis setelah bayar (bawaan mati).
+  /// Cetak list ke printer produksi otomatis setelah bayar (bawaan mati).
   bool get autoPrintKitchen => prefs.getBool(_autoPrintKitchen) ?? false;
 
   Future<void> setAutoPrintKitchen(bool value) => prefs.setBool(_autoPrintKitchen, value);

@@ -325,7 +325,7 @@ class _PayScreenState extends ConsumerState<PayScreen> {
             payment: PaymentInput(mode: _mode, cashReceived: cash, transferAccountId: _account?.id, transferAccountName: _account?.name, qrisPaymentId: _mode == PayMode.qris ? _qris?.id : null),
           );
       if (mounted) {
-        context.pushReplacement('/selesai', extra: {'sale': outcome.sale, 'print': outcome.print?.name, 'kitchen': outcome.kitchen?.name});
+        context.pushReplacement('/selesai', extra: {'sale': outcome.sale, 'print': outcome.print?.name, 'kitchen': outcome.kitchen?.failedNames});
       }
     } on CheckoutException catch (error) {
       setState(() => _error = error.message);
@@ -492,7 +492,7 @@ class _PayScreenState extends ConsumerState<PayScreen> {
       Consumer(builder: (context, ref, _) {
         final printer = ref.watch(printerProvider);
         return Text(
-          printer.printer == null ? 'Belum ada printer. Struk bisa dicetak nanti dari riwayat.' : 'Struk dicetak otomatis ke ${printer.printer!.name}.',
+          printer.printer == null ? 'Belum ada printer.' : 'Struk ke ${printer.printer!.name}.',
           style: TextStyle(fontSize: 13, color: mutedText(context)),
         );
       }),
@@ -592,9 +592,37 @@ String draftPrintMessage(PrintResult result, String what) => switch (result) {
       _ => '$what belum tercetak. Periksa printer lalu coba lagi.',
     };
 
-/// Pesan hasil "Cetak list": gagal di printer dapur disebut printernya.
-String listPrintMessage(PrintResult result, {required bool kitchen}) =>
-    kitchen && result == PrintResult.failed ? 'Printer dapur belum tersambung. List pesanan belum tercetak.' : draftPrintMessage(result, 'List pesanan');
+/// Pesan hasil "Cetak list": printer yang belum mencetak disebut namanya.
+String productionMessage(ProductionResult result) {
+  if (result.noPrinter) {
+    return printMessage('noPrinter');
+  }
+  final parts = [
+    if (result.failed.isNotEmpty) 'Belum tercetak: ${result.failedNames}' else if (result.printed.isNotEmpty) 'List tercetak',
+    if (result.unrouted.isNotEmpty) 'Tanpa printer: ${result.unrouted.join(', ')}',
+  ];
+  return parts.isEmpty ? 'Tidak ada barang untuk dicetak' : parts.join(' · ');
+}
+
+/// Tampilkan hasil "Cetak list"; printer yang gagal bisa diulang.
+void showProductionResult(BuildContext context, WidgetRef ref, ProductionResult result) {
+  final messenger = ScaffoldMessenger.of(context);
+  showMessage(
+    context,
+    productionMessage(result),
+    error: !result.ok || result.unrouted.isNotEmpty,
+    actionLabel: 'Ulangi',
+    onAction: result.failed.isEmpty
+        ? null
+        : () async {
+            final again = await ref.read(printerProvider.notifier).retryProduction();
+            messenger.hideCurrentSnackBar();
+            if (context.mounted) {
+              showProductionResult(context, ref, again);
+            }
+          },
+  );
+}
 
 /// Penjualan selesai: nomor nota, kembalian, cetak struk / list pesanan,
 /// kirim struk lewat WhatsApp, transaksi baru.
@@ -604,7 +632,7 @@ class SaleDoneScreen extends ConsumerWidget {
   final Map<String, dynamic> sale;
   final String? printResult;
 
-  /// Hasil list otomatis ke printer dapur (null = tidak dicetak otomatis).
+  /// Printer produksi yang belum mencetak list otomatis (null / kosong = beres).
   final String? kitchenResult;
 
   Future<void> _sendWhatsApp(BuildContext context, WidgetRef ref) async {
@@ -672,8 +700,8 @@ class SaleDoneScreen extends ConsumerWidget {
                     if (Money.isPositive(unpaid)) AmountRow('Belum dibayar (bon)', rupiah(unpaid), bold: true, color: warningText(context)),
                     const SizedBox(height: 16),
                     if (printResult != null && printResult != 'printed') Text(printMessage(printResult), textAlign: TextAlign.center, style: TextStyle(color: warningText(context))),
-                    if (kitchenResult == 'failed')
-                      Text('Printer dapur belum tersambung. List pesanan belum tercetak; tekan Cetak list untuk mencoba lagi.', key: const Key('done-kitchen-failed'), textAlign: TextAlign.center, style: TextStyle(color: warningText(context))),
+                    if ((kitchenResult ?? '').isNotEmpty)
+                      Text('Belum tercetak: $kitchenResult', key: const Key('done-kitchen-failed'), textAlign: TextAlign.center, style: TextStyle(color: warningText(context), fontWeight: FontWeight.w600)),
                     const SizedBox(height: 24),
                     Row(children: [
                       Expanded(
@@ -697,9 +725,11 @@ class SaleDoneScreen extends ConsumerWidget {
                           icon: Icons.list_alt_outlined,
                           label: 'Cetak list',
                           onTap: () async {
-                            final result = await ref.read(posActionsProvider).printOrderList(sale);
+                            final printer = ref.read(printerProvider.notifier);
+                            // Yang gagal saja dicetak ulang; selain itu list baru ke semua printer.
+                            final result = ref.read(printerProvider).productionFailed.isNotEmpty ? await printer.retryProduction() : await ref.read(posActionsProvider).printOrderList(sale);
                             if (context.mounted) {
-                              showMessage(context, listPrintMessage(result, kitchen: ref.read(printerProvider).kitchen != null), error: result != PrintResult.printed);
+                              showProductionResult(context, ref, result);
                             }
                           },
                         ),

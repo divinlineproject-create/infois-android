@@ -203,7 +203,8 @@ Tanpa `since` = tarikan penuh. Dengan `since` = barang/pelanggan yang berubah se
     "header_text": null, "footer_text": "Terima kasih atas kunjungan Anda",
     "company": { "name": "Warung Bu Sri", "address": "Jl. Melati 5", "phone": "0812…", "website": null },
     "logo_url": "https://app.infois.id/api/v1/branding/logo", "logo_version": "3f2a9c1d0b7e",
-    "verify_base_url": "https://app.infois.id/verify"
+    "verify_base_url": "https://app.infois.id/verify",
+    "qr_mode": "verify", "qr_link": null, "qr_caption": null
   },
   "device": { "id": 3, "code": "K1", "name": "HP Kasir Depan", "warehouse_id": 1, "revoked": false },
   "user": { "id": 5, "name": "Sari" },
@@ -238,6 +239,7 @@ Tanpa `since` = tarikan penuh. Dengan `since` = barang/pelanggan yang berubah se
 - `stock_source`: `"own"` = stok barang itu sendiri; `"recipe"` = produk resep tanpa stok sendiri (menu/paket, "Kelola stok" mati) — `stock_quantity` dihitung dari stok bahan di gudang HP (porsi yang bisa dibuat, dibulatkan ke bawah; `0` bila salah satu bahan habis) dan `track_inventory` dikirim `true` supaya lencana stok & redup "Habis" tampil; `null` = tidak dikelola stok. Saat dijual, server tetap mengurangi bahannya, bukan produk resepnya. Tarikan `since` ikut mengirim ulang produk resep yang stok/data salah satu bahannya berubah.
 - Hanya barang dengan **Tampilkan di POS** aktif yang dikirim (`items` dan `ids`). Barang yang dimatikan (mis. bahan baku) tidak ada di `ids`, sehingga HP menghapusnya di tarikan berikutnya; bila dinyalakan lagi, barang terkirim lagi karena `updated_at`-nya berubah. Penjualan dari HP lama yang masih memuat barang itu tetap diterima.
 - `type` hanya `product` | `service` (yang dikenal aplikasi lama). **Bahan baku** dikirim sebagai `type: "product"` (barang berstok, stok selalu dikelola) dengan jenis aslinya di **`kind`** (`product` | `service` | `raw_material`) dan **`kind_label`** ("Barang" | "Jasa" | "Bahan baku"). Bawaannya bahan baku tidak "Tampilkan di POS" sehingga tidak dikirim; yang dicentang tampil di kasir dengan label "Bahan baku" (aplikasi ≥ 1.0.1, build 2).
+- `receipt.qr_mode` (server ≥ 2026-11-26): `verify` = QR cek keaslian (seperti di bawah), `link` = QR berisi `qr_link` (tautan sendiri, mis. Google Maps / Instagram; tanpa `verify_base_url`). `qr_caption` = tulisan di bawah QR (kosong: "Pindai untuk cek keaslian nota" untuk `verify`, tanpa tulisan untuk `link`). Aplikasi lama mengabaikannya.
 - `receipt.show_qr` sudah memperhitungkan modul Verify dan pengaturan branding. QR offline = `verify_base_url + "/" + client_uuid` (server memakai `client_uuid` sebagai UID verifikasi saat nota diterbitkan).
 - `logo_url` diunduh dengan header yang sama (token + `X-Tenant`).
 - **Katalog kasir (aplikasi ≥ 1.0.0 "Infois POS"; field aditif, aplikasi lama mengabaikannya):**

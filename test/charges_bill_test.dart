@@ -233,11 +233,9 @@ void main() {
     expect(inPanel(find.text('Cetak tagihan')), findsOneWidget);
     expect(inPanel(find.text('Cetak list')), findsOneWidget);
     expect(inPanel(find.text('Biaya tambahan')), findsOneWidget);
-    expect(inPanel(find.text('mis. ongkos kirim, biaya layanan')), findsOneWidget);
 
     // Dialog Biaya tambahan: pesan bila kosong, saran nama, nominal.
     await tap(find.byKey(const Key('order-charges')));
-    expect(find.text('Ditambahkan ke total nota, tidak kena diskon nota.'), findsOneWidget);
     for (final suggestion in ['Ongkos kirim', 'Biaya layanan', 'Biaya kemasan']) {
       expect(find.widgetWithText(ActionChip, suggestion), findsOneWidget);
     }

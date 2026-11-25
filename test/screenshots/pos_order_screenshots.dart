@@ -24,6 +24,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:infois/app.dart';
 import 'package:infois/data/app_storage.dart';
 import 'package:infois/domain/cart.dart';
@@ -31,6 +32,7 @@ import 'package:infois/domain/models.dart';
 import 'package:infois/services/code_scanner.dart';
 import 'package:infois/services/permission_gate.dart';
 import 'package:infois/services/pos_service.dart';
+import 'package:infois/services/printing/printer_service.dart';
 import 'package:infois/services/product_photos.dart';
 import 'package:infois/services/sync_engine.dart';
 import 'package:infois/state/photo_state.dart';
@@ -669,6 +671,14 @@ class _NoRationale implements PermissionGate {
 
 // ---------------------------------------------------------------------------
 
+class _ShotNetwork implements NetworkPrinterTransport {
+  @override
+  Future<bool> send(String host, int port, List<int> bytes) async => true;
+
+  @override
+  Future<List<String>> discover({int port = 9100}) async => const ['192.168.1.51', '192.168.1.52', '192.168.1.53', '192.168.1.54'];
+}
+
 Future<void> _loadFonts() async {
   Future<void> family(String name, List<String> files) async {
     final loader = FontLoader(name);
@@ -714,7 +724,7 @@ void main() {
     }
   }
 
-  Future<_ShotScanner> pumpApp(WidgetTester tester, (Size, double) device, {bool dark = false}) async {
+  Future<_ShotScanner> pumpApp(WidgetTester tester, (Size, double) device, {bool dark = false, Map<String, Object> prefs = const {}}) async {
     final (size, ratio) = device;
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = ratio;
@@ -730,6 +740,7 @@ void main() {
       'printer_mac': '00:11:22:33:44:55',
       'printer_name': 'RPP02N',
       'printer_width': 58,
+      ...prefs,
     });
     FlutterSecureStorage.setMockInitialValues({'auth_token': 'token-tes', 'device_uid': 'hp-tes'});
     final storage = await AppStorage.load();
@@ -749,20 +760,20 @@ void main() {
       final today = DateTime(now.year, now.month, now.day);
       CartLine line(String key, String name, int quantity, {String? note}) => CartLine.fromProduct(key, _byName(name), quantity: '$quantity.000000', note: note);
       await held.save(
-        Cart(lines: [line('a', 'Cappuccino', 2), line('b', 'Croissant Butter', 1)], orderType: OrderType.dineIn, orderLabel: 'Meja 3'),
+        Cart(lines: [line('a', 'Cappuccino', 2), line('b', 'Croissant Butter', 1)], orderType: OrderType.dineIn, orderLabel: 'Meja 3', queueNumber: '000005'),
         name: 'Meja 3',
         total: '73000.00',
         now: today.add(const Duration(hours: 10, minutes: 12)),
       );
       await held.save(
-        Cart(lines: [line('a', 'Kopi Susu Botol 250 ml', 3)], orderType: OrderType.takeAway),
+        Cart(lines: [line('a', 'Kopi Susu Botol 250 ml', 3)], orderType: OrderType.takeAway, queueNumber: '000006'),
         name: 'Pak Budi',
         total: '75000.00',
         now: today.add(const Duration(hours: 10, minutes: 36)),
       );
       await held.save(
-        Cart(lines: [line('a', 'Nasi Goreng Kampung', 2, note: 'Tidak pedas'), line('b', 'Es Teh Leci', 2)], orderType: OrderType.delivery, orderLabel: 'Antrian 12'),
-        name: 'Antrian 12 · GoFood',
+        Cart(lines: [line('a', 'Nasi Goreng Kampung', 2, note: 'Tidak pedas'), line('b', 'Es Teh Leci', 2)], orderType: OrderType.delivery, queueNumber: '000007'),
+        name: 'GoFood',
         total: '100000.00',
         now: today.add(const Duration(hours: 10, minutes: 48)),
       );
@@ -781,6 +792,7 @@ void main() {
           apiFactoryProvider.overrideWithValue((_, __, ___, ____) => fakeApi(FakeServer(_handler))),
           connectivityStreamProvider.overrideWithValue(const Stream.empty()),
           printerTransportProvider.overrideWithValue(FakePrinter()),
+          networkPrinterProvider.overrideWithValue(_ShotNetwork()),
           permissionGateProvider.overrideWithValue(_NoRationale()),
           codeScannerFactoryProvider.overrideWithValue(() => scanner),
           photoRootProvider.overrideWithValue(() async => photos),
@@ -951,6 +963,31 @@ void main() {
     await shot(tester, '09-pesanan-ditahan', ratio);
 
     await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('HP: pengaturan printer kasir & produksi', (tester) async {
+    final (_, ratio) = phone;
+    await pumpApp(tester, phone, prefs: {
+      'printer_name': 'Kasir',
+      'production_printers': jsonEncode([
+        const SavedPrinter(id: 'd', mac: 'AA:BB:CC:00:11:22', name: 'Dapur', width: 80, categoryIds: [3, 4]).toJson(),
+        const SavedPrinter(id: 'b', mac: '192.168.1.51', name: 'Bar', width: 58, link: PrinterLink.wifi, categoryIds: [1, 2]).toJson(),
+        const SavedPrinter(id: 'c', mac: '192.168.1.52', name: 'Checker', width: 80, link: PrinterLink.wifi).toJson(),
+      ]),
+    });
+    GoRouter.of(tester.element(find.byType(Scaffold).first)).push('/printer');
+    await settle(tester);
+    await shot(tester, '13-pengaturan-printer', ratio);
+    await tap(tester, find.byKey(const Key('printer-add-production')));
+    await tap(tester, find.text('Wi-Fi'));
+    await tap(tester, find.byKey(const Key('printer-wifi-search')));
+    await tap(tester, find.byKey(const Key('printer-option-192.168.1.53')));
+    await tap(tester, find.byKey(const Key('printer-option-192.168.1.54')));
+    await shot(tester, '14-tambah-printer-wifi', ratio);
+    Navigator.of(tester.element(find.byKey(const Key('printer-add-done')))).pop();
+    await settle(tester);
+    await tap(tester, find.byKey(const Key('printer-production-b')));
+    await shot(tester, '15-ubah-printer', ratio);
   });
 
   testWidgets('HP gelap: katalog & panel pesanan', (tester) async {

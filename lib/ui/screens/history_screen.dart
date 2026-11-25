@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/format.dart';
 import '../../core/money.dart';
+import '../../services/printing/receipt_builder.dart';
 import '../../state/printer_controller.dart';
 import '../../state/workspace.dart';
 import '../theme.dart';
@@ -37,9 +38,16 @@ class HistoryScreen extends ConsumerWidget {
                   final sale = items[index];
                   final (label, color) = saleSyncLabel(sale['sync_status'] as String?);
                   final createdAt = DateTime.tryParse(sale['created_at']?.toString() ?? '')?.toLocal();
+                  final queue = ReceiptBuilder.queueNumberOf(sale);
+                  final customer = sale['customer_name']?.toString();
                   return ListTile(
+                    key: Key('history-${sale['client_uuid']}'),
                     title: Text(sale['number']?.toString() ?? 'Menunggu nomor', style: const TextStyle(fontWeight: FontWeight.w600)),
-                    subtitle: Text('${createdAt == null ? '' : dateTimeLabel(createdAt)} · ${sale['customer_name'] ?? ''}'),
+                    subtitle: Text([
+                      if (queue != null) 'Antrian $queue',
+                      if (createdAt != null) dateTimeLabel(createdAt),
+                      if (customer != null && customer.isNotEmpty && customer != 'Pelanggan Umum') customer,
+                    ].join(' · ')),
                     trailing: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [
                       Text(rupiah(sale['total']), style: const TextStyle(fontWeight: FontWeight.w600)),
                       Text(label, style: TextStyle(fontSize: 12, color: color)),
@@ -72,6 +80,8 @@ class _SaleDetail extends ConsumerWidget {
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Text(sale['number']?.toString() ?? 'Menunggu nomor', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
+          if (ReceiptBuilder.queueNumberOf(sale) case final queue?) Text('Antrian $queue', key: const Key('history-queue'), style: const TextStyle(fontWeight: FontWeight.w700)),
+          if (ReceiptBuilder.orderHeadline(sale) case final order?) Text(order),
           Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w600)),
           if (sale['sync_message'] != null) Text(sale['sync_message'].toString(), style: const TextStyle(fontSize: 13)),
           const Divider(height: 24),

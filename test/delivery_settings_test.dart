@@ -170,7 +170,6 @@ void main() {
       cart.addCharge('Ongkos kirim', '10000');
       await settle(tester);
       expect(inPanel(find.text('Alamat pengiriman')), findsOneWidget);
-      expect(inPanel(find.text('Tercetak di tagihan, struk, dan list')), findsOneWidget);
 
       // Pelanggan dengan alamat: isian awal = alamat pelanggan.
       cart.setCustomer(bima);
@@ -185,7 +184,7 @@ void main() {
       await tap(tester, find.byKey(const Key('text-save')));
       expect(container.read(cartProvider).deliveryAddress, 'Jl. Kenanga 12, rumah pagar hijau');
       expect(inPanel(find.text('Jl. Kenanga 12, rumah pagar hijau')), findsOneWidget);
-      expect(find.descendant(of: find.byKey(const Key('order-delivery')), matching: find.text('Alamat pengiriman')), findsOneWidget);
+      expect(find.descendant(of: find.byKey(const Key('order-delivery')), matching: find.text('Alamat pengiriman')), findsNothing, reason: 'Baris berisi alamatnya saja.');
 
       // Biaya dihapus: baris hilang (alamat tidak dikirim). Pesan antar: muncul lagi.
       cart.removeCharge(container.read(cartProvider).charges.single.key);
@@ -208,10 +207,9 @@ void main() {
       GoRouter.of(tester.element(find.byType(KasirScreen))).push('/printer');
       await settle(tester);
       expect(find.text('Pengaturan kasir'), findsOneWidget);
-      expect(find.text('Untuk semua kasir di usaha ini'), findsNothing);
       expect(find.byKey(const Key('pos-settings-dining')), findsNothing);
       expect(find.text('Printer kasir'), findsOneWidget);
-      expect(find.text('Printer dapur'), findsOneWidget);
+      expect(find.text('Printer dapur / bar'), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
       await tester.runAsync(local.close);
     });
@@ -235,9 +233,7 @@ void main() {
       expect((await tester.runAsync(() => container.read(masterDataProvider.future)))!.tenant.posDining, isTrue, reason: 'Server lama tanpa pos_dining.');
       GoRouter.of(tester.element(find.byType(KasirScreen))).push('/printer');
       await settle(tester);
-      expect(find.text('Untuk semua kasir di usaha ini'), findsOneWidget);
-      expect(find.text('Printer di perangkat ini'), findsOneWidget);
-      expect(find.text('Fitur rumah makan / kafe (jenis pesanan, meja/antrian)'), findsOneWidget);
+      expect(find.text('Fitur rumah makan / kafe'), findsOneWidget);
       expect(find.byType(SwitchListTile), findsNWidgets(3), reason: 'Fitur rumah makan + cetak struk otomatis + list dapur otomatis (tanpa pilihan shift wajib).');
       bool switchValue() => tester.widget<SwitchListTile>(find.byKey(const Key('pos-settings-dining'))).value;
       expect(switchValue(), isTrue);
@@ -249,7 +245,6 @@ void main() {
       expect(request.method, 'PUT');
       expect(request.data, {'dining': false});
       expect(switchValue(), isFalse);
-      expect(find.text('Fitur rumah makan / kafe dimatikan untuk semua kasir.'), findsOneWidget);
       expect((await tester.runAsync(() => local.getJson(MetaKeys.tenant)))!['pos_dining'], isFalse);
       expect((await tester.runAsync(() => container.read(masterDataProvider.future)))!.tenant.posDining, isFalse);
 
@@ -272,7 +267,7 @@ void main() {
       await tap(tester, find.byKey(const Key('pos-settings-dining')));
       await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
       await settle(tester);
-      expect(find.text('Butuh internet untuk mengubah pengaturan ini. Sambungkan internet lalu coba lagi.'), findsOneWidget);
+      expect(find.text('Butuh internet untuk mengubah ini.'), findsOneWidget);
       expect(tester.widget<SwitchListTile>(find.byKey(const Key('pos-settings-dining'))).value, isTrue);
       expect((await tester.runAsync(() => container.read(masterDataProvider.future)))!.tenant.posDining, isTrue);
       await tester.pumpWidget(const SizedBox());

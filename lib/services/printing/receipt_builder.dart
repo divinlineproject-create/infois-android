@@ -246,12 +246,14 @@ class ReceiptBuilder {
   /// harga, qty & nama besar, catatan barang dan catatan pesanan, jenis
   /// pesanan + meja/antrian. Biaya tambahan tidak ikut. Penjualan yang sudah
   /// dibayar, atau keranjang sebelum dibayar (`PosService.draft`).
-  List<int> orderList(Map<String, dynamic> sale, ReceiptConfig config, {int? width}) {
+  /// [station] = nama printer produksi (mis. "Bar") sebagai judul.
+  List<int> orderList(Map<String, dynamic> sale, ReceiptConfig config, {int? width, String? station}) {
     final paper = width ?? config.width;
     final generator = _generator(paper);
     final base = _base(config);
     final bytes = <int>[...generator.reset()];
-    bytes.addAll(generator.text('LIST PESANAN', styles: base.copyWith(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2)));
+    final title = cleanNote(station, 24)?.toUpperCase() ?? 'LIST PESANAN';
+    bytes.addAll(generator.text(clean(title), styles: base.copyWith(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2)));
     final queue = queueNumberOf(sale);
     if (queue != null) {
       bytes.addAll(generator.text('ANTRIAN $queue', styles: base.copyWith(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2)));
@@ -371,8 +373,12 @@ class ReceiptBuilder {
       out.writeln();
       out.writeln('Catatan: $note');
     }
+    final link = config.customQrLink;
     final verify = sale['verification_url']?.toString();
-    if (verify != null && verify.isNotEmpty) {
+    if (link != null) {
+      out.writeln();
+      out.writeln([if (config.qrCaption != null) config.qrCaption, link].join(' '));
+    } else if (verify != null && verify.isNotEmpty && config.qrMode != 'link') {
       out.writeln();
       out.writeln('Cek keaslian nota: $verify');
     }
@@ -487,9 +493,17 @@ class ReceiptBuilder {
     for (final line in clean(config.footerText).split('\n')) {
       bytes.addAll(generator.text(line, styles: base.copyWith(align: PosAlign.center)));
     }
-    if (config.showQr && verificationUrl != null && verificationUrl.isNotEmpty) {
-      bytes.addAll(generator.qrcode(verificationUrl, size: QRSize.size5));
-      bytes.addAll(generator.text('Pindai untuk cek keaslian nota', styles: base.copyWith(align: PosAlign.center, fontType: PosFontType.fontB)));
+    // QR: tautan sendiri (mis. Google Maps, Instagram) atau cek keaslian nota.
+    final link = config.customQrLink;
+    final qr = link ?? (config.showQr && config.qrMode != 'link' ? verificationUrl : null);
+    if (qr != null && qr.isNotEmpty) {
+      bytes.addAll(qrCommand(qr));
+      final caption = config.qrCaption ?? (link == null ? 'Pindai untuk cek keaslian nota' : null);
+      if (caption != null) {
+        for (final line in clean(caption).split('\n')) {
+          bytes.addAll(generator.text(line, styles: base.copyWith(align: PosAlign.center, fontType: PosFontType.fontB)));
+        }
+      }
     }
     if ((config.website ?? '').isNotEmpty) {
       bytes.addAll(generator.text(clean(config.website), styles: base.copyWith(align: PosAlign.center)));

@@ -157,6 +157,12 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
     final master = ref.watch(masterDataProvider);
     final sync = ref.watch(syncProvider);
     final data = master.valueOrNull;
+    // Rumah makan / kafe: nomor antrian langsung ada sejak barang pertama.
+    ref.listen(cartProvider.select((cart) => cart.isEmpty), (wasEmpty, isEmpty) {
+      if (wasEmpty == true && !isEmpty) {
+        ref.read(posActionsProvider).ensureQueueNumber();
+      }
+    });
 
     if (data != null && !data.hasData) {
       final offline = sync.connection == ConnectionStatus.offline;

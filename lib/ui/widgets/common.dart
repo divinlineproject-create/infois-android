@@ -144,10 +144,15 @@ String plainError(Object? error, {String fallback = 'Terjadi kendala. Coba lagi.
   return fallback;
 }
 
-void showMessage(BuildContext context, String message, {bool error = false}) {
+void showMessage(BuildContext context, String message, {bool error = false, String? actionLabel, VoidCallback? onAction}) {
   ScaffoldMessenger.of(context)
     ..hideCurrentSnackBar()
-    ..showSnackBar(SnackBar(content: Text(message), backgroundColor: error ? Brand.danger : null));
+    ..showSnackBar(SnackBar(
+      content: Text(message),
+      backgroundColor: error ? Brand.danger : null,
+      duration: onAction == null ? const Duration(seconds: 4) : const Duration(seconds: 8),
+      action: onAction == null ? null : SnackBarAction(label: actionLabel ?? 'Ulangi', textColor: Colors.white, onPressed: onAction),
+    ));
 }
 
 /// Baris label–nilai di ringkasan.

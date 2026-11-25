@@ -13,7 +13,7 @@ import '../widgets/common.dart';
 import '../widgets/product_image.dart';
 import 'cart_sheet.dart';
 import 'customer_picker.dart';
-import 'pay_screen.dart' show draftPrintMessage, listPrintMessage;
+import 'pay_screen.dart' show draftPrintMessage, showProductionResult;
 import 'pos_held_orders.dart';
 import 'pos_item_sheet.dart';
 
@@ -63,9 +63,16 @@ class PosOrderPanel extends ConsumerWidget {
   Future<void> _printDraft(BuildContext context, WidgetRef ref, {required bool bill, String? title}) async {
     HapticFeedback.selectionClick();
     final actions = ref.read(posActionsProvider);
-    final result = bill ? await actions.printDraftBill(title: title) : await actions.printDraftList(title: title);
+    if (!bill) {
+      final result = await actions.printDraftList(title: title);
+      if (context.mounted) {
+        showProductionResult(context, ref, result);
+      }
+      return;
+    }
+    final result = await actions.printDraftBill(title: title);
     if (context.mounted) {
-      showMessage(context, bill ? draftPrintMessage(result, 'Tagihan') : listPrintMessage(result, kitchen: ref.read(printerProvider).kitchen != null), error: result != PrintResult.printed);
+      showMessage(context, draftPrintMessage(result, 'Tagihan'), error: result != PrintResult.printed);
     }
   }
 
@@ -138,7 +145,7 @@ class PosOrderPanel extends ConsumerWidget {
             ? const EmptyState(
                 icon: Icons.shopping_basket_outlined,
                 title: 'Belum ada pesanan',
-                message: 'Ketuk barang untuk menambah; barang yang punya satuan lain (mis. karton) menampilkan pilihan satuan. Tekan lama untuk jumlah atau catatan.',
+                message: 'Ketuk barang untuk menambah.',
               )
             : ListView(padding: const EdgeInsets.symmetric(horizontal: Space.l), children: [
                 if (dining) ...[
@@ -152,8 +159,7 @@ class PosOrderPanel extends ConsumerWidget {
                     _OptionTile(
                       key: const Key('order-label'),
                       icon: Icons.table_restaurant_outlined,
-                      title: cart.orderLabel ?? 'Meja',
-                      subtitle: cart.orderLabel == null ? (tables.isEmpty ? 'mis. Meja 5' : 'Pilih meja') : 'Meja',
+                      title: cart.orderLabel ?? 'Pilih meja',
                       highlight: cart.orderLabel != null,
                       onTap: () => _editLabel(context, ref, cart, tables),
                     ),
@@ -161,7 +167,6 @@ class PosOrderPanel extends ConsumerWidget {
                     key: const Key('order-customer'),
                     icon: Icons.person_outline,
                     title: cart.customer?.nameWithLevel ?? 'Pelanggan umum',
-                    subtitle: 'Wajib dipilih bila bayar nanti (bon)',
                     onTap: () async {
                       final customer = await pickCustomer(context, ref);
                       if (customer != null) {
@@ -175,7 +180,6 @@ class PosOrderPanel extends ConsumerWidget {
                       key: const Key('order-delivery'),
                       icon: Icons.local_shipping_outlined,
                       title: cart.deliveryAddress ?? 'Alamat pengiriman',
-                      subtitle: cart.deliveryAddress == null ? 'Tercetak di tagihan, struk, dan list' : 'Alamat pengiriman',
                       highlight: cart.deliveryAddress != null,
                       onTap: () async {
                         final value = await askText(
@@ -196,7 +200,6 @@ class PosOrderPanel extends ConsumerWidget {
                     key: const Key('order-note'),
                     icon: Icons.edit_note,
                     title: cart.note ?? 'Catatan pesanan',
-                    subtitle: cart.note == null ? orderNoteHint : 'Catatan pesanan',
                     highlight: cart.note != null,
                     italic: true,
                     onTap: () async {
@@ -210,7 +213,6 @@ class PosOrderPanel extends ConsumerWidget {
                     key: const Key('order-discount'),
                     icon: Icons.local_offer_outlined,
                     title: Money.isPositive(cart.notaDiscountPercent) ? 'Diskon nota ${percentLabel(cart.notaDiscountPercent)}%' : 'Diskon nota',
-                    subtitle: 'Berlaku untuk semua barang',
                     highlight: Money.isPositive(cart.notaDiscountPercent),
                     onTap: () async {
                       final value = await askPercent(context, 'Diskon nota (%)', cart.notaDiscountPercent);
@@ -223,7 +225,6 @@ class PosOrderPanel extends ConsumerWidget {
                     key: const Key('order-charges'),
                     icon: Icons.add_circle_outline,
                     title: 'Biaya tambahan',
-                    subtitle: 'mis. ongkos kirim, biaya layanan',
                     highlight: cart.charges.isNotEmpty,
                     onTap: () async {
                       final charge = await askCharge(context);
@@ -402,11 +403,10 @@ class _OptionGroup extends StatelessWidget {
 }
 
 class _OptionTile extends StatelessWidget {
-  const _OptionTile({super.key, required this.icon, required this.title, required this.subtitle, required this.onTap, this.highlight = false, this.italic = false});
+  const _OptionTile({super.key, required this.icon, required this.title, required this.onTap, this.highlight = false, this.italic = false});
 
   final IconData icon;
   final String title;
-  final String subtitle;
   final VoidCallback onTap;
   final bool highlight;
   final bool italic;
@@ -420,7 +420,6 @@ class _OptionTile extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.l)),
       leading: Icon(icon, color: color),
       title: Text(title, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: color, fontWeight: highlight ? FontWeight.w600 : FontWeight.w500, fontStyle: highlight && italic ? FontStyle.italic : null, fontSize: 14.5)),
-      subtitle: Text(subtitle, style: const TextStyle(fontSize: 12)),
       trailing: const Icon(Icons.chevron_right),
       onTap: onTap,
     );
@@ -588,7 +587,7 @@ Future<(String, String)?> askCharge(BuildContext context) async {
                 key: const Key('charge-amount'),
                 controller: amount,
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Nominal', prefixText: 'Rp ', hintText: '0', helperText: 'Ditambahkan ke total nota, tidak kena diskon nota.', helperMaxLines: 2),
+                decoration: const InputDecoration(labelText: 'Nominal', prefixText: 'Rp ', hintText: '0'),
                 onSubmitted: (_) => submit(),
               ),
               if (error != null) ...[

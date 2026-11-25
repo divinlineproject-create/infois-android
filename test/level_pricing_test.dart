@@ -275,7 +275,6 @@ void main() {
       expect(find.descendant(of: row('price-row-1'), matching: find.text('Mulai 50 pcs')), findsOneWidget);
       expect(row('price-row-2'), findsNothing, reason: 'Tanpa pelanggan: harga level tidak ditampilkan.');
       expect(find.textContaining('Reseller'), findsNothing);
-      expect(find.text('Harga otomatis mengikuti jumlah dan level pelanggan.'), findsOneWidget);
       expect(activeRows(tester), ['price-row-normal']);
 
       for (var i = 0; i < 9; i++) {

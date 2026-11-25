@@ -142,6 +142,14 @@ dapur** (list ke dapur, otomatis setelah bayar bila dinyalakan; cetak berurutan,
 jadi printer kasir). Perangkat yang login sebelum versi ini dengan akun selain pemilik tetap bisa dipakai
 seperti dulu.
 
+**1.0.4+6** (2026-11-26): **printer produksi** (dapur / bar / checker) sebanyak apa pun, masing-masing
+Bluetooth atau Wi-Fi (ESC/POS TCP port 9100, cari di jaringan & tambah beberapa sekaligus), nama sendiri,
+kategori barang (semua / beberapa), dan lebar kertas; printer kasir juga boleh Wi-Fi. "Cetak list" ke semua
+printer sekaligus (judul = nama printer, ANTRIAN, meja); yang gagal disebut namanya + Ulangi. Nomor antrian
+sejak barang pertama, tampil di Pesanan tersimpan & Riwayat. QR struk bisa tautan sendiri + tulisan
+(`receipt.qr_mode/qr_link/qr_caption`, server 2026-11-26; server lama = QR cek keaslian seperti biasa). Foto
+profil Google tampil di Akun & layar PIN. Tulisan bantuan di kasir dipangkas.
+
 **1.0.3+5** (2026-11-25): **Masuk dengan Google** (tombol di bawah "Masuk"; paket baru `google_sign_in`
 7.2.0 + `google_sign_in_android` 7.2.1 = versi terakhir untuk Flutter 3.29/Dart 3.7, lolos build dengan
 Kotlin Gradle plugin 1.8.22) dan **tampilan awal hijau** dengan logo web (layar pembuka Android, layar

@@ -52,8 +52,6 @@ class PosUnitPicker extends ConsumerWidget {
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Text(product.name, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
-          const SizedBox(height: 2),
-          Text('Pilih satuan yang dibeli. Isi & stok dihitung otomatis.', style: TextStyle(fontSize: 13, color: mutedText(context))),
           const SizedBox(height: 16),
           for (final option in product.unitOptions()) ...[
             OutlinedButton(
@@ -263,8 +261,6 @@ class PosPriceTiers extends StatelessWidget {
           ],
         ]),
       ),
-      const SizedBox(height: 6),
-      Text('Harga otomatis mengikuti jumlah dan level pelanggan.', style: TextStyle(fontSize: 12, color: mutedText(context))),
     ]);
   }
 }

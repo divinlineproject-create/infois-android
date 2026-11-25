@@ -8,6 +8,7 @@ import '../theme.dart';
 import '../widgets/auth_layout.dart';
 import '../widgets/common.dart';
 import '../widgets/pin_pad.dart';
+import '../widgets/user_avatar.dart';
 import 'pin_settings.dart';
 
 /// Daftar orang yang bisa membuka tablet ini (server bila online, cadangan tersimpan).
@@ -197,9 +198,5 @@ class _Avatar extends StatelessWidget {
   final double size;
 
   @override
-  Widget build(BuildContext context) => CircleAvatar(
-        radius: size / 2,
-        backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-        child: Text(user.initials, style: TextStyle(fontSize: size * 0.36, fontWeight: FontWeight.w700, color: Theme.of(context).colorScheme.onPrimaryContainer)),
-      );
+  Widget build(BuildContext context) => UserAvatar(name: user.name, url: user.avatarUrl, size: size);
 }

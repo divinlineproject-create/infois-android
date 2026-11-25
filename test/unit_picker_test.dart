@@ -144,7 +144,6 @@ void main() {
     final picker = find.byType(PosUnitPicker);
     expect(picker, findsOneWidget);
     expect(find.descendant(of: picker, matching: find.text('Air mineral')), findsOneWidget);
-    expect(find.text('Pilih satuan yang dibeli. Isi & stok dihitung otomatis.'), findsOneWidget);
     Finder inButton(String unit, String text) => find.descendant(of: find.byKey(Key('unit-pick-$unit')), matching: find.text(text));
     expect(inButton('pcs', 'pcs'), findsOneWidget);
     expect(inButton('pcs', 'Rp 3.500'), findsOneWidget);

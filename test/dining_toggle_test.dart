@@ -125,7 +125,7 @@ void main() {
       expect(find.byKey(Key(key)), findsNothing, reason: key);
     }
     expect(inPanel(find.text('Meja / antrian')), findsNothing);
-    expect(inPanel(find.text('mis. dikirim sore, nota dipisah')), findsOneWidget);
+    expect(inPanel(find.text('Catatan pesanan')), findsOneWidget);
     expect(inPanel(find.byKey(const Key('order-customer'))), findsOneWidget);
 
     await tap(tester, find.byKey(const Key('go-pay')));

@@ -590,6 +590,9 @@ class ReceiptConfig {
     this.logoUrl,
     this.logoVersion,
     this.verifyBaseUrl,
+    this.qrMode = 'verify',
+    this.qrLink,
+    this.qrCaption,
   });
 
   factory ReceiptConfig.fromJson(Map<String, dynamic> json) {
@@ -614,6 +617,9 @@ class ReceiptConfig {
       logoUrl: json['logo_url']?.toString(),
       logoVersion: json['logo_version']?.toString(),
       verifyBaseUrl: json['verify_base_url']?.toString(),
+      qrMode: json['qr_mode'] == 'link' ? 'link' : 'verify',
+      qrLink: _blank(json['qr_link']),
+      qrCaption: _blank(json['qr_caption']),
     );
   }
 
@@ -637,6 +643,15 @@ class ReceiptConfig {
   final String? logoVersion;
   final String? verifyBaseUrl;
 
+  /// Isi QR di struk: `verify` (cek keaslian nota) atau `link` ([qrLink],
+  /// mis. Google Maps / Instagram), dengan tulisan [qrCaption] di bawahnya.
+  final String qrMode;
+  final String? qrLink;
+  final String? qrCaption;
+
+  /// QR tautan sendiri (bukan cek keaslian) yang dicetak.
+  String? get customQrLink => showQr && qrMode == 'link' ? qrLink : null;
+
   Map<String, dynamic> toJson() => {
         'width': width,
         'font_size': fontSize,
@@ -654,6 +669,9 @@ class ReceiptConfig {
         'logo_url': logoUrl,
         'logo_version': logoVersion,
         'verify_base_url': verifyBaseUrl,
+        'qr_mode': qrMode,
+        'qr_link': qrLink,
+        'qr_caption': qrCaption,
       };
 }
 

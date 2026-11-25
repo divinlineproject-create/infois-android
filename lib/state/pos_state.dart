@@ -184,8 +184,8 @@ class CheckoutOutcome {
   /// Struk otomatis ke printer kasir (null = tidak dicetak otomatis).
   final PrintResult? print;
 
-  /// List otomatis ke printer dapur (null = tidak dicetak otomatis).
-  final PrintResult? kitchen;
+  /// List otomatis ke printer produksi (null = tidak dicetak otomatis).
+  final ProductionResult? kitchen;
 }
 
 /// Alur bayar: simpan ke HP → kosongkan keranjang → cetak otomatis →
@@ -224,13 +224,13 @@ class PosActions {
       unawaited(ref.read(syncProvider.notifier).refreshPending().then((_) => ref.read(syncProvider.notifier).syncNow()));
     }
 
-    // Struk ke printer kasir, lalu list ke printer dapur (berurutan; gagal di
-    // satu printer tidak menahan yang lain).
+    // Struk ke printer kasir, lalu list ke printer produksi (gagal di satu
+    // printer tidak menahan yang lain).
     PrintResult? printed;
     if (autoPrint && ref.read(storageProvider).autoPrint) {
       printed = await ref.read(printerProvider.notifier).printSale(sale);
     }
-    PrintResult? kitchen;
+    ProductionResult? kitchen;
     if (autoPrint && ref.read(storageProvider).autoPrintKitchen) {
       kitchen = await printOrderList(sale);
     }
@@ -337,7 +337,7 @@ class PosActions {
   }
 
   /// Rumah makan / kafe: beri nomor antrian ke pesanan yang belum punya
-  /// (Simpan, Cetak list, atau bayar, mana yang lebih dulu).
+  /// (barang pertama masuk keranjang; juga Simpan, Cetak list, atau bayar).
   Future<void> ensureQueueNumber([PosService? known]) async {
     final cart = ref.read(cartProvider);
     if (cart.isEmpty || cart.queueNumber != null) {
@@ -347,7 +347,13 @@ class PosActions {
     if (service == null || !service.master.tenant.posDining) {
       return;
     }
-    ref.read(cartProvider.notifier).setQueueNumber(await service.nextQueueNumber());
+    final number = await service.nextQueueNumber();
+    // Keranjang bisa berubah selama menunggu (dikosongkan / pesanan lain dibuka).
+    final now = ref.read(cartProvider);
+    if (now.isEmpty || now.queueNumber != null) {
+      return;
+    }
+    ref.read(cartProvider.notifier).setQueueNumber(number);
   }
 
   /// Simpan keranjang sebagai pesanan tersimpan lalu kosongkan keranjang.
@@ -418,20 +424,21 @@ class PosActions {
     }
   }
 
-  /// Cetak list pesanan (tanpa harga, tanpa biaya tambahan) ke printer
-  /// dapur (bila diatur; selain itu printer kasir): untuk dapur/bar atau
-  /// menyiapkan barang.
-  Future<PrintResult> printOrderList(Map<String, dynamic> sale) async {
-    final printer = ref.read(printerProvider.notifier);
-    if (ref.read(printerProvider).printerFor(PrinterRole.dapur) == null) {
-      return PrintResult.noPrinter;
+  /// Cetak list pesanan (tanpa harga, tanpa biaya tambahan) ke semua
+  /// printer produksi sesuai kategori barangnya (tanpa printer produksi:
+  /// printer kasir): dapur, bar, checker, atau menyiapkan barang.
+  Future<ProductionResult> printOrderList(Map<String, dynamic> sale) async {
+    final state = ref.read(printerProvider);
+    if (state.production.isEmpty && state.printer == null) {
+      return const ProductionResult(noPrinter: true);
     }
-    final master = await ref.read(masterDataProvider.future);
-    if (master == null) {
-      return PrintResult.failed;
-    }
-    final builder = await ref.read(receiptBuilderProvider.future);
-    return printer.printBytes(builder.orderList(sale, master.receipt, width: printer.widthFor(PrinterRole.dapur, master)), role: PrinterRole.dapur);
+    final workspace = await ref.read(workspaceProvider.future);
+    final ids = {
+      for (final item in (sale['items'] as List? ?? const []))
+        if (item is Map && item['product_id'] is int) item['product_id'] as int,
+    };
+    final products = workspace == null || ids.isEmpty ? const <int, Product>{} : await workspace.local.productsByIds(ids.toList());
+    return ref.read(printerProvider.notifier).printProduction(sale, categoryOf: {for (final entry in products.entries) entry.key: entry.value.categoryId});
   }
 
   /// Data cetak keranjang sebelum dibayar; [title] = nama pesanan tersimpan.
@@ -452,13 +459,14 @@ class PosActions {
   }
 
   /// Cetak list pesanan keranjang sebelum dibayar. Tidak dicatat.
-  Future<PrintResult> printDraftList({String? title}) async {
-    if (ref.read(printerProvider).printerFor(PrinterRole.dapur) == null) {
-      return PrintResult.noPrinter;
+  Future<ProductionResult> printDraftList({String? title}) async {
+    final state = ref.read(printerProvider);
+    if (state.production.isEmpty && state.printer == null) {
+      return const ProductionResult(noPrinter: true);
     }
     await ensureQueueNumber();
     final draft = await _draft(title);
-    return draft == null ? PrintResult.failed : printOrderList(draft);
+    return draft == null ? const ProductionResult() : printOrderList(draft);
   }
 
   /// Tutup kasir: simpan di HP, lalu kirim ke server sebentar (bila online,

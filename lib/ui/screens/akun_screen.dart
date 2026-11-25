@@ -14,6 +14,7 @@ import '../../state/sync_controller.dart';
 import '../../state/workspace.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import '../widgets/user_avatar.dart';
 import 'pin_settings.dart';
 
 enum _LogoutChoice { syncFirst, logout }
@@ -306,11 +307,7 @@ class _AkunScreenState extends ConsumerState<AkunScreen> {
         Card(
           child: ListTile(
             contentPadding: const EdgeInsets.all(16),
-            leading: CircleAvatar(
-              radius: 26,
-              backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-              child: Text((user?.name ?? '?').characters.first.toUpperCase(), style: TextStyle(color: Theme.of(context).colorScheme.onPrimaryContainer, fontWeight: FontWeight.w700, fontSize: 20)),
-            ),
+            leading: UserAvatar(key: const Key('akun-avatar'), name: user?.name ?? '?', url: user?.avatarUrl, size: 52),
             title: Text(user?.name ?? '-', style: const TextStyle(fontWeight: FontWeight.w600)),
             subtitle: Text('${user?.email ?? ''}\n${tenant?.name ?? ''} · ${tenant?.roleLabel ?? ''}'),
             isThreeLine: true,
@@ -332,10 +329,11 @@ class _AkunScreenState extends ConsumerState<AkunScreen> {
                   key: const Key('akun-pos-settings'),
                   leading: const Icon(Icons.print_outlined),
                   title: const Text('Pengaturan kasir'),
-                  subtitle: Text([
-                    printer.printer == null ? 'Printer belum diatur' : '${printer.printer!.name} · ${printer.printer!.width} mm',
-                    if (printer.kitchen != null) 'Dapur: ${printer.kitchen!.name}',
-                  ].join(' · ')),
+                  subtitle: Text(
+                    [printer.printer?.name ?? 'Printer belum diatur', for (final item in printer.production) item.name].join(' · '),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => context.push('/printer'),
                 ),
