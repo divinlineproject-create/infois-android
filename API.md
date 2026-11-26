@@ -92,7 +92,7 @@ Login ulang dengan `device_uid` yang sama mengganti token lama HP itu. Aplikasi 
   "token": "12|xYz…",
   "token_type": "Bearer",
   "user": { "id": 5, "name": "Sari", "email": "sari@warung.id", "avatar_url": null },
-  "tenants": [ { "id": 1, "slug": "warung-bu-sri", "name": "Warung Bu Sri", "role": "cashier", "role_label": "Kasir", "active": true, "mobile_eligible": true, "subscription_status": "active", "permissions": ["Create:Invoice", "issue-invoice", "record-payment", "…"], "menus": { "pos": true, "void_sale": false, "shift": true, "reports": false, "ai": true, "ai_channel_locked": false, "records": true, "stock": true, "cash_journal": false, "add_customer": true, "printer": true } } ],
+  "tenants": [ { "id": 1, "slug": "warung-bu-sri", "name": "Warung Bu Sri", "role": "cashier", "role_label": "Kasir", "active": true, "mobile_eligible": true, "subscription_status": "active", "permissions": ["Create:Invoice", "issue-invoice", "record-payment", "…"], "menus": { "pos": true, "void_sale": false, "shift": true, "reports": false, "ai": true, "ai_channel_locked": false, "records": true, "stock": true, "cash_journal": false, "add_customer": true, "printer": true, "edit_price": true } } ],
   "default_tenant_id": 1
 }
 ```
@@ -329,8 +329,9 @@ Jawaban:
 #### Item `shift_open` / `shift_close`
 ```json
 { "client_uuid": "a1b2…", "opened_at": "2026-10-07T01:00:00Z", "opening_cash": "100000" }
-{ "shift_client_uuid": "a1b2…", "closed_at": "2026-10-07T10:00:00Z", "closing_cash": "119000" }
+{ "shift_client_uuid": "a1b2…", "closed_at": "2026-10-07T10:00:00Z", "closing_cash": "119000", "notes": "Laci diserahkan ke Bu Sari" }
 ```
+`notes` opsional (maks. 500 huruf, aplikasi ≥ 1.0.5): catatan tutup kasir, disimpan di shift dan tercetak di laporan.
 `shift_close` → `{ "status": "ok", "shift": { "id": 4, "expected_cash": "120000.00", "difference": "-1000.00", "summary": { "sales_count": 2, "sales_total": "40000.00", "cash_total": "20000.00", "transfer_total": "20000.00", "unpaid_total": "0.00", "opening_cash": "100000.00", "expected_cash": "120000.00" } } }`.
 Uang seharusnya = uang awal + pembayaran tunai penjualan shift itu yang sudah sampai di server.
 

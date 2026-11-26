@@ -187,14 +187,17 @@ void main() {
       await tester.runAsync(local.close);
     });
 
-    Future<void> closeShift(WidgetTester tester) async {
+    Future<void> closeShift(WidgetTester tester, {String? notes}) async {
       GoRouter.of(tester.element(find.byType(KasirScreen))).push('/tutup-kasir');
       await settle(tester);
-      for (var i = 0; i < 3 && find.byType(TextField).evaluate().isEmpty; i++) {
+      for (var i = 0; i < 3 && find.byKey(const Key('shift-counted')).evaluate().isEmpty; i++) {
         await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 20)));
         await settle(tester);
       }
-      await tester.enterText(find.byType(TextField), '240000');
+      await tester.enterText(find.byKey(const Key('shift-counted')), '240000');
+      if (notes != null) {
+        await tester.enterText(find.byKey(const Key('shift-notes')), notes);
+      }
       await tap(tester, find.text('Tutup kasir & cetak laporan'));
       for (var i = 0; i < 10 && find.text('Kasir ditutup').evaluate().isEmpty; i++) {
         await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 30)));
@@ -244,6 +247,38 @@ void main() {
       expect(report, allOf(contains('LAPORAN TUTUP KASIR'), contains('Uang awal ke'), contains('Setoran ke'), contains('Rp 240.000'), contains('Setoran belum tercatat otomatis')));
       final stored = (await tester.runAsync(() => local.shift('shift-1')))!;
       expect((stored['server'] as Map)['cash_transfers'], isNotNull);
+      await tester.pumpWidget(const SizedBox());
+      await tester.runAsync(local.close);
+    });
+
+    testWidgets('Rekap kasir: dicetak dengan catatan tanpa menutup kasir; catatan tutup kasir terkirim & tercetak', (tester) async {
+      final (local, _, printer) = await pumpApp(tester, handler: server(transfers: false), extra: seedShift);
+      GoRouter.of(tester.element(find.byType(KasirScreen))).push('/rekap-kasir');
+      await settle(tester);
+      for (var i = 0; i < 3 && find.byKey(const Key('shift-notes')).evaluate().isEmpty; i++) {
+        await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 20)));
+        await settle(tester);
+      }
+      expect(find.text('Rekap kasir'), findsOneWidget);
+      expect(find.byKey(const Key('shift-counted')), findsNothing, reason: 'Rekap tidak menghitung uang laci.');
+      await tester.enterText(find.byKey(const Key('shift-notes')), 'Kembalian receh habis');
+      await tap(tester, find.byKey(const Key('shift-recap-print')));
+      for (var i = 0; i < 5 && printer.printed.isEmpty; i++) {
+        await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 30)));
+        await settle(tester);
+      }
+      final recap = latin1.decode(printer.printed.last, allowInvalid: true);
+      expect(recap, allOf(contains('REKAP KASIR'), contains('Masih dibuka'), contains('Uang awal'), contains('Catatan:'), contains('Kembalian receh habis')));
+      expect(recap, isNot(contains('Uang dihitung')));
+      expect((await tester.runAsync(() => local.shift('shift-1')))!['closed_at'], isNull, reason: 'Kasir tetap dibuka.');
+
+      GoRouter.of(tester.element(find.byType(ShiftCloseScreen))).pop();
+      await settle(tester);
+      await closeShift(tester, notes: 'Laci diserahkan ke Bu Sari');
+      final report = latin1.decode(printer.printed.last, allowInvalid: true);
+      expect(report, allOf(contains('LAPORAN TUTUP KASIR'), contains('Uang dihitung'), contains('Laci diserahkan ke Bu Sari')));
+      final outbox = (await tester.runAsync(() => local.db.query('outbox', where: "type = 'shift_close'")))!;
+      expect((jsonDecode(outbox.single['data'] as String) as Map)['notes'], 'Laci diserahkan ke Bu Sari');
       await tester.pumpWidget(const SizedBox());
       await tester.runAsync(local.close);
     });

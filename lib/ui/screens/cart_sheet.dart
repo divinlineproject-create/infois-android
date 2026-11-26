@@ -8,6 +8,7 @@ import '../../core/money.dart';
 import '../../domain/cart.dart';
 import '../../domain/models.dart';
 import '../../state/pos_state.dart';
+import '../../state/workspace.dart';
 import '../theme.dart';
 import 'pos_item_sheet.dart';
 import 'pos_order_panel.dart';
@@ -107,6 +108,7 @@ class _LineEditorState extends ConsumerState<_LineEditor> {
   Widget build(BuildContext context) {
     final product = widget.line.product;
     final options = product?.unitOptions() ?? const <UnitOption>[];
+    final canEditPrice = ref.watch(masterDataProvider).valueOrNull?.menus.editPrice ?? true;
     return SafeArea(
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -139,9 +141,11 @@ class _LineEditorState extends ConsumerState<_LineEditor> {
           Row(children: [
             Expanded(
               child: TextField(
+                key: const Key('line-price'),
                 controller: _price,
+                enabled: canEditPrice,
                 keyboardType: TextInputType.number,
-                decoration: InputDecoration(labelText: 'Harga satuan', prefixText: 'Rp ', helperText: _priceEdited ? 'Harga diubah manual' : 'Otomatis (harga bertingkat ikut jumlah & level pelanggan)'),
+                decoration: InputDecoration(labelText: 'Harga satuan', prefixText: 'Rp ', helperText: _priceEdited ? 'Harga diubah manual' : null),
                 onChanged: (_) => setState(() => _priceEdited = true),
               ),
             ),
@@ -149,7 +153,9 @@ class _LineEditorState extends ConsumerState<_LineEditor> {
             SizedBox(
               width: 110,
               child: TextField(
+                key: const Key('line-discount'),
                 controller: _discount,
+                enabled: canEditPrice,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 decoration: const InputDecoration(labelText: 'Diskon', suffixText: '%'),
               ),

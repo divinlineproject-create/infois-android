@@ -102,6 +102,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/printer', builder: (_, __) => const PrinterSettingsScreen()),
       GoRoute(path: '/sync', builder: (_, __) => const SyncStatusScreen()),
       GoRoute(path: '/tutup-kasir', builder: (_, __) => const ShiftCloseScreen()),
+      GoRoute(path: '/rekap-kasir', builder: (_, __) => const ShiftCloseScreen(recap: true)),
       // Laporan (periode dipilih di tab Laporan, ikut ke semua rincian).
       GoRoute(path: '/laporan/ringkasan', builder: (_, __) => const SalesSummaryScreen()),
       GoRoute(path: '/laporan/peringkat/:kind', builder: (_, state) => RankedReportScreen(kind: state.pathParameters['kind'] ?? 'by-product')),

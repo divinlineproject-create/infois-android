@@ -30,10 +30,15 @@ class HeldOrdersButton extends StatelessWidget {
 
 /// Simpan keranjang sebagai pesanan tersimpan. Kembalikan true bila tersimpan.
 Future<bool> askHoldName(BuildContext context, WidgetRef ref) async {
-  final cart = ref.read(cartProvider);
-  if (cart.isEmpty) {
+  if (ref.read(cartProvider).isEmpty) {
     return false;
   }
+  // Nama bawaan = nomor pesanan (rumah makan), jadi pastikan sudah ada.
+  await ref.read(posActionsProvider).ensureQueueNumber();
+  if (!context.mounted) {
+    return false;
+  }
+  final cart = ref.read(cartProvider);
   final held = ref.read(heldOrdersProvider).valueOrNull ?? const <HeldOrder>[];
   final current = cart.heldId == null ? null : held.where((order) => order.id == cart.heldId).firstOrNull?.name;
   final controller = TextEditingController(text: current ?? HeldOrderStore.defaultName(cart, DateTime.now()));
@@ -139,7 +144,7 @@ class HeldOrdersSheet extends ConsumerWidget {
                     final queue = dining ? order.cart.queueNumber : null;
                     // Satu baris: jenis pesanan sudah terlihat dari ikonnya.
                     final details = [
-                      if (queue != null) 'Antrian $queue',
+                      if (queue != null && order.name != queue) 'Antrian $queue',
                       '${order.itemCount} barang',
                       // Pelanggan "{nama} · {level}"; nama pesanan = nama pelanggan: levelnya saja.
                       if (customer != null && order.name != customer.name) customer.nameWithLevel,

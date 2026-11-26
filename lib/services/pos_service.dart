@@ -421,15 +421,17 @@ class PosService {
   }
 
   /// Tutup shift dengan uang fisik yang dihitung. Kembalikan laporan untuk dicetak.
-  Future<Map<String, dynamic>> closeShift(Map<String, dynamic> shift, String closingCash, {DateTime? now}) => local.guard(() async {
+  Future<Map<String, dynamic>> closeShift(Map<String, dynamic> shift, String closingCash, {DateTime? now, String? notes}) => local.guard(() async {
     final summary = await shiftSummary(shift);
     final closedAt = (now ?? DateTime.now()).toUtc().toIso8601String();
     final counted = Money.normalize(closingCash);
+    final note = cleanNote(notes, 500);
     final closed = {
       ...shift,
       'closed_at': closedAt,
       'closing_cash': counted,
       'summary': summary,
+      if (note != null) 'notes': note,
     };
     await local.saveShift(closed);
     final closeUuid = newUuid();
@@ -437,6 +439,7 @@ class PosService {
       'shift_client_uuid': shift['client_uuid'],
       'closed_at': closedAt,
       'closing_cash': counted,
+      if (note != null) 'notes': note,
     });
     return {
       ...summary,
@@ -445,6 +448,7 @@ class PosService {
       'closed_at': closedAt,
       'closing_cash': counted,
       'difference': Money.sub(counted, summary['expected_cash']),
+      if (note != null) 'notes': note,
     };
   });
 }
@@ -471,6 +475,11 @@ class HeldOrderStore {
 
   /// Nama bawaan: label meja/antrian, pelanggan, atau "Pesanan HH:mm".
   static String defaultName(Cart cart, DateTime now) {
+    // Rumah makan: nomor pesanan (antrian) sebagai nama bawaan.
+    final queue = cart.queueNumber;
+    if (queue != null) {
+      return queue;
+    }
     final label = cart.orderLabel;
     if (label != null) {
       return label;

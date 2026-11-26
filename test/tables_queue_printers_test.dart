@@ -69,6 +69,42 @@ void main() {
       expect(TenantSettings.fromJson(tables.toJson()).posTables, ['Meja 1', 'VIP 2']);
     });
 
+    test('izin ubah harga (server lama = boleh), nama pesanan bawaan = nomor pesanan, LUNAS tanpa blok hitam', () async {
+      expect(Menus.fromJson({'pos': true}).editPrice, isTrue);
+      expect(Menus.fromJson({'pos': true, 'edit_price': false}).editPrice, isFalse);
+      expect(Menus.fromJson(const Menus(editPrice: false).toJson()).editPrice, isFalse);
+
+      final now = DateTime(2026, 11, 26, 10, 5);
+      expect(HeldOrderStore.defaultName(const Cart(queueNumber: '000012', orderLabel: 'Meja 5'), now), '000012');
+      expect(HeldOrderStore.defaultName(const Cart(orderLabel: 'Meja 5'), now), 'Meja 5');
+      expect(HeldOrderStore.defaultName(const Cart(), now), 'Pesanan 10:05');
+
+      final builder = await ReceiptBuilder.create();
+      final paid = {
+        'number': 'POS-K1/000001',
+        'created_at': now.toUtc().toIso8601String(),
+        'items': [
+          {'description': 'Kopi', 'quantity': '1', 'unit': 'gelas', 'unit_price': '10000', 'line_total': '10000'},
+        ],
+        'payments': [
+          {'method': 'cash', 'amount': '10000'},
+        ],
+        'total': '10000',
+      };
+      final bytes = builder.sale(paid, const ReceiptConfig(companyName: 'Warung'), width: 58);
+      expect(latin1.decode(bytes, allowInvalid: true), contains('LUNAS'));
+      bool hasReverseOn(List<int> data) {
+        for (var i = 0; i + 2 < data.length; i++) {
+          if (data[i] == 0x1D && data[i + 1] == 0x42 && data[i + 2] == 0x01) {
+            return true;
+          }
+        }
+        return false;
+      }
+
+      expect(hasReverseOn(bytes), isFalse, reason: 'Cetak terbalik (blok hitam) tidak dipakai.');
+    });
+
     test('nomor antrian: 6 angka per HP, naik, mulai lagi dari 000001 setelah tengah malam', () async {
       final local = await memoryDb();
       addTearDown(local.close);
@@ -260,7 +296,7 @@ void main() {
   });
 
   group('kasir', () {
-    Future<(LocalDb, ProviderContainer, _Printers)> pumpApp(WidgetTester tester, {Map<String, dynamic>? tenant, Map<String, Object> prefs = const {}, Set<String> failing = const {}, _Network? network}) async {
+    Future<(LocalDb, ProviderContainer, _Printers)> pumpApp(WidgetTester tester, {Map<String, dynamic>? tenant, Map<String, Object> prefs = const {}, Set<String> failing = const {}, _Network? network, Map<String, dynamic> menus = const {'pos': true, 'printer': true}}) async {
       tester.view.physicalSize = const Size(1280, 800);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
@@ -276,7 +312,7 @@ void main() {
       final storage = await AppStorage.load();
       final local = (await tester.runAsync(() async {
         final db = await memoryDb();
-        await seedMaster(db, menus: {'pos': true, 'printer': true});
+        await seedMaster(db, menus: menus);
         await db.setJson(MetaKeys.tenant, tenant ?? tenantBase);
         await db.setMeta(LocalDb.categoriesKey, jsonEncode([
           {'id': 1, 'name': 'Makanan'},
@@ -342,7 +378,8 @@ void main() {
       final held = (await tester.runAsync(() => HeldOrderStore(local).all()))!;
       expect(held.single.cart.queueNumber, '000001');
       await tap(tester, find.byKey(const Key('held-orders')));
-      expect(tester.widget<Text>(find.byKey(Key('held-details-${held.single.id}'))).data, startsWith('Antrian 000001 · 1 barang'));
+      expect(held.single.name, '000001', reason: 'Nama bawaan = nomor pesanan.');
+      expect(tester.widget<Text>(find.byKey(Key('held-details-${held.single.id}'))).data, startsWith('1 barang'), reason: 'Nomor tidak diulang di keterangan.');
       Navigator.of(tester.element(find.byType(HeldOrdersSheet))).pop();
       await flush(tester);
 
@@ -399,6 +436,24 @@ void main() {
         await tester.pumpWidget(const SizedBox());
         await tester.runAsync(local.close);
       }
+    });
+
+    testWidgets('role tanpa izin ubah harga: harga & diskon terkunci, Diskon nota tidak ada; nama simpan = nomor pesanan', (tester) async {
+      final (local, container, _) = await pumpApp(tester, menus: {'pos': true, 'printer': true, 'edit_price': false});
+      await tap(tester, find.byKey(const Key('product-1')));
+      expect(find.byKey(const Key('order-discount')), findsNothing);
+      final line = container.read(cartProvider).lines.single;
+      await tap(tester, find.byKey(Key('line-tap-${line.key}')));
+      expect(tester.widget<TextField>(find.byKey(const Key('line-price'))).enabled, isFalse);
+      expect(tester.widget<TextField>(find.byKey(const Key('line-discount'))).enabled, isFalse);
+      Navigator.of(tester.element(find.byKey(const Key('line-price')))).pop();
+      await flush(tester);
+
+      await tap(tester, find.byKey(const Key('hold-order')));
+      expect(tester.widget<TextField>(find.byKey(const Key('hold-name'))).controller?.text, container.read(cartProvider).queueNumber);
+      expect(container.read(cartProvider).queueNumber, '000001');
+      await tester.pumpWidget(const SizedBox());
+      await tester.runAsync(local.close);
     });
 
     testWidgets('Pengaturan kasir: cari printer Wi-Fi, tambah beberapa sekaligus, beri nama & kategori', (tester) async {

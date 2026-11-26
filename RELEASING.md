@@ -142,6 +142,12 @@ dapur** (list ke dapur, otomatis setelah bayar bila dinyalakan; cetak berurutan,
 jadi printer kasir). Perangkat yang login sebelum versi ini dengan akun selain pemilik tetap bisa dipakai
 seperti dulu.
 
+**1.0.5+7** (2026-11-26): izin **ubah harga & diskon** per role (`menus.edit_price`; tanpa izin: harga &
+diskon baris terkunci, Diskon nota hilang; server lama = boleh), **Rekap kasir** (tombol Rekap di bilah kasir:
+cetak rekap kasir yang masih dibuka + catatan) dan **catatan Tutup kasir** (dikirim `shift_close.notes`,
+tercetak), nama bawaan Simpan pesanan = nomor pesanan, tulisan LUNAS/BELUM LUNAS di struk tidak lagi blok hitam.
+Menggantikan 1.0.4+6 bila belum diunggah.
+
 **1.0.4+6** (2026-11-26): **printer produksi** (dapur / bar / checker) sebanyak apa pun, masing-masing
 Bluetooth atau Wi-Fi (ESC/POS TCP port 9100, cari di jaringan & tambah beberapa sekaligus), nama sendiri,
 kategori barang (semua / beberapa), dan lebar kertas; printer kasir juga boleh Wi-Fi. "Cetak list" ke semua

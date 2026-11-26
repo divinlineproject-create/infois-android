@@ -105,6 +105,7 @@ class PosOrderPanel extends ConsumerWidget {
     // Fitur rumah makan / kafe (jenis pesanan, meja/antrian); mati untuk toko eceran.
     final dining = master?.tenant.posDining ?? true;
     final tables = master?.tenant.posTables ?? const <String>[];
+    final canEditPrice = master?.menus.editPrice ?? true;
     final totals = cart.totals(pricesIncludeTax: inclusive);
     final notifier = ref.read(cartProvider.notifier);
     final held = ref.watch(heldOrdersProvider).valueOrNull ?? const [];
@@ -209,18 +210,19 @@ class PosOrderPanel extends ConsumerWidget {
                       }
                     },
                   ),
-                  _OptionTile(
-                    key: const Key('order-discount'),
-                    icon: Icons.local_offer_outlined,
-                    title: Money.isPositive(cart.notaDiscountPercent) ? 'Diskon nota ${percentLabel(cart.notaDiscountPercent)}%' : 'Diskon nota',
-                    highlight: Money.isPositive(cart.notaDiscountPercent),
-                    onTap: () async {
-                      final value = await askPercent(context, 'Diskon nota (%)', cart.notaDiscountPercent);
-                      if (value != null) {
-                        notifier.setNotaDiscount(value);
-                      }
-                    },
-                  ),
+                  if (canEditPrice)
+                    _OptionTile(
+                      key: const Key('order-discount'),
+                      icon: Icons.local_offer_outlined,
+                      title: Money.isPositive(cart.notaDiscountPercent) ? 'Diskon nota ${percentLabel(cart.notaDiscountPercent)}%' : 'Diskon nota',
+                      highlight: Money.isPositive(cart.notaDiscountPercent),
+                      onTap: () async {
+                        final value = await askPercent(context, 'Diskon nota (%)', cart.notaDiscountPercent);
+                        if (value != null) {
+                          notifier.setNotaDiscount(value);
+                        }
+                      },
+                    ),
                   _OptionTile(
                     key: const Key('order-charges'),
                     icon: Icons.add_circle_outline,

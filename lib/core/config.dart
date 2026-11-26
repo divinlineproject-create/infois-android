@@ -5,7 +5,7 @@ class AppConfig {
   static const String name = 'Infois POS';
 
   /// Versi aplikasi (samakan dengan pubspec.yaml); dikirim di header X-App-Version.
-  static const String version = '1.0.4';
+  static const String version = '1.0.5';
 
   /// Alamat server produksi.
   static const String productionServerUrl = 'https://dashboard.infois.ai';

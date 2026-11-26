@@ -710,6 +710,7 @@ class Menus {
     this.printer = false,
     this.operations = false,
     this.posSettings = false,
+    this.editPrice = true,
   });
 
   factory Menus.fromJson(Map<String, dynamic>? json) {
@@ -727,6 +728,8 @@ class Menus {
       printer: _b(data['printer']),
       operations: _b(data['operations']),
       posSettings: _b(data['pos_settings']),
+      // Server lama tanpa `edit_price`: boleh (seperti sebelumnya).
+      editPrice: data['edit_price'] == null || _b(data['edit_price']),
     );
   }
 
@@ -748,6 +751,9 @@ class Menus {
   /// fitur rumah makan / kafe) lewat `PUT /pos/settings`.
   final bool posSettings;
 
+  /// Boleh mengubah harga & diskon barang di kasir (Tim & Akses › Role).
+  final bool editPrice;
+
   Map<String, dynamic> toJson() => {
         'pos': pos,
         'void_sale': voidSale,
@@ -761,6 +767,7 @@ class Menus {
         'printer': printer,
         'operations': operations,
         'pos_settings': posSettings,
+        'edit_price': editPrice,
       };
 }
 

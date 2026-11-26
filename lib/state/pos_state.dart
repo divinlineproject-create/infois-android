@@ -473,12 +473,12 @@ class PosActions {
   /// paling lama [wait]) supaya uang awal & setoran otomatis yang dicatat
   /// server (`cash_transfers`) ikut tampil dan tercetak. Offline: laporan
   /// tanpa data itu.
-  Future<Map<String, dynamic>> closeShift(Map<String, dynamic> shift, String counted, {Duration wait = const Duration(seconds: 8)}) async {
+  Future<Map<String, dynamic>> closeShift(Map<String, dynamic> shift, String counted, {Duration wait = const Duration(seconds: 8), String? notes}) async {
     final service = await ref.read(posServiceProvider.future);
     if (service == null) {
       throw const CheckoutException('Data kasir belum siap.');
     }
-    final report = await service.closeShift(shift, counted);
+    final report = await service.closeShift(shift, counted, notes: notes);
     ref.read(dataVersionProvider.notifier).state++;
     final sync = ref.read(syncProvider.notifier);
     await sync.refreshPending();

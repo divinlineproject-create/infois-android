@@ -159,7 +159,8 @@ class ReceiptBuilder {
 
     bytes.addAll(generator.feed(1));
     final status = bill ? 'BELUM DIBAYAR' : (Money.isPositive(balance) ? 'BELUM LUNAS' : 'LUNAS');
-    bytes.addAll(generator.text(' $status ', styles: base.copyWith(align: PosAlign.center, bold: true, reverse: true)));
+    // Tulisan tebal besar, tanpa blok hitam (cetak terbalik boros & sulit dibaca di kertas termal).
+    bytes.addAll(generator.text(status, styles: base.copyWith(align: PosAlign.center, bold: true, height: PosTextSize.size2)));
     if (reprint) {
       bytes.addAll(generator.text('-- CETAK ULANG --', styles: base.copyWith(align: PosAlign.center)));
     }
@@ -396,7 +397,8 @@ class ReceiptBuilder {
     final base = _base(config);
     final bytes = <int>[...generator.reset()];
     bytes.addAll(generator.text(clean(config.companyName), styles: base.copyWith(align: PosAlign.center, bold: true)));
-    bytes.addAll(generator.text('LAPORAN TUTUP KASIR', styles: base.copyWith(align: PosAlign.center, bold: true)));
+    final closed = report['closed_at'] != null;
+    bytes.addAll(generator.text(closed ? 'LAPORAN TUTUP KASIR' : 'REKAP KASIR', styles: base.copyWith(align: PosAlign.center, bold: true)));
     bytes.addAll(generator.hr());
 
     void line(String label, String value, {bool bold = false}) => bytes.addAll(generator.row([
@@ -406,7 +408,7 @@ class ReceiptBuilder {
 
     line('Kasir', report['cashier']?.toString() ?? '-');
     line('Buka', report['opened_at'] == null ? '-' : receiptDateTime(DateTime.parse(report['opened_at'].toString()).toLocal()));
-    line('Tutup', report['closed_at'] == null ? '-' : receiptDateTime(DateTime.parse(report['closed_at'].toString()).toLocal()));
+    line('Tutup', closed ? receiptDateTime(DateTime.parse(report['closed_at'].toString()).toLocal()) : 'Masih dibuka');
     bytes.addAll(generator.hr());
     line('Jumlah nota', '${report['sales_count'] ?? 0}');
     line('Total penjualan', rupiah(report['sales_total']));
@@ -419,8 +421,10 @@ class ReceiptBuilder {
     bytes.addAll(generator.hr());
     line('Uang awal', rupiah(report['opening_cash']));
     line('Seharusnya di laci', rupiah(report['expected_cash']), bold: true);
-    line('Uang dihitung', rupiah(report['closing_cash']), bold: true);
-    line('Selisih', rupiah(report['difference']), bold: true);
+    if (closed) {
+      line('Uang dihitung', rupiah(report['closing_cash']), bold: true);
+      line('Selisih', rupiah(report['difference']), bold: true);
+    }
     // Pindah uang otomatis dari server (uang awal & setoran); server lama: tidak ada.
     final transfers = ShiftCashTransfers.fromJson(report['cash_transfers']);
     if (transfers != null && !transfers.isEmpty) {
@@ -433,6 +437,14 @@ class ReceiptBuilder {
       }
       if (transfers.note != null) {
         bytes.addAll(generator.text(clean(transfers.note), styles: base));
+      }
+    }
+    final notes = cleanNote(report['notes']?.toString(), 500);
+    if (notes != null) {
+      bytes.addAll(generator.hr());
+      bytes.addAll(generator.text('Catatan:', styles: base.copyWith(bold: true)));
+      for (final note in clean(notes).split('\n')) {
+        bytes.addAll(generator.text(note, styles: base));
       }
     }
     bytes.addAll(generator.hr());

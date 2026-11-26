@@ -391,7 +391,7 @@ void main() {
 
       // Ubah jumlah lewat lembar ubah baris: tetap harga level.
       await tap(find.byKey(Key('line-tap-$key')));
-      expect(find.text('Otomatis (harga bertingkat ikut jumlah & level pelanggan)'), findsOneWidget);
+      expect(find.text('Harga diubah manual'), findsNothing);
       expect(tester.widget<TextField>(find.byKey(const Key('line-note'))).decoration?.hintText, 'mis. warna, ukuran, atau permintaan khusus');
       expect(find.byType(ActionChip), findsNothing);
       await tester.enterText(find.byKey(const Key('line-quantity')), '100');

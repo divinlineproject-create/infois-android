@@ -8,6 +8,7 @@ import '../../core/money.dart';
 import '../../domain/models.dart';
 import '../../state/pos_state.dart';
 import '../../state/printer_controller.dart';
+import '../../state/session.dart';
 import '../../state/sync_controller.dart';
 import '../../state/workspace.dart';
 import '../theme.dart';
@@ -59,6 +60,7 @@ class ShiftBar extends ConsumerWidget {
           const Icon(Icons.lock_open_outlined, size: 18, color: Brand.green),
           const SizedBox(width: 8),
           Expanded(child: Text('Kasir dibuka ${opened == null ? '' : dateTimeLabel(opened)}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13))),
+          IconButton(key: const Key('shift-recap'), tooltip: 'Rekap kasir', visualDensity: dense ? VisualDensity.compact : null, onPressed: () => context.push('/rekap-kasir'), icon: const Icon(Icons.receipt_long_outlined, size: 20)),
           TextButton(style: dense ? TextButton.styleFrom(visualDensity: VisualDensity.compact) : null, onPressed: () => context.push('/tutup-kasir'), child: const Text('Tutup kasir')),
         ]),
       ),
@@ -114,8 +116,12 @@ String cashTransferLine(String label, CashTransfer transfer) {
 }
 
 /// Tutup kasir: hitung uang fisik, lihat selisih, cetak laporan.
+/// Tutup kasir (hitung uang, catatan, cetak laporan), atau [recap]: rekap
+/// kasir yang masih dibuka dengan catatan, dicetak tanpa menutup kasir.
 class ShiftCloseScreen extends ConsumerStatefulWidget {
-  const ShiftCloseScreen({super.key});
+  const ShiftCloseScreen({super.key, this.recap = false});
+
+  final bool recap;
 
   @override
   ConsumerState<ShiftCloseScreen> createState() => _ShiftCloseScreenState();
@@ -123,6 +129,8 @@ class ShiftCloseScreen extends ConsumerStatefulWidget {
 
 class _ShiftCloseScreenState extends ConsumerState<ShiftCloseScreen> {
   final _counted = TextEditingController();
+  final _notes = TextEditingController();
+  Map<String, dynamic>? _shift;
   Map<String, dynamic>? _summary;
   Map<String, dynamic>? _report;
   bool _busy = false;
@@ -150,6 +158,7 @@ class _ShiftCloseScreenState extends ConsumerState<ShiftCloseScreen> {
   @override
   void dispose() {
     _counted.dispose();
+    _notes.dispose();
     super.dispose();
   }
 
@@ -166,7 +175,34 @@ class _ShiftCloseScreenState extends ConsumerState<ShiftCloseScreen> {
     }
     final summary = await service.shiftSummary(shift);
     if (mounted) {
-      setState(() => _summary = summary);
+      setState(() {
+        _shift = shift;
+        _summary = summary;
+      });
+    }
+  }
+
+  /// Rekap kasir yang masih dibuka (tidak menutup kasir), dengan catatan.
+  Future<void> _printRecap() async {
+    final shift = _shift;
+    final summary = _summary;
+    if (shift == null || summary == null) {
+      return;
+    }
+    final service = await ref.read(posServiceProvider.future);
+    final fresh = service == null ? summary : await service.shiftSummary(shift);
+    final printed = await ref.read(printerProvider.notifier).printShiftReport({
+      ...fresh,
+      'cashier': shift['cashier'] ?? ref.read(sessionProvider).valueOrNull?.user?.name,
+      'opened_at': shift['opened_at'],
+      'closed_at': null,
+      'notes': _notes.text,
+    });
+    if (mounted) {
+      if (fresh != summary) {
+        setState(() => _summary = fresh);
+      }
+      showMessage(context, printed == PrintResult.printed ? 'Rekap tercetak.' : printMessage(printed.name), error: printed != PrintResult.printed);
     }
   }
 
@@ -187,7 +223,7 @@ class _ShiftCloseScreenState extends ConsumerState<ShiftCloseScreen> {
       return;
     }
     _shiftUuid = shift['client_uuid'] as String?;
-    final report = await ref.read(posActionsProvider).closeShift(shift, counted);
+    final report = await ref.read(posActionsProvider).closeShift(shift, counted, notes: _notes.text);
     final printed = await ref.read(printerProvider.notifier).printShiftReport(report);
     if (!mounted) {
       return;
@@ -209,7 +245,7 @@ class _ShiftCloseScreenState extends ConsumerState<ShiftCloseScreen> {
     final counted = parseMoneyInput(_counted.text);
     final difference = _report?['difference'] ?? (summary != null && counted != null ? Money.sub(counted, summary['expected_cash']) : null);
     return Scaffold(
-      appBar: AppBar(title: Text(_report == null ? 'Tutup kasir' : 'Kasir ditutup')),
+      appBar: AppBar(title: Text(widget.recap ? 'Rekap kasir' : (_report == null ? 'Tutup kasir' : 'Kasir ditutup'))),
       body: summary == null
           ? const Center(child: CircularProgressIndicator())
           : ListView(padding: const EdgeInsets.all(16), children: [
@@ -230,8 +266,9 @@ class _ShiftCloseScreenState extends ConsumerState<ShiftCloseScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-              if (_report == null)
+              if (_report == null && !widget.recap)
                 TextField(
+                  key: const Key('shift-counted'),
                   controller: _counted,
                   keyboardType: TextInputType.number,
                   inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
@@ -239,7 +276,19 @@ class _ShiftCloseScreenState extends ConsumerState<ShiftCloseScreen> {
                   decoration: const InputDecoration(labelText: 'Uang di laci (hitung fisik)', prefixText: 'Rp '),
                   onChanged: (_) => setState(() {}),
                 ),
-              if (difference != null) ...[
+              if (_report == null) ...[
+                const SizedBox(height: 12),
+                TextField(
+                  key: const Key('shift-notes'),
+                  controller: _notes,
+                  minLines: 2,
+                  maxLines: 4,
+                  maxLength: 500,
+                  textCapitalization: TextCapitalization.sentences,
+                  decoration: const InputDecoration(labelText: 'Catatan (opsional)', counterText: ''),
+                ),
+              ],
+              if (difference != null && !widget.recap) ...[
                 const SizedBox(height: 16),
                 AmountRow(
                   Money.isZero(difference) ? 'Pas, tidak ada selisih' : (Money.isPositive(difference) ? 'Lebih' : 'Kurang'),
@@ -270,7 +319,9 @@ class _ShiftCloseScreenState extends ConsumerState<ShiftCloseScreen> {
                 ),
               ],
               const SizedBox(height: 24),
-              if (_report == null)
+              if (widget.recap)
+                FilledButton.icon(key: const Key('shift-recap-print'), onPressed: _printRecap, icon: const Icon(Icons.print_outlined), label: const Text('Cetak rekap'))
+              else if (_report == null)
                 FilledButton(onPressed: _busy ? null : _close, child: Text(_busy ? 'Menutup kasir…' : 'Tutup kasir & cetak laporan'))
               else ...[
                 OutlinedButton.icon(
