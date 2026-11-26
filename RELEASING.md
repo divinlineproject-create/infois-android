@@ -148,6 +148,9 @@ cetak rekap kasir yang masih dibuka + catatan) dan **catatan Tutup kasir** (diki
 tercetak), nama bawaan Simpan pesanan = nomor pesanan, tulisan LUNAS/BELUM LUNAS di struk tidak lagi blok hitam.
 Menggantikan 1.0.4+6 bila belum diunggah.
 
+**1.0.6+8** (2026-11-26): nama fitur **Tim AI** menjadi **Asisten AI** di seluruh aplikasi; tab bawah cukup
+**AI** (sempit). Filter kalimat pembelian Play juga mengenali "asisten ai". Menggantikan 1.0.5+7 bila belum diunggah.
+
 **1.0.4+6** (2026-11-26): **printer produksi** (dapur / bar / checker) sebanyak apa pun, masing-masing
 Bluetooth atau Wi-Fi (ESC/POS TCP port 9100, cari di jaringan & tambah beberapa sekaligus), nama sendiri,
 kategori barang (semua / beberapa), dan lebar kertas; printer kasir juga boleh Wi-Fi. "Cetak list" ke semua

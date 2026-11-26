@@ -5,7 +5,7 @@ import 'package:dio/dio.dart';
 import '../domain/ai_models.dart';
 import 'api_client.dart';
 
-/// Semua panggilan Tim AI ke `/api/v1/ai/*` (API.md › 6). Satu-satunya
+/// Semua panggilan Asisten AI ke `/api/v1/ai/*` (API.md › 6). Satu-satunya
 /// tempat yang tahu bentuk JSON server, supaya perubahan kontrak cukup
 /// diubah di sini.
 class AiApi {

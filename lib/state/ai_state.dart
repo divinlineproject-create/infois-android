@@ -11,7 +11,7 @@ import '../domain/ai_models.dart';
 import 'session.dart';
 import 'workspace.dart';
 
-/// Klien Tim AI untuk perusahaan aktif (null bila belum ada perusahaan).
+/// Klien Asisten AI untuk perusahaan aktif (null bila belum ada perusahaan).
 final aiApiProvider = Provider<AiApi?>((ref) {
   final workspace = ref.watch(workspaceProvider).valueOrNull;
   return workspace == null ? null : AiApi(workspace.api);
@@ -555,14 +555,14 @@ class AiChatController extends AutoDisposeFamilyNotifier<AiChatState, int> {
       }
       _pollFailures++;
       if (_pollFailures >= maxPollFailures) {
-        state = state.copyWith(phase: AiChatPhase.idle, pollError: error.offline ? 'Tim AI butuh internet. Sambungkan internet lalu coba lagi.' : error.message);
+        state = state.copyWith(phase: AiChatPhase.idle, pollError: error.offline ? 'Asisten AI butuh internet. Sambungkan internet lalu coba lagi.' : error.message);
         return;
       }
       _schedulePoll(runId);
     } catch (error) {
       // Jawaban status tidak sesuai bentuk: berhenti dengan pesan yang bisa dicoba lagi.
       if (_alive && state.activeRunId == runId) {
-        state = state.copyWith(phase: AiChatPhase.idle, pollError: 'Status Tim AI tidak bisa dibaca: $error');
+        state = state.copyWith(phase: AiChatPhase.idle, pollError: 'Status Asisten AI tidak bisa dibaca: $error');
       }
     }
   }

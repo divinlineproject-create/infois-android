@@ -18,7 +18,7 @@ https://infois.ai/kebijakan-privasi (versi 2026-10). Isi ulang bila aplikasi men
 Jawab **tidak ada data yang dibagikan** ke pihak ketiga. Menurut definisi Google, yang **bukan**
 "sharing":
 
-- Penyedia layanan yang memproses data atas nama kami: penyedia AI untuk Tim AI (transkripsi
+- Penyedia layanan yang memproses data atas nama kami: penyedia AI untuk Asisten AI (transkripsi
   voice note, membaca foto nota/file), hosting, email.
 - Tindakan yang dimulai pengguna sendiri: Bagikan ke WhatsApp / aplikasi lain, membuka PDF.
 - Pemilik usaha atau anggota tim yang melihat data perusahaan yang sama (bagian dari layanan).
@@ -39,10 +39,10 @@ sementara saja** (disimpan), dienkripsi saat transit, bisa dihapus (hapus akun).
 | Personal info | **Address** | Opsional | App functionality | Alamat pelanggan / pengiriman pesanan bila diisi |
 | Financial info | **Purchase history** | Wajib | App functionality | Penjualan & pembelian usaha yang dicatat (nota, item, total) |
 | Financial info | **Other financial info** | Wajib | App functionality, Analytics (laporan usaha untuk pengguna) | Kas/bank, piutang, utang, shift kasir, laporan |
-| Photos and videos | **Photos** | Opsional | App functionality | Foto nota yang dikirim ke Tim AI dan foto catatan pesanan untuk Input AI kasir (kamera/galeri) |
-| Audio | **Voice or sound recordings** | Opsional | App functionality | Voice note Tim AI dan pesanan suara Input AI kasir (mikrofon, hanya saat merekam) |
-| Files and docs | **Files and docs** | Opsional | App functionality | File PDF/Excel yang dilampirkan ke Tim AI |
-| App activity | **Other user-generated content** | Opsional | App functionality | Pesan teks ke Tim AI, catatan pesanan |
+| Photos and videos | **Photos** | Opsional | App functionality | Foto nota yang dikirim ke Asisten AI dan foto catatan pesanan untuk Input AI kasir (kamera/galeri) |
+| Audio | **Voice or sound recordings** | Opsional | App functionality | Voice note Asisten AI dan pesanan suara Input AI kasir (mikrofon, hanya saat merekam) |
+| Files and docs | **Files and docs** | Opsional | App functionality | File PDF/Excel yang dilampirkan ke Asisten AI |
+| App activity | **Other user-generated content** | Opsional | App functionality | Pesan teks ke Asisten AI, catatan pesanan |
 | Device or other IDs | **Device or other IDs** | Wajib | App functionality, Fraud prevention/security | `device_uid` acak buatan aplikasi + nama HP (tampil di web › Tim & Akses › Perangkat; HP bisa dicabut) |
 
 Tidak dikumpulkan (jawab **tidak**):
@@ -65,7 +65,7 @@ Tidak dikumpulkan (jawab **tidak**):
 |---|---|---|
 | INTERNET, ACCESS_NETWORK_STATE | Server Infois, status Online/Offline | - |
 | BLUETOOTH_SCAN (neverForLocation), BLUETOOTH_CONNECT; BLUETOOTH/BLUETOOTH_ADMIN & lokasi hanya ≤ Android 11 | Printer struk | Dialog "Izinkan Bluetooth" sebelum mencari printer |
-| RECORD_AUDIO | Voice note Tim AI, pesanan suara Input AI kasir | Dialog "Izinkan mikrofon" sebelum rekaman pertama |
+| RECORD_AUDIO | Voice note Asisten AI, pesanan suara Input AI kasir | Dialog "Izinkan mikrofon" sebelum rekaman pertama |
 | CAMERA | Scan barcode barang di kasir (mobile_scanner + ML Kit di dalam aplikasi) | Dialog "Izinkan kamera" saat tombol Scan pertama kali ditekan |
 | WRITE/READ_EXTERNAL_STORAGE hanya ≤ Android 9 | Simpan PDF ke folder Download | Diminta saat mengunduh |
 | WAKE_LOCK, RECEIVE_BOOT_COMPLETED | WorkManager: sinkron transaksi offline di latar | - |
@@ -79,7 +79,7 @@ Services, tanpa internet); yang dipakai hanya teks kodenya untuk mencari barang 
 Gambar tidak disimpan, tidak diunggah, dan tidak dikirim ke server Infois atau pihak lain. Menurut
 definisi Google, data yang hanya diproses di perangkat dan tidak dikirim keluar **bukan** data
 yang "dikumpulkan", jadi formulir Data Safety tidak berubah (jangan centang Photos untuk scan).
-Foto nota Tim AI tetap lewat aplikasi kamera sistem (image_picker) seperti sebelumnya.
+Foto nota Asisten AI tetap lewat aplikasi kamera sistem (image_picker) seperti sebelumnya.
 Izin diminta hanya saat pengguna menekan tombol Scan, setelah penjelasan di aplikasi; bila
 ditolak, kasir tetap bisa mengetik kode atau memakai scanner Bluetooth/USB.
 

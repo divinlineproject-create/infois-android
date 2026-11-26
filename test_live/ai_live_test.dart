@@ -1,4 +1,4 @@
-// Uji coba Tim AI langsung ke server Laravel sungguhan (bukan bagian `flutter test` biasa).
+// Uji coba Asisten AI langsung ke server Laravel sungguhan (bukan bagian `flutter test` biasa).
 // Jalankan:
 //   flutter test test_live/ai_live_test.dart --dart-define=INFOIS_LIVE=http://127.0.0.1:8099 \
 //     --dart-define=INFOIS_LIVE_EMAIL=pemilik@contoh.id --dart-define=INFOIS_LIVE_PASSWORD=rahasia
@@ -28,7 +28,7 @@ void main() {
   final email = _setting('INFOIS_LIVE_EMAIL', const String.fromEnvironment('INFOIS_LIVE_EMAIL'));
   final password = _setting('INFOIS_LIVE_PASSWORD', const String.fromEnvironment('INFOIS_LIVE_PASSWORD'));
 
-  test('Tim AI: ringkasan → percakapan → kirim teks & foto → proses → riwayat → hapus', () async {
+  test('Asisten AI: ringkasan → percakapan → kirim teks & foto → proses → riwayat → hapus', () async {
     final login = await ApiClient(baseUrl: server!).post('auth/login', data: {
       'email': email,
       'password': password,
@@ -38,7 +38,7 @@ void main() {
     });
     final tenants = [for (final item in login['tenants'] as List) TenantSummary.fromJson(Map<String, dynamic>.from(item as Map))];
     final tenant = tenants.firstWhere((item) => item.menus.ai, orElse: () => tenants.first);
-    expect(tenant.menus.ai, isTrue, reason: 'Akun uji harus punya menu Tim AI (permission use-ai-assistant).');
+    expect(tenant.menus.ai, isTrue, reason: 'Akun uji harus punya menu Asisten AI (permission use-ai-assistant).');
 
     final client = ApiClient(baseUrl: server, token: login['token'] as String, tenantId: tenant.id);
     final api = AiApi(client);

@@ -11,7 +11,7 @@ import '../../services/permission_gate.dart';
 import '../theme.dart';
 import 'common.dart';
 
-/// Kotak tulis pesan Tim AI bergaya aplikasi chat: satu kartu membulat berisi
+/// Kotak tulis pesan Asisten AI bergaya aplikasi chat: satu kartu membulat berisi
 /// lampiran (foto, file, voice note), kolom teks yang memanjang otomatis, dan
 /// bilah alat (+ di kiri; mikrofon / Kirim / sedang bekerja di kanan).
 /// Voice note: tahan mikrofon untuk merekam, lepas untuk selesai, geser ke
@@ -32,16 +32,16 @@ class AiComposer extends ConsumerStatefulWidget {
     this.onContentChanged,
   });
 
-  /// Boleh menulis & melampirkan (online, Tim AI tersedia).
+  /// Boleh menulis & melampirkan (online, Asisten AI tersedia).
   final bool enabled;
   final AiLimits limits;
   final Future<void> Function(String text, List<AiDraftAttachment> attachments) onSend;
   final String? initialText;
 
-  /// Keterangan singkat saat tidak bisa menulis (offline, Tim AI istirahat).
+  /// Keterangan singkat saat tidak bisa menulis (offline, Asisten AI istirahat).
   final String? disabledReason;
 
-  /// Tim AI sedang mengerjakan pesan sebelumnya: teks tetap bisa ditulis,
+  /// Asisten AI sedang mengerjakan pesan sebelumnya: teks tetap bisa ditulis,
   /// tetapi tombol Kirim menjadi tanda "sedang bekerja".
   final bool working;
   final String? workingLabel;
@@ -296,11 +296,11 @@ class AiComposerState extends ConsumerState<AiComposer> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final hint = _recording ? 'Merekam voice note…' : (widget.enabled ? 'Pesan untuk Tim AI' : (widget.disabledReason ?? 'Tunggu sebentar…'));
+    final hint = _recording ? 'Merekam voice note…' : (widget.enabled ? 'Pesan untuk Asisten AI' : (widget.disabledReason ?? 'Tunggu sebentar…'));
 
     final Widget trailing;
     if (widget.working && !_recording) {
-      trailing = _WorkingButton(label: widget.workingLabel ?? 'Tim AI sedang bekerja', progress: widget.progress);
+      trailing = _WorkingButton(label: widget.workingLabel ?? 'Asisten AI sedang bekerja', progress: widget.progress);
     } else if (_hasContent && !_recording) {
       trailing = IconButton.filled(
         key: const Key('ai-send'),
@@ -474,7 +474,7 @@ class AiComposerState extends ConsumerState<AiComposer> {
   }
 }
 
-/// Tombol kanan saat Tim AI bekerja: cincin berputar (atau kemajuan unggah)
+/// Tombol kanan saat Asisten AI bekerja: cincin berputar (atau kemajuan unggah)
 /// dengan kotak "stop". Kirim dimatikan; ketuk untuk penjelasan.
 class _WorkingButton extends StatelessWidget {
   const _WorkingButton({required this.label, this.progress});

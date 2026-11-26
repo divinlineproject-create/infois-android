@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:infois/ui/theme.dart';
 import 'package:infois/ui/widgets/ai_markdown.dart';
 
-/// Markdown ringan jawaban Tim AI (tanpa paket tambahan).
+/// Markdown ringan jawaban Asisten AI (tanpa paket tambahan).
 void main() {
   const answer = '''
 ## Ringkasan hari ini

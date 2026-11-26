@@ -77,7 +77,7 @@ class _HelpErrorView extends StatelessWidget {
   }
 }
 
-/// "Belum menemukan jawaban? Tanya Tim AI" (hanya bila Tim AI terbuka).
+/// "Belum menemukan jawaban? Tanya Asisten AI" (hanya bila Asisten AI terbuka).
 class _AskTeamAi extends ConsumerWidget {
   const _AskTeamAi({this.question});
 
@@ -94,7 +94,7 @@ class _AskTeamAi extends ConsumerWidget {
       child: ListTile(
         leading: Icon(Icons.auto_awesome_outlined, color: Theme.of(context).colorScheme.primary),
         title: const Text('Belum menemukan jawaban?'),
-        subtitle: const Text('Tanyakan langsung ke Tim AI.'),
+        subtitle: const Text('Tanyakan langsung ke Asisten AI.'),
         trailing: const Icon(Icons.chevron_right),
         onTap: () => context.push('/ai/percakapan', extra: question),
       ),
@@ -276,7 +276,7 @@ class _HelpHomeScreenState extends ConsumerState<HelpHomeScreen> {
         if (data.isEmpty) {
           return [
             const SizedBox(height: 32),
-            const EmptyState(key: Key('help-empty'), icon: Icons.menu_book_outlined, title: 'Panduan sedang kami siapkan', message: 'Sementara ini, tanyakan langsung ke Tim AI atau pemilik usaha Anda.'),
+            const EmptyState(key: Key('help-empty'), icon: Icons.menu_book_outlined, title: 'Panduan sedang kami siapkan', message: 'Sementara ini, tanyakan langsung ke Asisten AI atau pemilik usaha Anda.'),
             const _AskTeamAi(),
           ];
         }

@@ -4,7 +4,7 @@ Kontrak API antara aplikasi HP (Flutter, folder `android/`) dan `backoffice` (La
 Semua endpoint ada di bawah **`/api/v1`**, berformat JSON, pesan galat dalam Bahasa Indonesia.
 
 - Kode: `backoffice/routes/api.php`, `app/Http/Controllers/Api/V1/*`, `app/Services/Mobile/*`.
-- Tes: `backoffice/tests/Feature/Mobile/*` (Tim AI: `MobileAiTest.php`, Laporan: `MobileReportsTest.php`, Catatan: `MobileRecordsTest.php`, Pusat Bantuan: `MobileHelpApiTest.php`); uji langsung dari sisi HP ke server sungguhan: `android/test_live/ai_live_test.dart`, `android/test_live/records_live_test.dart` (lihat komentar di atas file untuk cara menjalankan).
+- Tes: `backoffice/tests/Feature/Mobile/*` (Asisten AI: `MobileAiTest.php`, Laporan: `MobileReportsTest.php`, Catatan: `MobileRecordsTest.php`, Pusat Bantuan: `MobileHelpApiTest.php`); uji langsung dari sisi HP ke server sungguhan: `android/test_live/ai_live_test.dart`, `android/test_live/records_live_test.dart` (lihat komentar di atas file untuk cara menjalankan).
 
 ## 1. Aturan umum
 
@@ -41,7 +41,7 @@ Semua endpoint ada di bawah **`/api/v1`**, berformat JSON, pesan galat dalam Bah
 | 401 | `butuh_kode_2fa` / `kode_2fa_salah` | Login akun dengan verifikasi dua langkah tanpa kode / kode salah (lihat §3 `POST /auth/login`) |
 | 429 | `kode_2fa_terlalu_sering` | Kode verifikasi salah > 5 kali (dikunci ±5 menit), atau email kode diminta terlalu cepat/terlalu sering (lihat §3 `POST /auth/login`). Selalu dengan `retry_after` (detik) + header `Retry-After`; pesan menyebut waktunya |
 | 429 | — | Terlalu sering (login: 10/menit; API: 240/menit) |
-| 503 | `kanal_pemeliharaan` | Aplikasi HP dimatikan sementara oleh admin Infois (Administrator › Kanal Tim AI). Semua rute kecuali `GET /ping` dan `POST /auth/logout`; header `Retry-After: 300`; `message` dari admin atau kalimat bawaan. **Bukan** alasan keluar: aplikasi menampilkan spanduk "Aplikasi sedang pemeliharaan" + pesannya, transaksi tetap di antrean HP (tanpa menambah hitungan percobaan) dan dikirim saat kanal dibuka lagi (coba ulang tiap 5 menit / tombol Coba lagi; sinkron latar juga berhenti dengan hasil `maintenance`). |
+| 503 | `kanal_pemeliharaan` | Aplikasi HP dimatikan sementara oleh admin Infois (Administrator › Kanal Asisten AI). Semua rute kecuali `GET /ping` dan `POST /auth/logout`; header `Retry-After: 300`; `message` dari admin atau kalimat bawaan. **Bukan** alasan keluar: aplikasi menampilkan spanduk "Aplikasi sedang pemeliharaan" + pesannya, transaksi tetap di antrean HP (tanpa menambah hitungan percobaan) dan dikirim saat kanal dibuka lagi (coba ulang tiap 5 menit / tombol Coba lagi; sinkron latar juga berhenti dengan hasil `maintenance`). |
 
 ## 2. Sistem
 
@@ -142,7 +142,7 @@ Pemetaan menu (PLAN-MOBILE §7.1):
 | `pos`, `shift` (Kasir, buka/tutup shift) | `issue-invoice` + `record-payment` + `Create:Invoice` |
 | `void_sale` | `void-invoice` |
 | `reports` | `view-reports` |
-| `ai` (Tim AI) | `use-ai-assistant` |
+| `ai` (Asisten AI) | `use-ai-assistant` |
 | `stock` | `ViewAny:ProductService` atau `ViewAny:StockOpname` |
 | `cash_journal` | `post-journal` |
 | `records` (Catatan) | `ViewAny:Invoice` atau `stock` atau `cash_journal` |
@@ -154,7 +154,7 @@ Satu perusahaan bisa hilang dari HP tanpa login ikut berakhir: pemilik menutupny
 
 | Kejadian | Bukti yang dipakai aplikasi | Sikap aplikasi |
 |---|---|---|
-| 403 `perusahaan_ditutup` dari rute 🏢 mana pun (sinkron, Laporan, Tim AI, …) | Kode itu sendiri | Dicatat "ditutup" |
+| 403 `perusahaan_ditutup` dari rute 🏢 mana pun (sinkron, Laporan, Asisten AI, …) | Kode itu sendiri | Dicatat "ditutup" |
 | 403 `bukan_anggota` dari sinkron (kirim/tarik) | Lalu `GET /me` berhasil dan perusahaan itu **tidak ada** di `tenants` (atau `GET /me` 403 `akses_hp_tidak_tersedia` dan perusahaan itu **tidak ada** di `tenants` daftar tolak) | Dicatat "dikeluarkan" |
 | 403 `bukan_anggota`, tetapi `GET /me` masih memuat perusahaan itu / gagal / offline | Tidak cukup | Tidak ada yang dihapus; dicek lagi pada sinkron berikutnya (15 menit / dibuka lagi / setelah penjualan), tanpa timer coba ulang |
 | Perusahaan hilang dari `GET /me` tanpa `bukan_anggota` | Tidak cukup (bisa karena paket tanpa aplikasi HP, data tetap disimpan) | Tidak ada perubahan |
@@ -167,8 +167,8 @@ Sinkron latar (WorkManager): 403 `perusahaan_ditutup` → dicatat dengan jumlah 
 
 > **Penomoran ulang (2026-10-18):** rilis Play pertama memakai versi **1.0.0** ("Infois POS", sudah termasuk penanganan ini). Karena itu server **wajib** memakai `INFOIS_MOBILE_CLOSED_CODE_MIN_VERSION=1.0.0` (atau ubah bawaan `closed_code_min_version` ke `1.0.0`), dan `INFOIS_MOBILE_MIN_VERSION` tidak boleh di atas `1.0.0`. Tanpa itu aplikasi 1.0.0 mendapat `bukan_anggota` (tetap tertangani lewat `GET /me`, tetapi tanpa pesan "ditutup") atau diminta memperbarui. Kode: `android/lib/state/session.dart` (`GoneCompany`, `companyGone`, `acknowledgeGone`, `refreshMe(notMemberOf:)`), `android/lib/state/sync_controller.dart`, `android/lib/services/background_sync.dart`; tes `android/test/closed_company_test.dart`.
 
-### Tim AI di Telegram (catatan, bukan endpoint HP)
-Akun Telegram dihubungkan ke satu perusahaan dengan dua cara: (1) di bot tekan **Bagikan nomor saya** — hanya nomor milik pengirim sendiri yang diterima, nomornya harus sama dengan **Nomor HP (untuk Telegram)** di profil web (`/app/profile`, kolom `users.phone`; awalan +62/62/0, spasi, dan tanda hubung disamakan); bila user punya beberapa perusahaan yang paketnya membuka Telegram dan ia punya akses Tim AI, bot menampilkan tombol pilih perusahaan; nomor yang dipakai lebih dari satu akun ditolak; (2) kode sekali pakai dari Tim AI web › Saluran Telegram › Hubungkan. Hak akses di Telegram = role user itu di perusahaan tersebut (sama dengan web). Aplikasi HP cukup mengarahkan pengguna ke cara ini bila ditanya; tidak ada endpoint API-nya.
+### Asisten AI di Telegram (catatan, bukan endpoint HP)
+Akun Telegram dihubungkan ke satu perusahaan dengan dua cara: (1) di bot tekan **Bagikan nomor saya** — hanya nomor milik pengirim sendiri yang diterima, nomornya harus sama dengan **Nomor HP (untuk Telegram)** di profil web (`/app/profile`, kolom `users.phone`; awalan +62/62/0, spasi, dan tanda hubung disamakan); bila user punya beberapa perusahaan yang paketnya membuka Telegram dan ia punya akses Asisten AI, bot menampilkan tombol pilih perusahaan; nomor yang dipakai lebih dari satu akun ditolak; (2) kode sekali pakai dari Asisten AI web › Saluran Telegram › Hubungkan. Hak akses di Telegram = role user itu di perusahaan tersebut (sama dengan web). Aplikasi HP cukup mengarahkan pengguna ke cara ini bila ditanya; tidak ada endpoint API-nya.
 
 ### Tablet kasir bersama: PIN 🏢 (aplikasi ≥ 1.0.1, build 2)
 Tablet login penuh sekali (pemilik login tablet = "host"). Kasir lain membuka aplikasi dengan **pilih nama + PIN 6 angka** (per anggota per perusahaan, kolom `pin_*` di `tenant_user`). PIN diatur sendiri (`PUT /pin` di aplikasi, atau web Profil › PIN aplikasi HP) atau oleh pengelola anggota di web (Tim & Akses › Anggota › PIN aplikasi; PIN Owner hanya oleh Owner). Aturan PIN: 6 angka, bukan angka sama semua / berurutan.
@@ -422,14 +422,14 @@ nonaktif di katalog HP diperlakukan sebagai `unmatched`. Galat: 422 `koin_habis`
 ### `GET /branding/logo`
 File logo perusahaan (untuk dicetak hitam-putih di struk). 404 bila tidak ada.
 
-## 6. Tim AI 🏢
+## 6. Asisten AI 🏢
 
-Semua endpoint butuh permission `use-ai-assistant` (menu `ai` di `GET /me`); tanpa itu → 403 `tidak_berhak` ("Anda tidak punya akses Tim AI di {perusahaan}. Hubungi pemilik usaha."). Aturan sama dengan web: koin ditahan per proses (maks. 25 koin) lalu dipotong sesuai pemakaian, usulan dijalankan lewat `ProposalExecutor` dengan permission pengguna (kasir tidak bisa menyetujui yang tidak boleh ia lakukan di web). Pesan dari HP tercatat dengan `channel: "mobile"`. Pengguna hanya melihat percakapan miliknya sendiri.
+Semua endpoint butuh permission `use-ai-assistant` (menu `ai` di `GET /me`); tanpa itu → 403 `tidak_berhak` ("Anda tidak punya akses Asisten AI di {perusahaan}. Hubungi pemilik usaha."). Aturan sama dengan web: koin ditahan per proses (maks. 25 koin) lalu dipotong sesuai pemakaian, usulan dijalankan lewat `ProposalExecutor` dengan permission pengguna (kasir tidak bisa menyetujui yang tidak boleh ia lakukan di web). Pesan dari HP tercatat dengan `channel: "mobile"`. Pengguna hanya melihat percakapan miliknya sendiri.
 
 | HTTP | `code` | Arti |
 |---|---|---|
 | 503 | `ai_tidak_tersedia` | AI dimatikan admin / belum dikonfigurasi. `GET /ai/overview` tetap 200 dengan `enabled: false` |
-| 403 | `kanal_tidak_termasuk_paket` | Paket perusahaan belum membuka Tim AI lewat HP (trial selalu web saja; paket berbayar mengikuti pengaturan admin). `message` menyebut paket termurah yang membukanya. Berlaku untuk `POST /ai/messages`, `POST /ai/conversations`, dan `POST /ai/proposals/{id}/approve|reject` (Setujui/Tolak dari web tetap bisa); riwayat (`GET /ai/conversations`, `GET /ai/conversations/{id}`, `GET /ai/runs/{id}`, lampiran), hapus percakapan, dan `PATCH /ai/settings` tetap terbuka. `GET /ai/overview` tetap 200 dengan `enabled: false`, `reason` = kode ini, dan `channels.message` → tampilkan penjelasan, bukan chat |
+| 403 | `kanal_tidak_termasuk_paket` | Paket perusahaan belum membuka Asisten AI lewat HP (trial selalu web saja; paket berbayar mengikuti pengaturan admin). `message` menyebut paket termurah yang membukanya. Berlaku untuk `POST /ai/messages`, `POST /ai/conversations`, dan `POST /ai/proposals/{id}/approve|reject` (Setujui/Tolak dari web tetap bisa); riwayat (`GET /ai/conversations`, `GET /ai/conversations/{id}`, `GET /ai/runs/{id}`, lampiran), hapus percakapan, dan `PATCH /ai/settings` tetap terbuka. `GET /ai/overview` tetap 200 dengan `enabled: false`, `reason` = kode ini, dan `channels.message` → tampilkan penjelasan, bukan chat |
 | 422 | `koin_habis` | Koin tidak cukup ("Koin tidak cukup (tersisa 0 koin). Isi ulang koin di menu Services › Dompet Koin.") → tawarkan buka web |
 | 429 | `sedang_diproses` | Masih ada 3 permintaan AI aktif di perusahaan; coba lagi |
 | 422 | `file_tidak_didukung` / `file_terlalu_besar` | Lampiran ditolak (pesan menyebut nama file) |
@@ -458,7 +458,7 @@ Semua endpoint butuh permission `use-ai-assistant` (menu `ai` di `GET /me`); tan
 - `teams` = tim yang bisa bekerja untuk pengguna ini (sesuai hak akses, sama dengan web). `tone` ∈ sky, amber, emerald, indigo, violet, rose, teal, orange; `icon` = nama Heroicon outline tanpa awalan. Tim `locked` (belum termasuk paket) tetap ditampilkan dengan gembok + `unlock_plan`.
 - `coins`: koin string 3 desimal; `percent` = terpakai ÷ (terpakai + tersedia) untuk bilah pemakaian; `used` = pemakaian bulan ini.
 - `suggestions` = contoh perintah tim yang terbuka (chip di layar awal).
-- `reason` (saat `enabled: false`): `ai_tidak_tersedia` | `kanal_tidak_termasuk_paket`. `channels` = kanal Tim AI yang dibuka paket (web selalu `true`); bila `mobile: false`, `unlock_plan` + `message` menjelaskan paket yang membukanya, mis. "Tim AI lewat aplikasi HP belum termasuk paket trial. Tersedia di paket berbayar mulai paket Starter. Sementara ini, Tim AI tetap bisa dipakai lewat web." `GET /me` juga mengirim `menus.ai_channel_locked` (menu `ai` tetap mengikuti hak akses).
+- `reason` (saat `enabled: false`): `ai_tidak_tersedia` | `kanal_tidak_termasuk_paket`. `channels` = kanal Asisten AI yang dibuka paket (web selalu `true`); bila `mobile: false`, `unlock_plan` + `message` menjelaskan paket yang membukanya, mis. "Asisten AI lewat aplikasi HP belum termasuk paket trial. Tersedia di paket berbayar mulai paket Starter. Sementara ini, Asisten AI tetap bisa dipakai lewat web." `GET /me` juga mengirim `menus.ai_channel_locked` (menu `ai` tetap mengikuti hak akses).
 
 ### `PATCH /ai/settings`
 `{ "fast_mode": true }` → `{ "fast_mode": true }`. Mode cepat: penjualan yang barangnya ada di Katalog dan harganya jelas langsung tercatat tanpa Setujui (sama dengan web).
@@ -904,7 +904,7 @@ Kode: `lib/data/reports_api.dart`, `lib/data/records_api.dart`, model `lib/domai
 | Hak akses Catatan | Bagian ditentukan dari `tenants[].permissions` di login/`GET /me` (`ViewAny:Invoice` → Penjualan & uang masuk, `ViewAny:Bill` → Pembelian & uang keluar, `ViewAny:JournalEntry` + menu `cash_journal` atau `reports` → Kas & Bank, `ViewAny:ProductService` → Stok, `ViewAny:Customer`, `ViewAny:Supplier`); sesi lama tanpa daftar permission memakai `menus` (`records`, `stock`, `cash_journal`). Bila menu dari sinkron berubah (atau sesi belum punya daftar permission), HP memanggil `GET /me` di belakang. Server tetap mengecek ulang (403 `tidak_berhak` ditampilkan sebagai "Belum punya akses"). Galat lain tampil sebagai kalimat biasa ("Data dari server belum bisa dibaca…"), bukan teks teknis. |
 | Cetak ulang struk | `GET /records/sales/{id}/receipt` → `ReceiptBuilder.sale(..., reprint: true)` ke printer Bluetooth yang sama dengan kasir; pengaturan struk dari `sync/pull.receipt`. Laporan shift: `GET /reports/shifts/{id}` → `ReceiptBuilder.shiftReport` dengan ringkasan yang dihitung ulang. |
 | Kirim WhatsApp / Bagikan | HP membuka `https://wa.me/<nomor 62…>?text=…` (url_launcher) dengan teks siap kirim (nota + `verification.url`, atau tagihan pelanggan dari `outstanding_invoices`); nomor pelanggan bila ada, kalau tidak WhatsApp meminta pilih kontak. Ringkasan laporan lewat menu Bagikan HP (share_plus). Bila WhatsApp/browser tidak ada, teks disalin ke papan klip sebagai cadangan. |
-| PDF & lampiran | `GET /records/sales/{id}/pdf`, lampiran non-foto, dan file Tim AI (`GET /ai/attachments/...`) diunduh dengan token + `X-Tenant` (progres tampil), disimpan ke folder **Download** HP (Android 10+: MediaStore tanpa izin; Android 9 ke bawah: izin penyimpanan) dan salinan di folder aplikasi, lalu pesan "Tersimpan di Download" dengan tombol **Buka** (open_filex) dan **Bagikan** (share_plus). Foto lampiran ditampilkan langsung (`GET /records/attachments/...` dengan token). |
+| PDF & lampiran | `GET /records/sales/{id}/pdf`, lampiran non-foto, dan file Asisten AI (`GET /ai/attachments/...`) diunduh dengan token + `X-Tenant` (progres tampil), disimpan ke folder **Download** HP (Android 10+: MediaStore tanpa izin; Android 9 ke bawah: izin penyimpanan) dan salinan di folder aplikasi, lalu pesan "Tersimpan di Download" dengan tombol **Buka** (open_filex) dan **Bagikan** (share_plus). Foto lampiran ditampilkan langsung (`GET /records/attachments/...` dengan token). |
 | Batal / retur | Tombol **Batalkan penjualan** hanya bila `can.void` true (alasan wajib); retur selalu diarahkan ke website. |
 | Offline | Laporan & Catatan menampilkan "… butuh internet"; data terakhir yang sudah tampil tetap terlihat sampai dimuat ulang. |
 
@@ -960,9 +960,9 @@ Body `{ "helpful": true }` → `{ "my_vote": true, "message": "Terima kasih! Sen
 Gambar/video artikel dengan token (`path` relatif di folder Pusat Bantuan, mis. `images/langkah-1.png`, `videos/demo.mp4`, `covers/sampul.png`). Aturannya sama dengan route web `/bantuan/media/{path}` (`HelpMediaResponse::published`): hanya file yang dipakai artikel terbit, path aneh (`..`) → 404. Mendukung **HTTP Range** (`Range: bytes=0-1023` → 206 + `Content-Range`, di luar ukuran → 416) supaya video bisa digeser; `Cache-Control: private, max-age=3600`, `X-Content-Type-Options: nosniff`.
 
 ### Aplikasi (≥ 1.2.0)
-- **Akun › Pusat Bantuan** (juga ikon ? di laci Riwayat Tim AI): kotak cari (jeda 350 ms), kategori, artikel pilihan & paling sering dibaca, "Belum menemukan jawaban? Tanya Tim AI" (bila Tim AI terbuka).
+- **Akun › Pusat Bantuan** (juga ikon ? di laci Riwayat Asisten AI): kotak cari (jeda 350 ms), kategori, artikel pilihan & paling sering dibaca, "Belum menemukan jawaban? Tanya Asisten AI" (bila Asisten AI terbuka).
 - Pembaca artikel: HTML diurai sendiri (paket `html`) menjadi widget; daftar isi (ikon di bilah atas + "Daftar isi" di atas artikel) melompat ke bagian; gambar diunduh dengan token (ketuk untuk memperbesar); video unggahan diunduh sekali dengan token lalu diputar pemutar video HP; YouTube/Vimeo dibuka di luar aplikasi setelah konfirmasi; "Apakah artikel ini membantu? Ya / Tidak"; artikel terkait.
-- Tautan bantuan dari jawaban Tim AI (`https://dashboard…/bantuan/{slug}` atau `/app/{perusahaan}/pusat-bantuan/artikel/{slug}`) dibuka di layar artikel aplikasi; halaman panel lain tetap tidak dibuka.
+- Tautan bantuan dari jawaban Asisten AI (`https://dashboard…/bantuan/{slug}` atau `/app/{perusahaan}/pusat-bantuan/artikel/{slug}`) dibuka di layar artikel aplikasi; halaman panel lain tetap tidak dibuka.
 
 ## 9. Web terkait
 - **Tim & Akses › Perangkat** (`/app/{tenant}/tim/perangkat`, permission `manage-members`): daftar HP, kode kasir, pengguna, gudang, terakhir sinkron, transaksi tertunda di HP, **Cabut akses / Izinkan lagi**, atur nama & gudang.

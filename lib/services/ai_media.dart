@@ -9,7 +9,7 @@ import 'package:record/record.dart';
 
 import '../domain/ai_models.dart';
 
-/// Pemilih foto (kamera/galeri) dan file (PDF/Excel) untuk lampiran Tim AI.
+/// Pemilih foto (kamera/galeri) dan file (PDF/Excel) untuk lampiran Asisten AI.
 /// Dipisah dari layar supaya bisa diganti di tes.
 abstract class AiMediaPicker {
   Future<AiDraftAttachment?> pickImage({required bool camera});

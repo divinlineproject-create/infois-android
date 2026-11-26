@@ -7,7 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 /// Izin Android yang dijelaskan dulu sebelum jendela izin sistem muncul.
 enum AppPermission {
-  /// Voice note Tim AI (RECORD_AUDIO).
+  /// Voice note Asisten AI (RECORD_AUDIO).
   microphone,
 
   /// Printer struk Bluetooth yang sudah dipasangkan (Android 12+:
@@ -79,7 +79,7 @@ final permissionGateProvider = Provider<PermissionGate>((ref) => const DevicePer
 (String, String) permissionRationale(AppPermission permission) => switch (permission) {
       AppPermission.microphone => (
           'Izinkan mikrofon',
-          'Infois memakai mikrofon hanya saat Anda menekan tombol voice note di Tim AI atau menahan tombol Suara di Input AI kasir. Rekaman dikirim ke server Infois dan penyedia AI kami untuk diubah menjadi teks lalu diproses. Infois tidak merekam di luar itu.',
+          'Infois memakai mikrofon hanya saat Anda menekan tombol voice note di Asisten AI atau menahan tombol Suara di Input AI kasir. Rekaman dikirim ke server Infois dan penyedia AI kami untuk diubah menjadi teks lalu diproses. Infois tidak merekam di luar itu.',
         ),
       AppPermission.bluetoothPrinter => (
           'Izinkan Bluetooth',

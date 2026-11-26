@@ -12,7 +12,7 @@ di bagian 2 "Data yang kami kumpulkan" (`landing/resources/markdown/pages/kebija
 8. **Aplikasi Android Infois**: pengenal perangkat acak yang dibuat aplikasi dan nama HP (untuk
    daftar perangkat di Tim & Akses dan mencabut akses HP), versi aplikasi, serta data transaksi
    kasir yang disimpan sementara di HP saat offline sampai terkirim ke server. Aplikasi meminta
-   izin mikrofon hanya untuk merekam voice note Tim AI, dan izin Bluetooth hanya untuk printer
+   izin mikrofon hanya untuk merekam voice note Asisten AI, dan izin Bluetooth hanya untuk printer
    struk. Di Android 11 ke bawah, sistem juga meminta izin lokasi untuk mencari printer
    Bluetooth; aplikasi tidak membaca, menyimpan, atau mengirim lokasi Anda. Foto nota diambil
    lewat aplikasi kamera HP hanya saat Anda memilihnya. Izin kamera dipakai hanya saat Anda
@@ -29,13 +29,13 @@ menolak masuk bila perusahaan tidak punya paket aktif yang termasuk aplikasi HP.
 
 - Email & kata sandi khusus, email sudah terverifikasi, **tanpa** 2FA/kode email.
 - Perusahaan contoh dengan langganan **aktif yang termasuk aplikasi HP**, katalog berisi barang,
-  dan Tim AI menyala (jatah koin cukup). Akun demo Kopi Senja bisa dipakai bila paketnya
+  dan Asisten AI menyala (jatah koin cukup). Akun demo Kopi Senja bisa dipakai bila paketnya
   memenuhi syarat. Catatan: akun `@kopisenja.example` tidak bisa dihapus (terkunci di server),
   jadi peninjau tidak bisa mencoba hapus akun di sana; sebutkan di instruksi.
 - Instruksi untuk peninjau (Inggris):
   > Log in with the credentials above. The app is a companion for existing Infois business
   > customers; accounts and plans are managed by the business owner outside the app. No
-  > purchases are possible in the app. Tabs: Kasir (point of sale, works offline), Tim AI (AI
+  > purchases are possible in the app. Tabs: Kasir (point of sale, works offline), Asisten AI (AI
   > assistant; type "2 cappuccino, cash" and tap Setujui on the proposal), Laporan (reports),
   > Catatan (records), Akun (account; "Hapus akun" opens the account deletion page). A Bluetooth
   > thermal printer is optional. In Kasir, the scan icon in the search bar scans a product
@@ -57,7 +57,7 @@ menolak masuk bila perusahaan tidak punya paket aktif yang termasuk aplikasi HP.
 - *Does the app share the user's current physical location?* **Tidak.**
 - *Does the app allow users to purchase digital goods?* **Tidak** (pembelian tidak ada di aplikasi).
 - *Unrestricted internet access (browser)?* **Tidak** (hanya membuka tautan tertentu ke browser HP).
-- Konten buatan AI: Tim AI menghasilkan teks usulan pencatatan; pengguna menyetujui sendiri.
+- Konten buatan AI: Asisten AI menghasilkan teks usulan pencatatan; pengguna menyetujui sendiri.
   Bila kuesioner menanyakan fitur AI generatif, jawab **Ya** (teks), bukan gambar/suara.
 - Perkiraan hasil: **Semua umur / PEGI 3 / IARC 3+**.
 
@@ -82,7 +82,7 @@ menolak masuk bila perusahaan tidak punya paket aktif yang termasuk aplikasi HP.
 
 ## Kebijakan Pembayaran (penting untuk lolos review)
 
-Paket berlangganan dan koin Tim AI dibeli di web (Midtrans). Google Play melarang aplikasi
+Paket berlangganan dan koin Asisten AI dibeli di web (Midtrans). Google Play melarang aplikasi
 mengarahkan pengguna ke pembayaran di luar Google Play untuk barang/layanan digital. Yang sudah
 dilakukan di aplikasi:
 
@@ -90,11 +90,11 @@ dilakukan di aplikasi:
   juga dihapus (dasbor memuat menu Langganan).
 - Pesan server tentang paket/koin diganti kalimat netral: "Hubungi pemilik usaha atau admin
   Infois Anda" (`lib/core/store_policy.dart`).
-- Jawaban Tim AI yang mengajak isi ulang koin/upgrade disaring di HP, dan tautan ke halaman
+- Jawaban Asisten AI yang mengajak isi ulang koin/upgrade disaring di HP, dan tautan ke halaman
   pembelian diblokir.
 - Login hanya untuk pelanggan yang sudah aktif; trial tidak bisa masuk dari HP.
 
-**TODO backoffice (agar tidak bergantung pada saringan di HP):** saat percakapan Tim AI datang
+**TODO backoffice (agar tidak bergantung pada saringan di HP):** saat percakapan Asisten AI datang
 dari kanal `mobile`, prompt sistem di `app/Services/Ai/AgentRunner.php` masih berisi:
 
 - "...jelaskan singkat bahwa tim tersebut bisa dibuka lewat menu Langganan" (bagian tim terkunci)
@@ -102,6 +102,6 @@ dari kanal `mobile`, prompt sistem di `app/Services/Ai/AgentRunner.php` masih be
 
 Untuk kanal `mobile` ganti keduanya dengan: "Jangan menyebut harga, nama paket, menu Langganan,
 Dompet Koin, atau cara membeli/isi ulang. Bila ditanya, sampaikan bahwa pengaturan akun dan jatah
-Tim AI diurus oleh pemilik usaha atau admin Infois." Juga `MobileAccess::deniedPayload` dan
+Asisten AI diurus oleh pemilik usaha atau admin Infois." Juga `MobileAccess::deniedPayload` dan
 `AiChannels::lockedMessage(MOBILE)` sebaiknya mengirim kalimat netral untuk aplikasi (HP sudah
 menggantinya, tetapi versi aplikasi lama/baru lebih aman bila server ikut netral).

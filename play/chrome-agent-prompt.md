@@ -26,7 +26,7 @@ ATURAN PENTING (wajib dipatuhi):
 
 DATA YANG DIPAKAI:
 - Developer: PT. DEVINE AUTADA TECH
-- Nama aplikasi: Infois POS: Kasir & Tim AI
+- Nama aplikasi: Infois POS: Kasir & Asisten AI
 - Package (sudah tetap di AAB): id.infois.infois
 - Bahasa default: Indonesian – id-ID
 - Jenis: App (bukan Game). Gratis (Free). Tanpa iklan.
@@ -41,7 +41,7 @@ DATA YANG DIPAKAI:
 LANGKAH 1 — Create app (Buat aplikasi)
 =====================================================================
 All apps / Semua aplikasi › Create app / Buat aplikasi:
-- App name: Infois POS: Kasir & Tim AI
+- App name: Infois POS: Kasir & Asisten AI
 - Default language: Indonesian – id-ID
 - App or game: App
 - Free or paid: Free
@@ -59,7 +59,7 @@ b) App access:
    - Any other information (tempel apa adanya):
      Log in with the credentials above. The app is a companion for existing Infois business
      customers; accounts and plans are managed by the business owner outside the app. No
-     purchases are possible in the app. Tabs: Kasir (point of sale, works offline), Tim AI (AI
+     purchases are possible in the app. Tabs: Kasir (point of sale, works offline), Asisten AI (AI
      assistant; type "2 cappuccino, cash" and tap Setujui on the proposal), Laporan (reports),
      Catatan (records), Akun (account; "Hapus akun" opens the account deletion page). A Bluetooth
      thermal printer is optional. In Kasir, the scan icon in the search bar scans a product
@@ -132,9 +132,9 @@ a) Store settings:
    - Contact details: email [ISI], website https://infois.ai. Telepon: kosongkan kecuali saya beri.
 
 b) Main store listing (id-ID):
-   - App name: Infois POS: Kasir & Tim AI
+   - App name: Infois POS: Kasir & Asisten AI
    - Short description:
-     Kasir offline, laporan usaha, dan Tim AI untuk pengguna Infois di HP.
+     Kasir offline, laporan usaha, dan Asisten AI untuk pengguna Infois di HP.
    - Full description: tempel PERSIS teks di blok "Deskripsi lengkap" yang saya berikan
      terpisah (dari file play/listing-id.md). Bila saya belum memberikannya, berhenti dan minta.
    - Graphics (app icon 512x512, feature graphic 1024x500, phone screenshots, tablet
@@ -151,7 +151,7 @@ LANGKAH 4 — Siapkan uji internal (Testing › Internal testing) — TANPA melu
   - Unggahan AAB: JANGAN diunggah sendiri. Berhenti di sini dan beri tahu saya untuk memilih
     file app-release.aab.
   - Setelah saya unggah: Release name "1.0.0 (1)". Release notes id-ID:
-    Rilis pertama Infois POS di Google Play: kasir offline dengan foto barang, kategori, scan barcode kamera, dan printer Bluetooth, Tim AI (teks, voice note, foto nota), laporan penjualan, catatan transaksi, unduh PDF, dan hapus akun dari menu Akun.
+    Rilis pertama Infois POS di Google Play: kasir offline dengan foto barang, kategori, scan barcode kamera, dan printer Bluetooth, Asisten AI (teks, voice note, foto nota), laporan penjualan, catatan transaksi, unduh PDF, dan hapus akun dari menu Akun.
   - Tekan Save, lalu Review release. BERHENTI di halaman review (jangan Start rollout).
 
 =====================================================================
@@ -169,7 +169,7 @@ Tulis ringkasan untuk saya:
 - [ ] Akun developer Play atas nama PT. DEVINE AUTADA TECH sudah aktif (organisasi, D-U-N-S terverifikasi).
 - [ ] Email dukungan siap dipakai (muncul publik di toko).
 - [ ] Akun peninjau: email terverifikasi, **tanpa** 2FA, perusahaan dengan paket aktif yang
-      termasuk aplikasi HP (Android), katalog berisi barang dan foto, Tim AI menyala.
+      termasuk aplikasi HP (Android), katalog berisi barang dan foto, Asisten AI menyala.
 - [ ] Landing sudah di-deploy: halaman publik `https://infois.ai/hapus-akun` terbuka tanpa login,
       dan Kebijakan Privasi memuat paragraf "Aplikasi Android Infois POS". Bila teks privasi
       pernah diubah di Administrator › Website, tekan "Muat draf bawaan" lalu Simpan.

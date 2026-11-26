@@ -34,7 +34,7 @@ class _Tab {
   final Widget Function() builder;
 }
 
-/// Navigasi: Kasir · Tim AI · Laporan · Catatan · Akun. Menu tampil sesuai
+/// Navigasi: Kasir · AI · Laporan · Catatan · Akun. Menu tampil sesuai
 /// hak akses role di web. Tegak: bilah bawah. Miring (tablet kasir): bilah
 /// samping kiri dan bilah atas yang pendek, supaya tinggi layar untuk isi.
 class HomeShell extends ConsumerStatefulWidget {
@@ -50,7 +50,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
 
   List<_Tab> _tabs(Menus menus) => [
         if (menus.pos) _Tab('kasir', 'Kasir', Icons.point_of_sale_outlined, Icons.point_of_sale, () => const KasirScreen()),
-        if (menus.ai) _Tab('ai', 'Tim AI', Icons.auto_awesome_outlined, Icons.auto_awesome, () => const AiHomeScreen()),
+        if (menus.ai) _Tab('ai', 'AI', Icons.auto_awesome_outlined, Icons.auto_awesome, () => const AiHomeScreen()),
         if (menus.reports) _Tab('laporan', 'Laporan', Icons.insights_outlined, Icons.insights, () => const LaporanScreen()),
         if (menus.records) _Tab('catatan', 'Catatan', Icons.receipt_long_outlined, Icons.receipt_long, () => const CatatanScreen()),
         _Tab('akun', 'Akun', Icons.person_outline, Icons.person, () => const AkunScreen()),
@@ -66,13 +66,13 @@ class _HomeShellState extends ConsumerState<HomeShell> {
     final tabs = _tabs(menus);
     final index = tabs.indexWhere((tab) => tab.key == _selected).clamp(0, tabs.length - 1);
 
-    // Tab Tim AI punya bilah atas sendiri (Riwayat · judul · Percakapan baru)
+    // Tab Asisten AI punya bilah atas sendiri (Riwayat · judul · Percakapan baru)
     // seperti aplikasi chat; status sinkron pindah ke laci Riwayat.
     final aiTab = tabs[index].key == 'ai';
     final maintenance = ref.watch(maintenanceProvider);
     final updateBanner = sync.mustUpdate && !_updateDismissed;
     final anyBanner = updateBanner || maintenance != null;
-    // Tanpa bilah aplikasi (tab Tim AI) spanduk pertama tidak boleh di bawah status bar.
+    // Tanpa bilah aplikasi (tab Asisten AI) spanduk pertama tidak boleh di bawah status bar.
     final bannerTop = aiTab ? EdgeInsetsDirectional.only(start: 16, top: 24 + MediaQuery.paddingOf(context).top) : null;
     final size = MediaQuery.sizeOf(context);
     final side = tabs.length >= 2 && useSideNavigation(size);
@@ -155,11 +155,11 @@ class _HomeShellState extends ConsumerState<HomeShell> {
           // Laporan & Catatan baru memanggil server saat tab-nya pertama dibuka.
           Expanded(child: MediaQuery(
             // Spanduk sudah memakai ruang status bar. Keyboard sudah dikurangi
-            // Scaffold ini dari tinggi isi tab: Scaffold di dalam tab (Tim AI,
+            // Scaffold ini dari tinggi isi tab: Scaffold di dalam tab (Asisten AI,
             // Laporan, Catatan) tidak boleh menguranginya sekali lagi.
             data: MediaQuery.of(context).removePadding(removeTop: aiTab && anyBanner).removeViewInsets(removeBottom: true),
             // Tab tersembunyi tetap hidup tetapi tidak boleh memegang fokus:
-            // isian di tab lain (mis. kotak tulis Tim AI) tidak memunculkan
+            // isian di tab lain (mis. kotak tulis Asisten AI) tidak memunculkan
             // keyboard di atas tab yang sedang dibuka.
             child: IndexedStack(index: index, children: [
               for (final (i, tab) in tabs.indexed)

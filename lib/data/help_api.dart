@@ -30,6 +30,6 @@ class HelpApi {
   }
 
   /// Isi gambar/video artikel dengan token. URL dari server dipakai relatif
-  /// terhadap `/api/v1/` (sama dengan lampiran Tim AI).
+  /// terhadap `/api/v1/` (sama dengan lampiran Asisten AI).
   Future<List<int>> media(String url, {void Function(int received, int total)? onProgress}) => client.bytes(AiApi.relativeApiPath(url), onProgress: onProgress);
 }

@@ -36,7 +36,7 @@ class _Picker implements AiMediaPicker {
       ];
 }
 
-/// Tata letak Tim AI di HP kecil: satu bilah atas, keyboard terbuka, saran
+/// Tata letak Asisten AI di HP kecil: satu bilah atas, keyboard terbuka, saran
 /// yang hilang saat mengetik, dan area ketuk tombol di jawaban.
 void main() {
   setUpAll(() async {
@@ -79,7 +79,7 @@ void main() {
       child: const InfoisApp(),
     ));
     await settle(tester);
-    await tester.tap(find.widgetWithText(NavigationDestination, 'Tim AI'));
+    await tester.tap(find.widgetWithText(NavigationDestination, 'AI'));
     await settle(tester);
   }
 
@@ -90,7 +90,7 @@ void main() {
     await settle(tester);
   }
 
-  testWidgets('tab Tim AI hanya punya satu bilah atas; laci Riwayat menutupi seluruh layar termasuk navigasi bawah', (tester) async {
+  testWidgets('tab Asisten AI hanya punya satu bilah atas; laci Riwayat menutupi seluruh layar termasuk navigasi bawah', (tester) async {
     await pumpApp(tester, size: const Size(360, 780));
     expect(find.byType(AppBar), findsOneWidget);
     expect(find.byKey(const Key('ai-topbar')), findsOneWidget);
@@ -104,7 +104,7 @@ void main() {
     await tester.tapAt(const Offset(350, 760));
     await settle(tester);
     expect(find.byKey(const Key('ai-history-drawer')), findsNothing);
-    expect(find.byKey(const Key('ai-topbar')), findsOneWidget, reason: 'Masih di tab Tim AI.');
+    expect(find.byKey(const Key('ai-topbar')), findsOneWidget, reason: 'Masih di tab Asisten AI.');
 
     // Tab lain tetap memakai bilah aplikasi biasa.
     await tester.tap(find.widgetWithText(NavigationDestination, 'Laporan'));

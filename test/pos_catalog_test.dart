@@ -504,7 +504,7 @@ void main() {
       expect(anyFieldFocused(), isFalse, reason: 'Kembali dari Bayar: kotak cari tidak difokuskan ulang.');
 
       // Tab utama satu per satu tanpa isian fokus.
-      for (final label in ['Tim AI', 'Laporan', 'Catatan', 'Akun', 'Kasir']) {
+      for (final label in ['AI', 'Laporan', 'Catatan', 'Akun', 'Kasir']) {
         await tap(tester, find.descendant(of: find.byType(NavigationBar), matching: find.text(label)));
         expect(anyFieldFocused(), isFalse, reason: 'Tab $label dibuka tanpa isian fokus.');
         expect(tester.testTextInput.isVisible, isFalse, reason: 'Tab $label: keyboard tidak tampil.');
@@ -531,9 +531,9 @@ void main() {
 
     test('nama aplikasi & versi', () {
       expect(AppConfig.name, 'Infois POS');
-      expect(AppConfig.version, '1.0.5');
+      expect(AppConfig.version, '1.0.6');
       final pubspec = File('pubspec.yaml').readAsStringSync();
-      expect(pubspec, contains('version: 1.0.5+7'), reason: '1.0.5 (izin ubah harga, rekap kasir) memakai versionCode 7; 6 = AAB 1.0.4.');
+      expect(pubspec, contains('version: 1.0.6+8'), reason: '1.0.6 (nama Asisten AI) memakai versionCode 8; 7 = AAB 1.0.5.');
       expect(File('android/app/src/main/AndroidManifest.xml').readAsStringSync(), contains('android:label="Infois POS"'));
     });
   });

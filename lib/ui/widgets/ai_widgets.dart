@@ -149,7 +149,7 @@ class CoinUsageBar extends StatelessWidget {
       children: [
         Row(
           children: [
-            Expanded(child: Text('Jatah Tim AI bulan ini', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w600, fontSize: compact ? 13 : null))),
+            Expanded(child: Text('Jatah Asisten AI bulan ini', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w600, fontSize: compact ? 13 : null))),
             const SizedBox(width: 8),
             Text('${coins.percent}% terpakai', style: TextStyle(fontSize: small, color: color, fontWeight: FontWeight.w600)),
           ],
@@ -163,7 +163,7 @@ class CoinUsageBar extends StatelessWidget {
             minHeight: compact ? 5 : 8,
             color: color,
             backgroundColor: color.withValues(alpha: 0.15),
-            semanticsLabel: 'Jatah Tim AI terpakai',
+            semanticsLabel: 'Jatah Asisten AI terpakai',
             semanticsValue: '${coins.percent}%',
           ),
         ),
@@ -195,7 +195,7 @@ class CoinUsageBar extends StatelessWidget {
   static num _num(String value) => num.tryParse(value) ?? 0;
 }
 
-/// Deretan avatar tim yang saling menumpuk (layar awal Tim AI). Tim yang
+/// Deretan avatar tim yang saling menumpuk (layar awal Asisten AI). Tim yang
 /// belum termasuk paket tampil redup dengan gembok.
 class TeamAvatarRow extends StatelessWidget {
   const TeamAvatarRow({super.key, required this.teams, this.size = 30, this.max = 6});
@@ -314,7 +314,7 @@ class AttachmentImage extends ConsumerWidget {
 }
 
 /// Chip file (PDF/Excel/laporan) dengan nama dan ukuran. File dari server
-/// (lampiran terkirim, laporan buatan Tim AI) diketuk untuk diunduh ke folder
+/// (lampiran terkirim, laporan buatan Asisten AI) diketuk untuk diunduh ke folder
 /// Download lalu dibuka / dibagikan.
 class AttachmentChip extends ConsumerWidget {
   const AttachmentChip(this.attachment, {super.key, this.onRemove});
@@ -365,7 +365,7 @@ class AttachmentChip extends ConsumerWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(attachment.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
-                Text(attachment.kind == 'report' ? 'Laporan dari Tim AI · ${attachment.sizeLabel}' : attachment.sizeLabel, style: TextStyle(fontSize: 11, color: mutedText(context))),
+                Text(attachment.kind == 'report' ? 'Laporan dari Asisten AI · ${attachment.sizeLabel}' : attachment.sizeLabel, style: TextStyle(fontSize: 11, color: mutedText(context))),
               ],
             ),
           ),
@@ -377,7 +377,7 @@ class AttachmentChip extends ConsumerWidget {
   }
 }
 
-/// File dari Tim AI (laporan PDF/Excel, dsb.) sebagai kartu dengan tombol
+/// File dari Asisten AI (laporan PDF/Excel, dsb.) sebagai kartu dengan tombol
 /// Buka dan Bagikan. File diunduh sekali dengan token, disimpan di HP (dan
 /// folder Download), lalu dibuka / dibagikan dari salinan itu.
 class AiFileCard extends ConsumerStatefulWidget {
@@ -476,7 +476,7 @@ class _AiFileCardState extends ConsumerState<AiFileCard> {
             ? (_progress == null ? 'Mengunduh…' : 'Mengunduh ${(_progress! * 100).round()}%')
             : saved != null
             ? (saved.inDownloads ? 'Tersimpan di Download' : 'Tersimpan di HP')
-            : '${file.kind == 'report' ? 'Laporan dari Tim AI' : 'File'} · ${file.sizeLabel}';
+            : '${file.kind == 'report' ? 'Laporan dari Asisten AI' : 'File'} · ${file.sizeLabel}';
     final buttonShape = RoundedRectangleBorder(borderRadius: BorderRadius.circular(20));
     return Container(
       key: Key('ai-file-${file.index}'),

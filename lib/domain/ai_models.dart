@@ -1,4 +1,4 @@
-// Model Tim AI dari server (lihat API.md › 6. Tim AI). Semua angka koin
+// Model Asisten AI dari server (lihat API.md › 6. Asisten AI). Semua angka koin
 // disimpan sebagai string 3 desimal; uang di usulan string 2 desimal.
 
 String _s(Object? value, [String fallback = '']) => value == null ? fallback : value.toString();
@@ -13,13 +13,13 @@ List<Map<String, dynamic>> _maps(Object? value) => [for (final item in (value as
 
 DateTime? _date(Object? value) => value == null ? null : DateTime.tryParse(value.toString());
 
-/// Satu tim AI (Tim Penjualan, Tim Gudang, …) dengan warna dan ikon web.
+/// Satu asisten AI (Tim Penjualan, Tim Gudang, …) dengan warna dan ikon web.
 class AiTeam {
   const AiTeam({required this.key, required this.name, this.role = '', this.tone = 'sky', this.icon = '', this.example, this.locked = false, this.unlockPlan});
 
   factory AiTeam.fromJson(Map<String, dynamic> json) => AiTeam(
         key: _s(json['key']),
-        name: _s(json['name'], 'Tim AI'),
+        name: _s(json['name'], 'Asisten AI'),
         role: _s(json['role']),
         tone: _s(json['tone'], 'sky'),
         icon: _s(json['icon']),
@@ -75,7 +75,7 @@ class AiLimits {
   String get maxUploadLabel => maxUploadKb >= 1024 ? '${(maxUploadKb / 1024).round()} MB' : '$maxUploadKb KB';
 }
 
-/// Kanal Tim AI yang dibuka paket perusahaan (web selalu terbuka). Bila HP
+/// Kanal Asisten AI yang dibuka paket perusahaan (web selalu terbuka). Bila HP
 /// terkunci (trial atau paket tanpa aplikasi HP), [message] dan [unlockPlan]
 /// menjelaskan paket yang membukanya.
 class AiChannels {
@@ -134,7 +134,7 @@ class AiOverview {
   final AiChannels channels;
   final bool fastMode;
 
-  /// Pemilik sudah mengisi "Tentang usaha Anda" (konteks untuk Tim AI).
+  /// Pemilik sudah mengisi "Tentang usaha Anda" (konteks untuk Asisten AI).
   final bool hasBusinessContext;
   final List<AiTeam> teams;
   final AiCoins coins;
@@ -142,7 +142,7 @@ class AiOverview {
   final int pendingProposals;
   final AiLimits limits;
 
-  /// Tim AI lewat HP belum termasuk paket: tampilkan penjelasan, bukan chat.
+  /// Asisten AI lewat HP belum termasuk paket: tampilkan penjelasan, bukan chat.
   bool get channelLocked => !channels.mobile || reason == 'kanal_tidak_termasuk_paket';
 
   AiTeam? team(String key) {
@@ -353,7 +353,7 @@ class AiProposal {
 class AiMessageTeam {
   const AiMessageTeam({required this.key, required this.name, this.tone = 'sky'});
 
-  factory AiMessageTeam.fromJson(Map<String, dynamic> json) => AiMessageTeam(key: _s(json['key']), name: _s(json['name'], 'Tim AI'), tone: _s(json['tone'], 'sky'));
+  factory AiMessageTeam.fromJson(Map<String, dynamic> json) => AiMessageTeam(key: _s(json['key']), name: _s(json['name'], 'Asisten AI'), tone: _s(json['tone'], 'sky'));
 
   final String key;
   final String name;

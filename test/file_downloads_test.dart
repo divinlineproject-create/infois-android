@@ -18,7 +18,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'support/fakes.dart';
 import 'support/file_fakes.dart';
 
-/// Unduhan (PDF nota, lampiran, file Tim AI): byte diunduh dengan token,
+/// Unduhan (PDF nota, lampiran, file Asisten AI): byte diunduh dengan token,
 /// disimpan ke folder Download, lalu bisa dibuka / dibagikan.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -147,7 +147,7 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     });
 
-    testWidgets('Tim AI: file laporan diketuk → diunduh dengan token ke Download', (tester) async {
+    testWidgets('Asisten AI: file laporan diketuk → diunduh dengan token ke Download', (tester) async {
       const report = AiAttachment(index: 0, name: 'Laba rugi Oktober.pdf', kind: 'report', size: 2048, url: 'https://dashboard.infois.ai/api/v1/ai/attachments/40/0');
       await pump(tester, (context, ref) => const AttachmentChip(report));
       expect(find.byIcon(Icons.download_outlined), findsOneWidget);

@@ -34,8 +34,8 @@ Paket siap unggah terakhir (2026-10-18): `~/Desktop/Infois-POS-PlayStore/` (liha
 Urutan & pesan tiap layar:
 
 1. **Kasir**: katalog barang + pesanan berjalan (offline tetap jalan).
-2. **Tim AI**: layar awal, saran perintah, tim yang siap bekerja.
-3. **Usulan Tim AI**: pesan "jual 2 kopi susu ke pak budi" → kartu usulan → Setujui.
+2. **Asisten AI**: layar awal, saran perintah, tim yang siap bekerja.
+3. **Usulan Asisten AI**: pesan "jual 2 kopi susu ke pak budi" → kartu usulan → Setujui.
 4. **Laporan**: omzet bulan ini, grafik, metode bayar, ringkasan hari ini.
 
 Opsional berikutnya (tambahkan di test bila perlu): Catatan transaksi, Bayar (tunai/kembalian),

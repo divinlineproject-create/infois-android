@@ -155,7 +155,7 @@ void main() {
     expect(field.keyboardType, TextInputType.multiline);
     expect(field.textInputAction, TextInputAction.newline);
     expect(field.maxLines, 6);
-    expect(find.text('Pesan untuk Tim AI'), findsOneWidget, reason: 'Petunjuk pendek satu baris.');
+    expect(find.text('Pesan untuk Asisten AI'), findsOneWidget, reason: 'Petunjuk pendek satu baris.');
     expect(tester.widget<TextField>(find.byKey(const Key('ai-text'))).decoration!.hintMaxLines, 1);
 
     await tester.enterText(find.byKey(const Key('ai-text')), '   ');
@@ -194,7 +194,7 @@ void main() {
     semantics.dispose();
   });
 
-  testWidgets('saat Tim AI bekerja: Kirim menjadi tanda sedang bekerja, teks tetap tersimpan', (tester) async {
+  testWidgets('saat Asisten AI bekerja: Kirim menjadi tanda sedang bekerja, teks tetap tersimpan', (tester) async {
     final semantics = tester.ensureSemantics();
     final sent = <String>[];
     await pumpComposer(tester, working: true, onSend: (text, _) async => sent.add(text));

@@ -208,7 +208,7 @@ class ApiClient {
       }
     }
     // Pembatas laju Laravel menjawab "Too Many Attempts." tanpa `code`;
-    // 429 dengan `code` (mis. sedang_diproses di Tim AI) sudah berbahasa Indonesia.
+    // 429 dengan `code` (mis. sedang_diproses di Asisten AI) sudah berbahasa Indonesia.
     if (response.statusCode == 429 && code == null) {
       message = 'Terlalu banyak percobaan. Tunggu sebentar lalu coba lagi.';
     }

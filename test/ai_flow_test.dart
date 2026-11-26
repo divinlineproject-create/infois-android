@@ -26,7 +26,7 @@ import 'support/fakes.dart';
 import 'support/play_policy.dart';
 import 'support/file_fakes.dart';
 
-/// Layar Tim AI: ringkasan tim & jatah, kirim pesan + polling proses,
+/// Layar Asisten AI: ringkasan tim & jatah, kirim pesan + polling proses,
 /// Setujui usulan, offline, dan hak akses.
 void main() {
   setUpAll(() async {
@@ -81,7 +81,7 @@ void main() {
   }
 
   Future<void> openAiTab(WidgetTester tester) async {
-    await tester.tap(find.widgetWithText(NavigationDestination, 'Tim AI'));
+    await tester.tap(find.widgetWithText(NavigationDestination, 'AI'));
     await settle(tester);
   }
 
@@ -98,7 +98,7 @@ void main() {
     final greeting = tester.widget<Text>(find.byKey(const Key('ai-greeting'))).data!;
     expect(greeting, startsWith('Selamat '));
     expect(greeting, endsWith(', Sari'));
-    expect(find.text('Apa yang bisa Tim AI kerjakan hari ini?'), findsOneWidget);
+    expect(find.text('Apa yang bisa Asisten AI kerjakan hari ini?'), findsOneWidget);
     expect(find.byKey(const Key('ai-composer')), findsOneWidget, reason: 'Kotak tulis langsung di layar awal.');
     expect(find.byKey(const Key('ai-messages')), findsNothing);
     expect(find.text('1 tim siap bekerja'), findsOneWidget);
@@ -131,7 +131,7 @@ void main() {
     expect(find.byKey(const Key('conversation-12')), findsOneWidget);
     expect(find.text('1 usulan'), findsOneWidget);
     expect(find.byKey(const Key('drawer-new-conversation')), findsOneWidget);
-    expect(find.text('Jatah Tim AI bulan ini'), findsOneWidget);
+    expect(find.text('Jatah Asisten AI bulan ini'), findsOneWidget);
     expect(find.text('9% terpakai'), findsOneWidget);
     expect(find.text('45,74'), findsOneWidget, reason: 'Sisa koin tampil dengan ikon koin, tanpa kata token.');
     expect(find.byKey(const Key('coin-usage-bar')), findsOneWidget);
@@ -290,7 +290,7 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('file dari Tim AI: kartu file dengan Buka dan Bagikan (diunduh sekali)', (tester) async {
+  testWidgets('file dari Asisten AI: kartu file dengan Buka dan Bagikan (diunduh sekali)', (tester) async {
     final files = FakeFilePlatform();
     final server = FakeServer(aiHandler(withReport: true));
     await pumpApp(tester, server: server, files: files);
@@ -301,7 +301,7 @@ void main() {
 
     expect(find.byKey(const Key('ai-file-0')), findsOneWidget);
     expect(find.text('Laba rugi Oktober.pdf'), findsOneWidget);
-    expect(find.textContaining('Laporan dari Tim AI'), findsOneWidget);
+    expect(find.textContaining('Laporan dari Asisten AI'), findsOneWidget);
 
     await tester.ensureVisible(find.byKey(const Key('file-open-0')));
     await settle(tester);
@@ -449,12 +449,12 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('trial / paket tanpa HP: tab Tim AI terkunci dengan pesan netral (tanpa nama paket / tempat beli), tanpa chat', (tester) async {
+  testWidgets('trial / paket tanpa HP: tab Asisten AI terkunci dengan pesan netral (tanpa nama paket / tempat beli), tanpa chat', (tester) async {
     final server = FakeServer(aiHandler(
       overview: {
         'enabled': false,
         'reason': 'kanal_tidak_termasuk_paket',
-        'channels': {'web': true, 'telegram': false, 'mobile': false, 'unlock_plan': 'Starter', 'message': 'Tim AI lewat aplikasi HP belum termasuk paket trial. Tersedia di paket berbayar mulai paket Starter. Sementara ini, Tim AI tetap bisa dipakai lewat web.'},
+        'channels': {'web': true, 'telegram': false, 'mobile': false, 'unlock_plan': 'Starter', 'message': 'Asisten AI lewat aplikasi HP belum termasuk paket trial. Tersedia di paket berbayar mulai paket Starter. Sementara ini, Asisten AI tetap bisa dipakai lewat web.'},
       },
     ));
     await pumpApp(tester, server: server);
@@ -469,15 +469,15 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('offline: tab Tim AI menjelaskan butuh internet', (tester) async {
+  testWidgets('offline: tab Asisten AI menjelaskan butuh internet', (tester) async {
     await pumpApp(tester, server: offlineServer());
     await openAiTab(tester);
-    expect(find.text('Tim AI butuh internet'), findsOneWidget);
+    expect(find.text('Asisten AI butuh internet'), findsOneWidget);
     expect(find.byKey(const Key('new-conversation')), findsNothing);
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('tanpa hak akses Tim AI: tab tidak tampil dan /ai tidak dipanggil', (tester) async {
+  testWidgets('tanpa hak akses Asisten AI: tab tidak tampil dan /ai tidak dipanggil', (tester) async {
     final server = FakeServer(aiHandler(menus: {'pos': true, 'shift': true}));
     await pumpApp(
       tester,
@@ -486,13 +486,13 @@ void main() {
       menus: {'pos': true, 'shift': true},
     );
     expect(find.widgetWithText(NavigationDestination, 'Kasir'), findsOneWidget);
-    expect(find.widgetWithText(NavigationDestination, 'Tim AI'), findsNothing);
+    expect(find.widgetWithText(NavigationDestination, 'AI'), findsNothing);
     expect(server.requests.where((request) => request.path.startsWith('ai/')), isEmpty);
     await tester.pumpWidget(const SizedBox());
   });
 }
 
-/// Server palsu: ping + sinkron minimal, dan semua endpoint Tim AI
+/// Server palsu: ping + sinkron minimal, dan semua endpoint Asisten AI
 /// (API.md › 6). [onRun] dipanggil setiap GET /ai/runs/7; polling pertama
 /// masih berjalan, berikutnya selesai.
 Map<String, dynamic>? Function(RequestOptions options, Map<String, dynamic>? body) aiHandler({int Function()? onRun, Map<String, dynamic>? menus, Map<String, dynamic>? overview, bool withReport = false, String approve = 'ok'}) {

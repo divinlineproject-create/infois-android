@@ -371,7 +371,7 @@ class _SaleDetailScreenState extends ConsumerState<SaleDetailScreen> {
 
   static String _sourceLabel(String source) => switch (source) {
         'pos' => 'Kasir HP',
-        'ai' => 'Tim AI',
+        'ai' => 'Asisten AI',
         'telegram' => 'Telegram',
         _ => 'Website',
       };

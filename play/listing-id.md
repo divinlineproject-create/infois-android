@@ -11,7 +11,7 @@ yang dijejalkan.
 ## Nama aplikasi (maks. 30 karakter)
 
 ```
-Infois POS: Kasir & Tim AI
+Infois POS: Kasir & Asisten AI
 ```
 
 26 karakter. Nama di HP (ikon peluncur) sudah **Infois POS**; nama toko boleh lebih panjang.
@@ -20,7 +20,7 @@ Alternatif: `Infois POS` (10).
 ## Deskripsi singkat (maks. 80 karakter)
 
 ```
-Kasir offline, laporan usaha, dan Tim AI untuk pengguna Infois di HP.
+Kasir offline, laporan usaha, dan Asisten AI untuk pengguna Infois di HP.
 ```
 
 70 karakter.
@@ -40,9 +40,9 @@ KASIR (POS)
 - Cetak struk ke printer thermal Bluetooth 58 mm atau 80 mm, termasuk tiket pesanan dapur.
 - Simpan pesanan yang belum dibayar, atur meja atau antrian, dan buka atau tutup kasir per shift.
 
-TIM AI
+ASISTEN AI
 - Tulis atau kirim voice note seperti biasa, misalnya "kopi susu 3, roti bakar 2, bayar tunai".
-- Kirim foto nota atau file PDF/Excel; Tim AI menyiapkan catatan penjualan, pembelian, atau biaya.
+- Kirim foto nota atau file PDF/Excel; Asisten AI menyiapkan catatan penjualan, pembelian, atau biaya.
 - Setiap usulan tampil lebih dulu. Anda periksa, ubah bila perlu, lalu tekan Setujui. Tidak ada yang tercatat tanpa persetujuan Anda (kecuali Anda sendiri mengaktifkan mode cepat untuk penjualan dari katalog).
 - Tanyakan kondisi usaha, misalnya "berapa untung bulan ini?".
 
@@ -70,12 +70,12 @@ Sekitar 2.100 karakter (cek ulang di Play Console setelah ditempel; batasnya 400
 Catatan kejujuran (cek sebelum terbit):
 
 - "Kertas 58/80 mm": aplikasi mendukung lebar 58 dan 80 mm (Akun › Printer struk).
-- "Mode cepat": ada di composer Tim AI (penjualan dari katalog yang harganya jelas langsung tercatat).
+- "Mode cepat": ada di composer Asisten AI (penjualan dari katalog yang harganya jelas langsung tercatat).
 - "Lebih dari satu perusahaan": Akun › Ganti perusahaan.
 - Jangan menambah klaim fitur web yang tidak ada di HP (jurnal, pajak, pengaturan tim).
 
 ## Catatan rilis pertama (maks. 500 karakter)
 
 ```
-Rilis pertama Infois POS di Google Play: kasir offline dengan foto barang, kategori, scan barcode kamera, dan printer Bluetooth, Tim AI (teks, voice note, foto nota), laporan penjualan, catatan transaksi, unduh PDF, dan hapus akun dari menu Akun.
+Rilis pertama Infois POS di Google Play: kasir offline dengan foto barang, kategori, scan barcode kamera, dan printer Bluetooth, Asisten AI (teks, voice note, foto nota), laporan penjualan, catatan transaksi, unduh PDF, dan hapus akun dari menu Akun.
 ```

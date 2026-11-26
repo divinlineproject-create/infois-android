@@ -661,7 +661,7 @@ class _PurchasesSectionState extends ConsumerState<_PurchasesSection> {
             provider: purchasesListProvider,
             query: _query,
             emptyTitle: 'Belum ada pembelian',
-            emptyMessage: 'Tagihan pemasok dicatat lewat website atau Tim AI.',
+            emptyMessage: 'Tagihan pemasok dicatat lewat website atau Asisten AI.',
             itemBuilder: (context, purchase) => PurchaseListTile(purchase),
           ),
         ),

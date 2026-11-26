@@ -30,7 +30,7 @@ dengan alamat itu. Aplikasi sudah mengizinkan membuka `infois.ai/hapus-akun` (li
 # Hapus akun Infois
 
 Halaman ini menjelaskan cara menghapus akun Infois, baik akun yang dipakai di aplikasi
-Android "Infois POS: Kasir & Tim AI" maupun di Infois versi web. Aplikasi dan layanan Infois
+Android "Infois POS: Kasir & Asisten AI" maupun di Infois versi web. Aplikasi dan layanan Infois
 dikelola oleh PT. DEVINE AUTADA TECH.
 
 ## Cara menghapus akun
@@ -49,19 +49,19 @@ sebelum menghapus.
 ## Data yang dihapus
 
 - Perusahaan yang Anda pegang sebagai pemilik ditutup, dan seluruh datanya dihapus permanen
-  segera: transaksi, dokumen, file, foto nota, percakapan Tim AI, daftar pengguna dan perannya,
+  segera: transaksi, dokumen, file, foto nota, percakapan Asisten AI, daftar pengguna dan perannya,
   sambungan Telegram, serta perangkat kasir.
 - Dari perusahaan tempat Anda hanya anggota, Anda dikeluarkan. Data perusahaan itu tetap milik
   pemiliknya.
-- Percakapan dan memori Tim AI pribadi Anda, sesi masuk, dan perangkat Anda dihapus.
-- Sisa koin Tim AI dan masa aktif perusahaan yang ditutup hangus, tanpa pengembalian dana.
+- Percakapan dan memori Asisten AI pribadi Anda, sesi masuk, dan perangkat Anda dihapus.
+- Sisa koin Asisten AI dan masa aktif perusahaan yang ditutup hangus, tanpa pengembalian dana.
 
 ## Data yang tetap disimpan
 
 - Nama, alamat email, dan nomor telepon akun disimpan dalam keadaan nonaktif sebagai bagian
   dari catatan tagihan dan untuk mencegah penyalahgunaan. Akun tidak dapat dipakai lagi.
 - Nama perusahaan yang ditutup beserta catatan penutupannya, riwayat pembayaran langganan, dan
-  catatan jumlah pemakaian Tim AI tanpa isi pekerjaannya, selama diwajibkan peraturan
+  catatan jumlah pemakaian Asisten AI tanpa isi pekerjaannya, selama diwajibkan peraturan
   perpajakan dan perundang-undangan.
 - Salinan cadangan (backup) terhapus bertahap sesuai siklus cadangan, paling lama [N] hari.
 

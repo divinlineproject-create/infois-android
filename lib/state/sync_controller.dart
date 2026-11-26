@@ -280,7 +280,7 @@ class SyncController extends Notifier<SyncState> {
         return;
       }
       if (error.maintenance) {
-        // Aplikasi HP dimatikan sementara (Administrator › Kanal Tim AI):
+        // Aplikasi HP dimatikan sementara (Administrator › Kanal Asisten AI):
         // tetap masuk, antrean tetap di HP, dicoba lagi beberapa menit lagi.
         state = state.copyWith(syncing: false, connection: ConnectionStatus.online, maintenance: error.message, clearMessage: true);
         _setMaintenance(error.message);

@@ -30,7 +30,7 @@ import 'support/play_policy.dart';
 /// Pusat Bantuan di aplikasi: dibuka dari Akun, kategori & artikel pilihan,
 /// cari, daftar per kategori, pembaca artikel (daftar isi, gambar dengan
 /// token, video, tautan, "membantu"), galat offline/tidak ditemukan, layar
-/// sempit & mode gelap, dan tautan bantuan dari Tim AI.
+/// sempit & mode gelap, dan tautan bantuan dari Asisten AI.
 void main() {
   setUpAll(() async {
     await initializeDateFormatting('id_ID');
@@ -111,7 +111,7 @@ void main() {
     expect(home.headers['Authorization'], 'Bearer token');
     expect(purchaseTextOnScreen(tester), isEmpty);
 
-    // Cari (setelah jeda mengetik), tanpa hasil → saran + Tanya Tim AI.
+    // Cari (setelah jeda mengetik), tanpa hasil → saran + Tanya Asisten AI.
     await tester.enterText(find.byKey(const Key('help-search')), 'stok');
     await tester.pump(const Duration(milliseconds: 400));
     await settle(tester);
@@ -288,7 +288,7 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  group('tautan Pusat Bantuan dari Tim AI', () {
+  group('tautan Pusat Bantuan dari Asisten AI', () {
     test('slug artikel dikenali dari /bantuan/{slug} dan /app/{perusahaan}/pusat-bantuan/artikel/{slug}', () {
       expect(helpArticleSlugFromUrl('https://dashboard.infois.ai/bantuan/cara-cetak-struk'), 'cara-cetak-struk');
       expect(helpArticleSlugFromUrl('https://dashboard.infois.ai/app/kopi-senja/pusat-bantuan/artikel/stok-opname'), 'stok-opname');
@@ -302,7 +302,7 @@ void main() {
       expect(aiLinkAction('https://dashboard.infois.ai/app/kopi/pusat-bantuan'), AiLinkAction.block, reason: 'Halaman panel lain tetap tidak dibuka.');
     });
 
-    testWidgets('mengetuk tautan artikel di jawaban Tim AI membuka layar artikel aplikasi', (tester) async {
+    testWidgets('mengetuk tautan artikel di jawaban Asisten AI membuka layar artikel aplikasi', (tester) async {
       final opened = <String>[];
       final router = GoRouter(routes: [
         GoRoute(path: '/', builder: (_, __) => const Scaffold(body: AiMarkdown('Lihat [panduan cetak struk](https://dashboard.infois.ai/bantuan/cara-cetak-struk) atau [stok](https://dashboard.infois.ai/app/kopi/pusat-bantuan/artikel/stok-opname).'))),

@@ -1,12 +1,12 @@
 // Aturan Google Play (kebijakan Pembayaran): aplikasi yang dipasang dari
 // Play Store tidak boleh menjual atau mengarahkan pengguna membeli barang
-// digital (paket langganan, koin Tim AI) di luar penagihan Google Play.
+// digital (paket langganan, koin Asisten AI) di luar penagihan Google Play.
 // Paket & koin Infois dibeli di web, jadi aplikasi HP:
 // - tidak menampilkan nama paket, harga, atau tombol/tautan ke halaman
 //   pembelian (Langganan, Dompet Koin, upgrade);
 // - mengganti pesan server yang menyebut paket/pembelian dengan kalimat
 //   netral ("Hubungi pemilik usaha atau admin Infois Anda");
-// - menolak membuka tautan ke halaman pembelian (mis. dari jawaban Tim AI)
+// - menolak membuka tautan ke halaman pembelian (mis. dari jawaban Asisten AI)
 //   dan ke panel dashboard yang memuat menu pembelian.
 
 import 'config.dart';
@@ -17,17 +17,17 @@ const String mobileAccessMessage = 'Aplikasi HP belum aktif untuk perusahaan ini
 /// Perusahaan sedang tidak aktif (langganan berhenti).
 const String companyInactiveMessage = 'Akun perusahaan ini sedang tidak aktif. Hubungi pemilik usaha atau admin Infois Anda.';
 
-/// Tim AI terkunci untuk aplikasi HP.
-const String aiChannelLockedTitle = 'Tim AI belum aktif di aplikasi HP';
-const String aiChannelLockedMessage = 'Tim AI belum aktif di aplikasi HP untuk perusahaan ini. Hubungi pemilik usaha atau admin Infois Anda.';
+/// Asisten AI terkunci untuk aplikasi HP.
+const String aiChannelLockedTitle = 'Asisten AI belum aktif di aplikasi HP';
+const String aiChannelLockedMessage = 'Asisten AI belum aktif di aplikasi HP untuk perusahaan ini. Hubungi pemilik usaha atau admin Infois Anda.';
 
-/// Jatah Tim AI bulan ini habis.
-const String aiQuotaExhaustedMessage = 'Jatah Tim AI bulan ini sudah habis. Hubungi pemilik usaha atau admin Infois Anda.';
+/// Jatah Asisten AI bulan ini habis.
+const String aiQuotaExhaustedMessage = 'Jatah Asisten AI bulan ini sudah habis. Hubungi pemilik usaha atau admin Infois Anda.';
 
 /// Koin perusahaan tidak cukup untuk Input AI di kasir.
 const String posAiCoinsShortMessage = 'Koin perusahaan tidak cukup untuk Input AI. Hubungi pemilik usaha atau admin Infois Anda.';
 
-/// Satu tim Tim AI yang terkunci.
+/// Satu tim Asisten AI yang terkunci.
 const String aiTeamLockedLabel = 'Belum aktif untuk perusahaan ini';
 
 /// Pesan server yang menyebut paket/pembelian tanpa padanan khusus.
@@ -55,14 +55,14 @@ final RegExp purchasePattern = RegExp(
   // Beli/tambah/isi koin dengan kata sisipan: "beli tambahan koin",
   // "menambah jumlah koin", "top up saldo koin", "koin tambahan".
   r'\b(beli|membeli|pembelian|tambah|menambah|menambahkan|isi|mengisi|top[ -]?up)\s+(\S+\s+){0,2}koin\b|\bkoin tambahan|'
-  // Isi saldo / tambah kuota-jatah, hanya bila menyangkut koin/Tim AI
+  // Isi saldo / tambah kuota-jatah, hanya bila menyangkut koin/Asisten AI
   // ("isi saldo e-wallet pelanggan", "kuota internet" tetap aman).
-  r'\b(koin|tim ai|jatah|kuota)\b[^.!?\n]*\bisi( ulang)? saldo|\bisi( ulang)? saldo\b[^.!?\n]*\b(koin|tim ai|jatah|kuota)\b|'
-  r'\b(tambah|tambahan|menambah|naikkan|menaikkan)( \S+)? (kuota|jatah) (tim ai|ai|koin|pemakaian|bulanan|bulan ini)|'
-  r'\b(kuota|jatah) (tim ai|ai|koin)\b[^.!?\n]*(tambah|beli|naik)|'
+  r'\b(koin|tim ai|asisten ai|jatah|kuota)\b[^.!?\n]*\bisi( ulang)? saldo|\bisi( ulang)? saldo\b[^.!?\n]*\b(koin|tim ai|asisten ai|jatah|kuota)\b|'
+  r'\b(tambah|tambahan|menambah|naikkan|menaikkan)( \S+)? (kuota|jatah) (tim ai|asisten ai|ai|koin|pemakaian|bulanan|bulan ini)|'
+  r'\b(kuota|jatah) (tim ai|asisten ai|ai|koin)\b[^.!?\n]*(tambah|beli|naik)|'
   // Ajakan berlangganan Infois ("pelanggan berlangganan galon" tetap aman).
-  r'\b(silakan|untuk|dengan|perlu|harus|cara|mulai|ayo) berlangganan|\bberlangganan( \S+){0,3} (infois|paket|tim ai)|'
-  r'\b(infois|paket|tim ai|fitur ini)\b[^.!?\n]*\bberlangganan',
+  r'\b(silakan|untuk|dengan|perlu|harus|cara|mulai|ayo) berlangganan|\bberlangganan( \S+){0,3} (infois|paket|tim ai|asisten ai)|'
+  r'\b(infois|paket|tim ai|asisten ai|fitur ini)\b[^.!?\n]*\bberlangganan',
   caseSensitive: false,
 );
 
@@ -80,7 +80,7 @@ String storeSafeServerMessage(String? code, String message) {
 }
 
 /// Buang kalimat yang mengarah ke pembelian dari teks (pesan server,
-/// jawaban Tim AI). Per baris; baris yang tinggal penanda daftar dibuang.
+/// jawaban Asisten AI). Per baris; baris yang tinggal penanda daftar dibuang.
 String scrubPurchaseSentences(String text) {
   if (!purchasePattern.hasMatch(text)) {
     return text;
@@ -155,7 +155,7 @@ bool isWebPanelUrl(String url) {
 
 /// Slug artikel Pusat Bantuan dari tautan web Infois (`/bantuan/{slug}`
 /// atau `/app/{perusahaan}/pusat-bantuan/artikel/{slug}`, mis. dari jawaban
-/// Tim AI), atau null. Tautan ini dibuka di layar artikel aplikasi, bukan di
+/// Asisten AI), atau null. Tautan ini dibuka di layar artikel aplikasi, bukan di
 /// browser (halaman panel tetap tidak dibuka).
 String? helpArticleSlugFromUrl(String url) {
   final uri = Uri.tryParse(url.trim());
@@ -200,10 +200,10 @@ String deniedReasonLabel(String? reason) => switch (reason) {
       _ => 'aplikasi HP belum aktif',
     };
 
-/// Jawaban Tim AI yang seluruhnya tentang pembelian paket/koin.
-const String aiAccountTopicMessage = 'Untuk urusan akun perusahaan dan jatah Tim AI, hubungi pemilik usaha atau admin Infois Anda.';
+/// Jawaban Asisten AI yang seluruhnya tentang pembelian paket/koin.
+const String aiAccountTopicMessage = 'Untuk urusan akun perusahaan dan jatah Asisten AI, hubungi pemilik usaha atau admin Infois Anda.';
 
-/// Jawaban Tim AI tanpa kalimat yang mengarah ke pembelian.
+/// Jawaban Asisten AI tanpa kalimat yang mengarah ke pembelian.
 String storeSafeAiText(String text) {
   final kept = scrubPurchaseSentences(text);
   return kept.trim().isEmpty && text.trim().isNotEmpty ? aiAccountTopicMessage : kept;

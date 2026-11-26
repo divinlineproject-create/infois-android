@@ -7,7 +7,7 @@ import '../../core/store_policy.dart';
 import '../../services/file_downloads.dart';
 import '../theme.dart';
 
-/// Satu blok Markdown jawaban Tim AI.
+/// Satu blok Markdown jawaban Asisten AI.
 sealed class MdBlock {
   const MdBlock();
 }
@@ -250,7 +250,7 @@ String _plainInline(String text) => text.length > mdInlineLimit ? text : text.re
   return _plainInline(m.group(3) ?? m.group(4) ?? m.group(5) ?? m.group(8) ?? m.group(9) ?? '');
 });
 
-/// Apa yang terjadi saat tautan di jawaban Tim AI diketuk.
+/// Apa yang terjadi saat tautan di jawaban Asisten AI diketuk.
 enum AiLinkAction {
   /// Bukan http/https (mis. tel:, mailto:, intent:, javascript:): diabaikan.
   block,
@@ -268,7 +268,7 @@ enum AiLinkAction {
 
 final _hostLike = RegExp(r'^(?:https?://)?(?:www\.)?((?:[a-z0-9-]+\.)+[a-z]{2,})(?:[/:?#]\S*)?$', caseSensitive: false);
 
-/// Tautan di jawaban Tim AI bisa dipengaruhi isi yang dibaca Tim AI (foto
+/// Tautan di jawaban Asisten AI bisa dipengaruhi isi yang dibaca Asisten AI (foto
 /// nota, nama pelanggan/barang), jadi hanya http/https yang dibuka; situs di
 /// luar Infois/WhatsApp, atau teks yang menyamar sebagai alamat lain,
 /// dikonfirmasi dulu dengan menampilkan alamat aslinya.
@@ -293,7 +293,7 @@ AiLinkAction aiLinkAction(String url, {String? label}) {
   return trusted && !misleading ? AiLinkAction.open : AiLinkAction.confirm;
 }
 
-/// Buka tautan dari isi yang tidak sepenuhnya kita tulis (jawaban Tim AI,
+/// Buka tautan dari isi yang tidak sepenuhnya kita tulis (jawaban Asisten AI,
 /// artikel Pusat Bantuan) sesuai [aiLinkAction]: artikel bantuan dibuka di
 /// layar artikel aplikasi, tautan terlarang diabaikan (panel dashboard dengan
 /// pesan), situs di luar Infois dikonfirmasi dulu.
@@ -350,7 +350,7 @@ Future<bool> confirmExternalLink(BuildContext context, String url, {String title
   return ok == true;
 }
 
-/// Jawaban Tim AI dalam Markdown ringan: **tebal**, _miring_, `kode`,
+/// Jawaban Asisten AI dalam Markdown ringan: **tebal**, _miring_, `kode`,
 /// daftar butir/nomor, judul, kutipan, tabel (geser ke samping), dan tautan
 /// yang bisa diketuk (dibuka di browser).
 class AiMarkdown extends ConsumerStatefulWidget {

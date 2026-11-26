@@ -15,14 +15,14 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" tools:node="remove" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" tools:node="remove" />
     <uses-feature android:name="android.hardware.bluetooth" android:required="false" />
-    <!-- Tim AI: voice note (mikrofon) dan foto nota (kamera lewat image_picker). -->
+    <!-- Asisten AI: voice note (mikrofon) dan foto nota (kamera lewat image_picker). -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <!-- Kasir: scan barcode barang dengan kamera (mobile_scanner). Diminta hanya saat
          tombol Scan ditekan; gambar diproses di HP, tidak disimpan/dikirim. -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
-    <!-- Unduhan (PDF nota, lampiran, file Tim AI) ke folder Download. Android 10+
+    <!-- Unduhan (PDF nota, lampiran, file Asisten AI) ke folder Download. Android 10+
          memakai MediaStore tanpa izin; Android 9 ke bawah butuh izin penyimpanan. -->
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="28" tools:replace="android:maxSdkVersion" />

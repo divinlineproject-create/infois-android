@@ -14,7 +14,7 @@ import java.io.File
 import java.io.FileInputStream
 
 /**
- * Menyimpan file unduhan (PDF nota, lampiran, file dari Tim AI) ke folder
+ * Menyimpan file unduhan (PDF nota, lampiran, file dari Asisten AI) ke folder
  * Download HP supaya mudah dicari di aplikasi Berkas.
  *
  * Android 10+ memakai MediaStore (tanpa izin penyimpanan); Android 9 ke bawah

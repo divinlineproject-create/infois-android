@@ -1,5 +1,5 @@
 // Tampilan tablet miring (tablet kasir bersama) untuk ditinjau: kasir,
-// bayar, catatan, laporan, Tim AI, kunci PIN. Tinggi layar sudah dikurangi
+// bayar, catatan, laporan, Asisten AI, kunci PIN. Tinggi layar sudah dikurangi
 // bilah status & navigasi Android. Tidak ikut `flutter test` biasa. Jalankan:
 //
 //   SHOTS_DIR=/path/keluaran flutter test test/screenshots/landscape_screenshots.dart
@@ -188,7 +188,7 @@ void main() {
   };
 
   for (final MapEntry(key: device, value: (size, ratio)) in devices.entries) {
-    testWidgets('$device miring: kasir, bayar, catatan, laporan, Tim AI', (tester) async {
+    testWidgets('$device miring: kasir, bayar, catatan, laporan, Asisten AI', (tester) async {
       await pumpApp(tester, size, ratio);
       await shot(tester, '$device-0-kasir-belum-dibuka', ratio);
       await tester.tap(find.byKey(const Key('open-shift')));

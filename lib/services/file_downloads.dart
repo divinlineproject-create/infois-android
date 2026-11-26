@@ -221,7 +221,7 @@ Future<ApiClient?> _activeApi(WidgetRef ref) async {
   }
 }
 
-/// Unduh file (PDF nota, lampiran, file dari Tim AI) dengan progres, lalu
+/// Unduh file (PDF nota, lampiran, file dari Asisten AI) dengan progres, lalu
 /// tampilkan "Tersimpan di Download" dengan tombol Buka dan Bagikan.
 Future<SavedFile?> downloadAndOffer(BuildContext context, WidgetRef ref, {required String apiPath, required String fileName}) async {
   final messenger = ScaffoldMessenger.of(context);

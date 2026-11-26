@@ -215,7 +215,7 @@ void main() {
               child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text('Infois POS', style: TextStyle(fontFamily: 'Poppins', fontSize: 64, fontWeight: FontWeight.w700, color: Colors.white, height: 1.1)),
                 SizedBox(height: 12),
-                Text('Kasir, pembukuan, dan Tim AI untuk usaha Anda', style: TextStyle(fontFamily: 'Poppins', fontSize: 30, fontWeight: FontWeight.w500, color: Colors.white, height: 1.3)),
+                Text('Kasir, pembukuan, dan Asisten AI untuk usaha Anda', style: TextStyle(fontFamily: 'Poppins', fontSize: 30, fontWeight: FontWeight.w500, color: Colors.white, height: 1.3)),
               ]),
             ),
           ]),
@@ -232,7 +232,7 @@ void main() {
   };
 
   for (final MapEntry(key: device, value: (size, ratio)) in devices.entries) {
-    testWidgets('$device: kasir, keranjang, Tim AI, laporan', (tester) async {
+    testWidgets('$device: kasir, keranjang, Asisten AI, laporan', (tester) async {
       await pumpApp(tester, size, ratio);
 
       // 1. Kasir: katalog + pesanan berjalan.
@@ -242,8 +242,8 @@ void main() {
       }
       await shot(tester, '$device-1-kasir', ratio);
 
-      // 2. Tim AI: tim & saran.
-      await tab(tester, 'Tim AI');
+      // 2. Asisten AI: tim & saran.
+      await tab(tester, 'AI');
       await shot(tester, '$device-2-tim-ai', ratio);
 
       // 3. Percakapan dengan usulan penjualan.
@@ -251,7 +251,7 @@ void main() {
       await settle(tester);
       await tester.tap(find.byKey(const Key('conversation-12')));
       await settle(tester);
-      // Gulir ke atas: pesan pengguna + jawaban Tim AI + kartu usulan.
+      // Gulir ke atas: pesan pengguna + jawaban Asisten AI + kartu usulan.
       await tester.dragFrom(Offset(size.width / ratio / 2, size.height / ratio * 0.3), Offset(0, size.height / ratio * 0.5));
       await settle(tester);
       await shot(tester, '$device-3-usulan', ratio);

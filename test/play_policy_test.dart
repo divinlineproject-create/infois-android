@@ -37,21 +37,21 @@ void main() {
       expect(scrubPurchaseSentences(text), text);
     });
 
-    test('jawaban Tim AI: kalimat beli paket/isi ulang koin dibuang; seluruhnya tentang beli → pesan netral', () {
+    test('jawaban Asisten AI: kalimat beli paket/isi ulang koin dibuang; seluruhnya tentang beli → pesan netral', () {
       expect(storeSafeAiText('Penjualan hari ini Rp 1.250.000. Tim Analis tersedia di paket Growth, buka lewat menu Langganan.'), 'Penjualan hari ini Rp 1.250.000.');
       expect(storeSafeAiText('Sisa koin 3.\n- Isi ulang koin di menu Dompet Koin.\n- Laporan siap.'), 'Sisa koin 3.\n- Laporan siap.');
       expect(storeSafeAiText('Silakan upgrade ke paket Growth.'), aiAccountTopicMessage);
     });
 
-    test('jawaban Tim AI: variasi ajakan beli/tambah koin, kuota, berlangganan ikut dibuang', () {
+    test('jawaban Asisten AI: variasi ajakan beli/tambah koin, kuota, berlangganan ikut dibuang', () {
       const probes = [
         'Koin Anda hampir habis, silakan beli tambahan koin di web.',
         'Anda bisa membeli koin tambahan lewat Infois versi web.',
-        'Tambah jumlah koin supaya Tim AI bisa lanjut bekerja.',
+        'Tambah jumlah koin supaya Asisten AI bisa lanjut bekerja.',
         'Top up saldo koin dulu ya.',
-        'Jatah Tim AI habis, isi saldo di web untuk melanjutkan.',
-        'Silakan isi saldo agar koin Tim AI bertambah.',
-        'Minta pemilik usaha menambah kuota Tim AI.',
+        'Jatah Asisten AI habis, isi saldo di web untuk melanjutkan.',
+        'Silakan isi saldo agar koin Asisten AI bertambah.',
+        'Minta pemilik usaha menambah kuota Asisten AI.',
         'Kuota AI bulan ini bisa ditambah dari web.',
         'Fitur ini aktif bila perusahaan Anda berlangganan.',
         'Silakan berlangganan untuk membuka Tim Analis.',
@@ -97,7 +97,7 @@ void main() {
     });
   });
 
-  testWidgets('jawaban Tim AI: kalimat ajakan membeli tidak tampil; tautan Langganan tidak dibuka', (tester) async {
+  testWidgets('jawaban Asisten AI: kalimat ajakan membeli tidak tampil; tautan Langganan tidak dibuka', (tester) async {
     final files = FakeFilePlatform();
     await tester.pumpWidget(ProviderScope(
       overrides: [filePlatformProvider.overrideWithValue(files)],

@@ -70,7 +70,7 @@ void main() {
 
     final state = scope.read(aiChatProvider(0));
     expect(state.phase, AiChatPhase.idle, reason: 'Kotak tulis harus aktif lagi.');
-    expect(state.pollError, contains('Status Tim AI tidak bisa dibaca'));
+    expect(state.pollError, contains('Status Asisten AI tidak bisa dibaca'));
     expect(state.conversationId, 12);
   });
 

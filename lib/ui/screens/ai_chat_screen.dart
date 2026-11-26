@@ -67,7 +67,7 @@ class AiChatTitle extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    var title = 'Tim AI';
+    var title = 'Asisten AI';
     if (live) {
       final chat = ref.watch(aiChatProvider(chatKey).select((state) => (state.conversationId, state.messages.isNotEmpty, state.title)));
       if (chat.$1 != null || chat.$2) {
@@ -136,7 +136,7 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen> {
 
 /// Isi percakapan bergaya aplikasi chat: layar awal dengan sapaan dan saran
 /// (kotak tulis di tengah), lalu pesan + kotak tulis menempel di bawah.
-/// Jawaban Tim AI tanpa bubble (Markdown), pesan pengguna bubble lembut di
+/// Jawaban Asisten AI tanpa bubble (Markdown), pesan pengguna bubble lembut di
 /// kanan, kartu usulan (Setujui · Ubah · Tolak), proses dipantau tiap 2 detik.
 class AiChatView extends ConsumerStatefulWidget {
   const AiChatView({super.key, required this.chatKey, this.initialText, this.onStarted, this.onGone});
@@ -165,7 +165,7 @@ class _AiChatViewState extends ConsumerState<AiChatView> {
   /// Kotak tulis berisi teks/lampiran (saran di layar awal disembunyikan).
   bool _composerHasContent = false;
 
-  /// Menunggu jawaban Tim AI untuk pesan yang baru dikirim.
+  /// Menunggu jawaban Asisten AI untuk pesan yang baru dikirim.
   bool _awaitingAnswer = false;
 
   /// Pembungkus jawaban terbaru (selalu baris paling bawah daftar terbalik).
@@ -441,7 +441,7 @@ class _AiChatViewState extends ConsumerState<AiChatView> {
     final paused = overview != null && !overview.enabled;
     final enabled = !offline && !paused;
     final uploading = chat.phase == AiChatPhase.sending && chat.uploadProgress != null;
-    final teamName = chat.lastTeam?.name ?? 'Tim AI';
+    final teamName = chat.lastTeam?.name ?? 'Asisten AI';
     final workingLabel = switch (chat.phase) {
       AiChatPhase.sending => uploading ? 'Mengunggah lampiran' : 'Mengirim pesan',
       _ => '$teamName sedang bekerja',
@@ -454,7 +454,7 @@ class _AiChatViewState extends ConsumerState<AiChatView> {
       progress: uploading ? chat.uploadProgress : null,
       limits: overview?.limits ?? const AiLimits(),
       initialText: widget.initialText,
-      disabledReason: offline ? 'Tim AI butuh internet.' : (paused ? 'Tim AI sedang tidak tersedia. Coba lagi nanti.' : null),
+      disabledReason: offline ? 'Asisten AI butuh internet.' : (paused ? 'Asisten AI sedang tidak tersedia. Coba lagi nanti.' : null),
       fastMode: overview?.fastMode,
       onFastModeChanged: overview == null ? null : _setFastMode,
       onContentChanged: (has) {
@@ -470,11 +470,11 @@ class _AiChatViewState extends ConsumerState<AiChatView> {
         _Notice(
           key: const Key('ai-offline'),
           icon: Icons.cloud_off_outlined,
-          text: 'Tim AI butuh internet. Pesan bisa dikirim lagi setelah tersambung.',
+          text: 'Asisten AI butuh internet. Pesan bisa dikirim lagi setelah tersambung.',
           actionLabel: 'Cek lagi',
           onAction: () => ref.read(syncProvider.notifier).syncNow(),
         ),
-      if (paused && !offline) const _Notice(key: Key('ai-paused'), icon: Icons.pause_circle_outline, text: 'Tim AI sedang istirahat. Coba lagi beberapa saat lagi.'),
+      if (paused && !offline) const _Notice(key: Key('ai-paused'), icon: Icons.pause_circle_outline, text: 'Asisten AI sedang istirahat. Coba lagi beberapa saat lagi.'),
       if (chat.loadError != null) _Notice(key: const Key('ai-load-error'), icon: Icons.error_outline, error: true, text: chat.loadError!, actionLabel: 'Coba lagi', onAction: _controller.load),
       if (chat.pollError != null) _Notice(key: const Key('ai-poll-error'), icon: Icons.sync_problem, text: chat.pollError!, actionLabel: 'Coba lagi', onAction: _controller.resumePolling),
     ];
@@ -698,7 +698,7 @@ class _Welcome extends StatelessWidget {
         child: Text(greeting, key: const Key('ai-greeting'), textAlign: TextAlign.center, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w600, height: 1.25)),
       ),
       const SizedBox(height: 6),
-      Padding(padding: const EdgeInsets.symmetric(horizontal: 8), child: Text('Apa yang bisa Tim AI kerjakan hari ini?', textAlign: TextAlign.center, style: TextStyle(fontSize: 15, color: muted))),
+      Padding(padding: const EdgeInsets.symmetric(horizontal: 8), child: Text('Apa yang bisa Asisten AI kerjakan hari ini?', textAlign: TextAlign.center, style: TextStyle(fontSize: 15, color: muted))),
       if (teams.isNotEmpty) ...[
         const SizedBox(height: 14),
         Semantics(
@@ -877,7 +877,7 @@ class _WorkingIndicator extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final sending = phase == AiChatPhase.sending;
-    final label = sending ? (uploadProgress == null ? 'Mengirim…' : 'Mengunggah lampiran ${(uploadProgress! * 100).round()}%') : '${team?.name ?? 'Tim AI'} sedang mengerjakan…';
+    final label = sending ? (uploadProgress == null ? 'Mengirim…' : 'Mengunggah lampiran ${(uploadProgress! * 100).round()}%') : '${team?.name ?? 'Asisten AI'} sedang mengerjakan…';
     return Padding(
       key: const Key('ai-working'),
       padding: const EdgeInsets.only(bottom: 16),
@@ -1013,7 +1013,7 @@ class _UserMessage extends StatelessWidget {
   }
 }
 
-/// Jawaban Tim AI: avatar + nama tim, lalu teks penuh (tanpa bubble), file,
+/// Jawaban Asisten AI: avatar + nama tim, lalu teks penuh (tanpa bubble), file,
 /// kartu usulan, dan tombol kecil Salin / Coba lagi.
 class _AssistantMessage extends StatelessWidget {
   const _AssistantMessage({
@@ -1060,7 +1060,7 @@ class _AssistantMessage extends StatelessWidget {
               const SizedBox(width: 8),
               Flexible(
                 child: Text(
-                  team?.name ?? 'Tim AI',
+                  team?.name ?? 'Asisten AI',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: toneColors(team?.tone ?? 'sky', dark: dark).foreground),

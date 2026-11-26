@@ -63,7 +63,7 @@ Color warningText(BuildContext context) => Theme.of(context).brightness == Brigh
 /// Teks galat (merah) yang tetap kontras: red-700 terang, red-300 gelap.
 Color dangerText(BuildContext context) => Theme.of(context).brightness == Brightness.dark ? const Color(0xFFFCA5A5) : Brand.danger;
 
-/// Warna khusus Tim AI (gaya aplikasi chat: kotak tulis melayang, bubble
+/// Warna khusus Asisten AI (gaya aplikasi chat: kotak tulis melayang, bubble
 /// pengguna lembut, jawaban tanpa bubble). Terang dan gelap.
 class AiColors {
   AiColors._();

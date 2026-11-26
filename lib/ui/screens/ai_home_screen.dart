@@ -37,7 +37,7 @@ List<({String label, List<AiConversation> items})> groupConversations(List<AiCon
   ];
 }
 
-/// Tab Tim AI bergaya aplikasi chat: percakapan langsung di layar (layar awal
+/// Tab Asisten AI bergaya aplikasi chat: percakapan langsung di layar (layar awal
 /// dengan sapaan bila belum ada percakapan terbuka), Riwayat di laci kiri,
 /// tombol Percakapan baru di kanan atas. Butuh internet.
 class AiHomeScreen extends ConsumerStatefulWidget {
@@ -226,20 +226,20 @@ class _AiHomeScreenState extends ConsumerState<AiHomeScreen> {
     if (offline && data == null) {
       return EmptyState(
         icon: Icons.cloud_off_outlined,
-        title: 'Tim AI butuh internet',
-        message: 'Sambungkan internet untuk mengobrol dengan Tim AI. Kasir tetap bisa dipakai offline.',
+        title: 'Asisten AI butuh internet',
+        message: 'Sambungkan internet untuk mengobrol dengan Asisten AI. Kasir tetap bisa dipakai offline.',
         action: OutlinedButton(onPressed: () => ref.read(syncProvider.notifier).syncNow(), child: const Text('Coba lagi')),
       );
     }
     if (overview.hasError && data == null) {
       final error = overview.error;
-      final message = error is ApiException ? error.message : 'Tim AI belum bisa dibuka. Coba lagi.';
+      final message = error is ApiException ? error.message : 'Asisten AI belum bisa dibuka. Coba lagi.';
       final code = error is ApiException ? error.code : null;
       final (icon, title) = switch (code) {
-        'tidak_berhak' => (Icons.lock_outline, 'Belum punya akses Tim AI'),
+        'tidak_berhak' => (Icons.lock_outline, 'Belum punya akses Asisten AI'),
         'langganan_tidak_aktif' => (Icons.card_membership_outlined, 'Perusahaan sedang tidak aktif'),
         'perangkat_dicabut' => (Icons.phonelink_erase_outlined, 'Akses HP ini dicabut'),
-        _ => (Icons.error_outline, 'Tim AI belum bisa dibuka'),
+        _ => (Icons.error_outline, 'Asisten AI belum bisa dibuka'),
       };
       return EmptyState(icon: icon, title: title, message: message, action: code == 'tidak_berhak' ? null : OutlinedButton(onPressed: _refresh, child: const Text('Coba lagi')));
     }
@@ -319,7 +319,7 @@ class _AiHomeScreenState extends ConsumerState<AiHomeScreen> {
   }
 }
 
-/// Laci Riwayat: Percakapan baru, cari, daftar per hari, dan jatah Tim AI
+/// Laci Riwayat: Percakapan baru, cari, daftar per hari, dan jatah Asisten AI
 /// bulan ini (bahasa sehari-hari) di bagian bawah.
 class AiHistoryDrawer extends StatefulWidget {
   const AiHistoryDrawer({
@@ -339,7 +339,7 @@ class AiHistoryDrawer extends StatefulWidget {
   final AsyncValue<AiConversationsState> conversations;
 
   /// Baris kecil di bawah judul: nama usaha + status sinkron (bilah aplikasi
-  /// disembunyikan di tab Tim AI).
+  /// disembunyikan di tab Asisten AI).
   final Widget? status;
   final int? currentId;
   final AiCoins coins;
@@ -406,7 +406,7 @@ class _AiHistoryDrawerState extends State<AiHistoryDrawer> {
       final error = widget.conversations.error;
       list = [message(Icons.error_outline, 'Riwayat belum bisa dimuat', error is ApiException ? error.message : 'Tarik ke bawah untuk memuat ulang.')];
     } else if (items.isEmpty) {
-      list = [message(Icons.forum_outlined, 'Belum ada percakapan', 'Ketik, rekam suara, atau foto nota. Tim AI yang mencatat.')];
+      list = [message(Icons.forum_outlined, 'Belum ada percakapan', 'Ketik, rekam suara, atau foto nota. Asisten AI yang mencatat.')];
     } else if (filtered.isEmpty) {
       list = [message(Icons.search_off_rounded, 'Tidak ada yang cocok', 'Coba kata lain.')];
     } else {
