@@ -27,6 +27,9 @@ class MetaKeys {
   static const logoVersion = 'logo_version';
   static const logoBytes = 'logo_bytes';
   static const user = 'user';
+
+  /// Waktu "Hapus semua transaksi" terakhir yang sudah diterapkan di HP.
+  static const transactionsResetAt = 'transactions_reset_at';
 }
 
 class PushSummary {
@@ -191,6 +194,7 @@ class SyncEngine {
     await local.upsertCustomers([for (final item in customers['items'] as List) Customer.fromJson(Map<String, dynamic>.from(item as Map))]);
     await local.keepCustomers([for (final id in customers['ids'] as List) id as int]);
 
+    await _applyTransactionsReset(data['tenant']);
     await local.setJson(MetaKeys.tenant, data['tenant']);
     await local.setJson(MetaKeys.device, data['device']);
     await local.setJson(MetaKeys.menus, data['menus']);
@@ -223,6 +227,19 @@ class SyncEngine {
       await local.setMeta(MetaKeys.lastFullPull, DateTime.now().toIso8601String());
     }
     await local.setMeta(MetaKeys.lastSyncAt, DateTime.now().toIso8601String());
+  }
+
+  /// Owner menghapus semua transaksi di web (`tenant.transactions_reset_at`
+  /// baru): penjualan, shift, dan pesanan tersimpan yang lebih lama dibuang
+  /// sekali dari HP. Server lama tanpa kunci ini: tidak ada yang berubah.
+  Future<void> _applyTransactionsReset(Object? tenant) async {
+    final value = tenant is Map ? tenant['transactions_reset_at'] : null;
+    final cutoff = value is String ? DateTime.tryParse(value) : null;
+    if (cutoff == null || await local.getMeta(MetaKeys.transactionsResetAt) == value) {
+      return;
+    }
+    await local.dropTransactionsBefore(cutoff);
+    await local.setMeta(MetaKeys.transactionsResetAt, value as String);
   }
 
   /// Nomor terakhir yang sudah dipakai menurut server (`last_used` tiap jatah).

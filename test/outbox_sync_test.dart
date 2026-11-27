@@ -360,5 +360,55 @@ void main() {
       expect((await engine.numberBlocks()).single.start, 4);
       expect((await local.getJson(MetaKeys.tenant))!['prices_include_tax'], isTrue);
     });
+
+    test('tarik data: owner menghapus semua transaksi → penjualan, shift, pesanan, dan antrean lama dibuang sekali', () async {
+      final resetAt = DateTime.utc(2026, 11, 27, 3);
+      final before = resetAt.subtract(const Duration(hours: 1));
+      final after = resetAt.add(const Duration(minutes: 5));
+
+      await local.saveSale('lama', number: 'POS-K1/000001', createdAt: before.toLocal(), total: '20000', data: {'client_uuid': 'lama'});
+      await local.saveSale('baru', number: 'POS-K1/000002', createdAt: after.toLocal(), total: '20000', data: {'client_uuid': 'baru'});
+      await local.saveShift({'client_uuid': 'shift-lama', 'opened_at': before.toIso8601String(), 'closed_at': null, 'opening_cash': '50000', 'closing_cash': null});
+      await local.db.insert('held_orders', {'id': 'pesanan-lama', 'name': 'Meja 1', 'total': '10000', 'item_count': 1, 'created_at': before.toIso8601String(), 'updated_at': before.toIso8601String(), 'data': '{}'});
+      await local.db.insert('held_orders', {'id': 'pesanan-baru', 'name': 'Meja 2', 'total': '10000', 'item_count': 1, 'created_at': before.toIso8601String(), 'updated_at': after.toIso8601String(), 'data': '{}'});
+      await outbox.enqueue('sale', 'lama', {'client_uuid': 'lama'}, createdAt: before.toLocal());
+      await outbox.enqueue('shift_open', 'shift-lama', {'client_uuid': 'shift-lama'}, createdAt: before.toLocal());
+      await outbox.enqueue('shift_close', 'tutup-lama', {'shift_client_uuid': 'shift-lama'}, createdAt: after.toLocal());
+      await outbox.enqueue('customer', 'pelanggan-lama', {'client_uuid': 'pelanggan-lama', 'name': 'Budi'}, createdAt: before.toLocal());
+      await outbox.enqueue('sale', 'baru', {'client_uuid': 'baru'}, createdAt: after.toLocal());
+
+      final server = FakeServer((options, body) {
+        if (options.path != 'sync/pull') {
+          return null;
+        }
+        return {
+          'cursor': 'c3',
+          'tenant': {'id': 1, 'name': 'Warung Tes', 'transactions_reset_at': resetAt.toIso8601String()},
+          'receipt': {'company': {'name': 'Warung Tes'}},
+          'device': {'id': 3, 'code': 'K1'},
+          'menus': {'pos': true},
+          'user': {'id': 1, 'name': 'Sari'},
+          'products': {'items': [], 'ids': [1, 2]},
+          'customers': {'items': [], 'ids': []},
+          'accounts': {'items': [], 'ids': []},
+          'warehouses': {'items': [], 'ids': []},
+          'number_blocks': [],
+          'open_shift': null,
+        };
+      });
+      final engine = SyncEngine(api: fakeApi(server), local: local, outbox: outbox);
+
+      await engine.pull();
+      expect((await local.recentSales()).map((sale) => sale['client_uuid']), ['baru']);
+      expect(await local.openShift(), isNull);
+      expect((await local.db.query('held_orders')).map((row) => row['id']), ['pesanan-baru']);
+      expect((await local.db.query('outbox', orderBy: 'seq')).map((row) => row['client_uuid']), ['pelanggan-lama', 'baru']);
+      expect(await local.getMeta(MetaKeys.transactionsResetAt), resetAt.toIso8601String());
+
+      // Tarikan berikutnya dengan waktu yang sama tidak membuang apa pun lagi.
+      await local.saveShift({'client_uuid': 'shift-baru', 'opened_at': before.toIso8601String(), 'closed_at': null, 'opening_cash': '0', 'closing_cash': null});
+      await engine.pull();
+      expect((await local.openShift())!['client_uuid'], 'shift-baru');
+    });
   });
 }

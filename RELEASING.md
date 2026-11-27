@@ -148,6 +148,11 @@ cetak rekap kasir yang masih dibuka + catatan) dan **catatan Tutup kasir** (diki
 tercetak), nama bawaan Simpan pesanan = nomor pesanan, tulisan LUNAS/BELUM LUNAS di struk tidak lagi blok hitam.
 Menggantikan 1.0.4+6 bila belum diunggah.
 
+**1.0.7+9** (2026-11-27): owner bisa **Hapus semua transaksi** di web (mulai dari nol). Saat tarik data,
+HP membaca `tenant.transactions_reset_at` dan sekali membuang penjualan, shift, pesanan tersimpan, serta
+antrean penjualan/shift yang lebih lama (server menolaknya); antrean pelanggan baru tetap dikirim. Server
+lama tanpa kunci ini: tidak ada yang berubah. Menggantikan 1.0.6+8 bila belum diunggah.
+
 **1.0.6+8** (2026-11-26): nama fitur **Tim AI** menjadi **Asisten AI** di seluruh aplikasi; tab bawah cukup
 **AI** (sempit). Filter kalimat pembelian Play juga mengenali "asisten ai". Menggantikan 1.0.5+7 bila belum diunggah.
 

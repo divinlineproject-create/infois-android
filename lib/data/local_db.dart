@@ -447,4 +447,50 @@ class LocalDb {
     final rows = await db.query('shifts', where: 'closed_at IS NULL', orderBy: 'opened_at DESC', limit: 1);
     return rows.isEmpty ? null : Map<String, dynamic>.from(jsonDecode(rows.first['data'] as String) as Map);
   }
+
+  // ------------------------------------------------- hapus semua transaksi
+
+  /// Owner menekan "Hapus semua transaksi" di web: buang penjualan, shift,
+  /// pesanan tersimpan, dan antrean penjualan/shift di HP yang dibuat
+  /// sebelum [cutoff] (server menolaknya). Pelanggan baru di antrean tetap
+  /// dikirim karena pelanggan tidak ikut dihapus. Mengembalikan jumlah baris
+  /// yang dibuang.
+  Future<int> dropTransactionsBefore(DateTime cutoff) => db.transaction((txn) async {
+        var removed = 0;
+
+        Future<List<Object?>> stale(String table, String key, String time, {String? where}) async {
+          final rows = await txn.query(table, columns: [key, time], where: where);
+          return [
+            for (final row in rows)
+              if (_isBefore(row[time], cutoff)) row[key],
+          ];
+        }
+
+        Future<void> drop(String table, String key, List<Object?> ids) async {
+          for (var start = 0; start < ids.length; start += 500) {
+            final chunk = ids.sublist(start, (start + 500).clamp(0, ids.length));
+            removed += await txn.delete(table, where: '$key IN (${List.filled(chunk.length, '?').join(', ')})', whereArgs: chunk);
+          }
+        }
+
+        final shifts = await stale('shifts', 'client_uuid', 'opened_at');
+        await drop('sales', 'client_uuid', await stale('sales', 'client_uuid', 'created_at'));
+        await drop('shifts', 'client_uuid', shifts);
+        await drop('held_orders', 'id', await stale('held_orders', 'id', 'updated_at'));
+        await drop('outbox', 'client_uuid', await stale('outbox', 'client_uuid', 'created_at', where: "type IN ('sale', 'shift_open', 'shift_close')"));
+
+        // Tutup shift lama yang baru dicatat sesudahnya: shift-nya sudah tidak ada di server.
+        final closes = await txn.query('outbox', columns: ['client_uuid', 'data'], where: "type = 'shift_close'");
+        await drop('outbox', 'client_uuid', [
+          for (final row in closes)
+            if (shifts.contains((jsonDecode(row['data'] as String) as Map)['shift_client_uuid'])) row['client_uuid'],
+        ]);
+
+        return removed;
+      });
+
+  static bool _isBefore(Object? value, DateTime cutoff) {
+    final time = value is String ? DateTime.tryParse(value) : null;
+    return time != null && time.isBefore(cutoff);
+  }
 }
