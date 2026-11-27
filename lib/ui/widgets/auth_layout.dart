@@ -3,15 +3,92 @@ import 'package:flutter/services.dart';
 
 import '../theme.dart';
 
-/// Logo web Infois (Administrator › Brand Aplikasi) versi putih untuk latar
-/// hijau: tulisan & kubus putih, bayangan kubus hijau muda.
-const brandLogoOnGreen = 'assets/images/infois-logo-web-on-green.png';
+/// Tanda Infois POS (folder BRAND POS): kotak mirip printer struk bertulisan
+/// POS. Di latar hijau selalu di atas kotak putih ([PosBrandTile]).
+const posBrandMark = 'assets/images/infois-pos-mark.png';
 
-/// Lebar ÷ tinggi [brandLogoOnGreen].
-const brandLogoAspect = 1200 / 276;
+/// Tagline aplikasi Infois POS; kata [posTaglineHighlights] berwarna kuning
+/// nota (sama dengan feature graphic Play Store).
+const posTagline = 'Transaksi simpel kalau punya asisten keuangan.';
+const posTaglineHighlights = {'simpel', 'keuangan'};
+
+/// Tanda Infois POS di kotak putih berbayang hijau tua, untuk latar hijau.
+class PosBrandTile extends StatelessWidget {
+  const PosBrandTile({super.key, required this.size});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(size * 0.24),
+          boxShadow: [BoxShadow(color: Brand.greenDark, offset: Offset(0, size * 0.05))],
+        ),
+        padding: EdgeInsets.all(size * 0.08),
+        child: Image.asset(posBrandMark, key: const Key('pos-brand-mark'), fit: BoxFit.contain, semanticLabel: 'Infois POS'),
+      );
+}
+
+/// Logo Infois POS untuk latar hijau: kotak tanda + tulisan "Infois POS".
+class PosBrandLockup extends StatelessWidget {
+  const PosBrandLockup({super.key, required this.height});
+
+  /// Tinggi kotak tanda; tulisan mengikuti.
+  final double height;
+
+  /// Panel sempit (mis. tablet kecil mendatar): logo diperkecil, tidak terpotong.
+  @override
+  Widget build(BuildContext context) => FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.centerLeft,
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          PosBrandTile(size: height),
+          SizedBox(width: height * 0.32),
+          Text(
+            'Infois POS',
+            style: TextStyle(color: Colors.white, fontSize: height * 0.6, height: 1.1, fontWeight: FontWeight.w700, letterSpacing: -0.3),
+          ),
+        ]),
+      );
+}
+
+/// Kalimat dengan kata tagline yang disorot kuning nota; kalimat lain
+/// (mis. nama perusahaan di layar kunci) tampil polos.
+class PosTaglineText extends StatelessWidget {
+  const PosTaglineText(this.text, {super.key, required this.style, this.textAlign = TextAlign.start, this.maxLines});
+
+  final String text;
+  final TextStyle style;
+  final TextAlign textAlign;
+  final int? maxLines;
+
+  @override
+  Widget build(BuildContext context) {
+    if (text != posTagline) {
+      return Text(text, style: style, textAlign: textAlign, maxLines: maxLines, overflow: maxLines == null ? null : TextOverflow.ellipsis);
+    }
+    final words = text.split(' ');
+    return Text.rich(
+      TextSpan(children: [
+        for (final (i, word) in words.indexed)
+          TextSpan(
+            text: i == words.length - 1 ? word : '$word ',
+            style: posTaglineHighlights.contains(word.replaceAll(RegExp(r'[^A-Za-z]'), '')) ? const TextStyle(color: Brand.nota) : null,
+          ),
+      ]),
+      style: style,
+      textAlign: textAlign,
+      maxLines: maxLines,
+      overflow: maxLines == null ? null : TextOverflow.ellipsis,
+    );
+  }
+}
 
 /// Layar masuk / kunci tablet: separuh layar panel brand (latar hijau
-/// Infois, logo web, kalimat utama, motif tangga), separuh lagi formulir.
+/// Infois, logo Infois POS, tagline, motif tangga), separuh lagi formulir.
 /// Layar sempit (HP tegak): panel brand menjadi spanduk di atas, formulir di
 /// bawahnya.
 class AuthSplitLayout extends StatelessWidget {
@@ -22,7 +99,7 @@ class AuthSplitLayout extends StatelessWidget {
   final String lead;
   final double maxFormWidth;
 
-  static const defaultHeadline = 'Pekerjaan keuangan selesai lebih dulu.';
+  static const defaultHeadline = posTagline;
   static const defaultLead = 'Infois mencatat penjualan, membaca nota, menyiapkan jurnal, dan menagih pelanggan. Anda tinggal memeriksa dan menyetujui.';
 
   /// Lebar minimum untuk tata letak kiri-kanan.
@@ -91,20 +168,12 @@ class _BrandPanel extends StatelessWidget {
         Padding(
           padding: EdgeInsets.fromLTRB(roomy ? 48 : 24, (roomy ? 48 : 20) + top, roomy ? 48 : 24, roomy ? 48 : 20),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Image.asset(
-              brandLogoOnGreen,
-              key: const Key('auth-brand-logo'),
-              height: roomy ? 48 : 30,
-              width: (roomy ? 48 : 30) * brandLogoAspect,
-              fit: BoxFit.contain,
-              alignment: Alignment.centerLeft,
-              semanticLabel: 'Infois',
-            ),
+            PosBrandLockup(key: const Key('auth-brand-logo'), height: roomy ? 52 : 34),
             const Spacer(),
             ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 460),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(
+                PosTaglineText(
                   headline,
                   style: TextStyle(color: Colors.white, fontSize: roomy ? 34 : 22, height: 1.15, fontWeight: FontWeight.w800, letterSpacing: -0.5),
                 ),

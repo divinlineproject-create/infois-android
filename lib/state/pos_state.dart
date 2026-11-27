@@ -28,21 +28,23 @@ class CartController extends Notifier<Cart> {
     return const Cart();
   }
 
-  /// Tambah barang. Barang yang sama (satuan sama, tanpa catatan) cukup
-  /// ditambah jumlahnya; barang dengan catatan menjadi baris sendiri. Harga
-  /// bertingkat mengikuti jumlah dan level pelanggan keranjang.
-  void add(Product product, {String? unit, String quantity = '1', String? note}) {
+  /// Tambah barang. Barang yang sama (satuan & add-on sama, tanpa catatan)
+  /// cukup ditambah jumlahnya; barang dengan catatan menjadi baris sendiri.
+  /// Harga bertingkat mengikuti jumlah dan level pelanggan keranjang.
+  void add(Product product, {String? unit, String quantity = '1', String? note, List<LineAddon> addons = const []}) {
     final unitName = product.optionFor(unit).name;
     final cleaned = cleanNote(note);
     final levelId = state.levelId;
-    final index = cleaned != null ? -1 : state.lines.indexWhere((line) => line.product?.id == product.id && line.unit == unitName && line.note == null);
+    final index = cleaned != null
+        ? -1
+        : state.lines.indexWhere((line) => line.product?.id == product.id && line.unit == unitName && line.note == null && sameAddons(line.addons, addons));
     if (index >= 0) {
       final line = state.lines[index];
       final lines = [...state.lines]..[index] = line.copyWith(quantity: Money.add([line.quantity, quantity]), levelId: levelId);
       state = state.copyWith(lines: lines);
       return;
     }
-    state = state.copyWith(lines: [...state.lines, CartLine.fromProduct(PosService.newUuid(), product, unit: unitName, quantity: quantity, note: cleaned, levelId: levelId)]);
+    state = state.copyWith(lines: [...state.lines, CartLine.fromProduct(PosService.newUuid(), product, unit: unitName, quantity: quantity, note: cleaned, levelId: levelId, addons: addons)]);
   }
 
   /// Hasil Input AI: setiap barang masuk lewat [add], persis seperti ketuk

@@ -21,6 +21,7 @@ import 'package:infois/state/sync_controller.dart';
 import 'package:infois/state/workspace.dart';
 import 'package:infois/ui/screens/kasir_screen.dart';
 import 'package:infois/ui/screens/pos_held_orders.dart';
+import 'package:infois/ui/screens/pos_order_panel.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -69,15 +70,31 @@ void main() {
       expect(TenantSettings.fromJson(tables.toJson()).posTables, ['Meja 1', 'VIP 2']);
     });
 
-    test('izin ubah harga (server lama = boleh), nama pesanan bawaan = nomor pesanan, LUNAS tanpa blok hitam', () async {
+    test('izin ubah harga (server lama = boleh), nama pesanan bawaan = nomor-meja-pelanggan, LUNAS tanpa blok hitam', () async {
       expect(Menus.fromJson({'pos': true}).editPrice, isTrue);
       expect(Menus.fromJson({'pos': true, 'edit_price': false}).editPrice, isFalse);
       expect(Menus.fromJson(const Menus(editPrice: false).toJson()).editPrice, isFalse);
 
       final now = DateTime(2026, 11, 26, 10, 5);
-      expect(HeldOrderStore.defaultName(const Cart(queueNumber: '000012', orderLabel: 'Meja 5'), now), '000012');
+      expect(HeldOrderStore.defaultName(const Cart(queueNumber: '000012', orderLabel: 'Meja 5'), now), '000012-Meja 5');
+      expect(HeldOrderStore.defaultName(const Cart(queueNumber: '000012'), now), '000012-Tanpa meja');
+      expect(HeldOrderStore.defaultName(const Cart(queueNumber: '000012', orderLabel: 'Meja 01', customer: Customer(id: 3, name: 'Firmawan')), now), '000012-Meja 01-Firmawan');
+      expect(HeldOrderStore.defaultName(const Cart(queueNumber: '000012', customer: Customer(name: 'Pelanggan Umum', isWalkIn: true)), now), '000012-Tanpa meja');
       expect(HeldOrderStore.defaultName(const Cart(orderLabel: 'Meja 5'), now), 'Meja 5');
       expect(HeldOrderStore.defaultName(const Cart(), now), 'Pesanan 10:05');
+      expect(HeldOrderStore.isAutoName('000012-Meja 5', const Cart(queueNumber: '000012')), isTrue);
+      expect(HeldOrderStore.isAutoName('Rombongan kantor', const Cart(queueNumber: '000012')), isFalse);
+      HeldOrder held(String name, Cart cart) => HeldOrder(id: name, name: name, total: '0', itemCount: 1, createdAt: now, updatedAt: now, cart: cart);
+      final orders = [
+        held('000001-Meja 01-Firmawan', const Cart(queueNumber: '000001', orderLabel: 'Meja 01', customer: Customer(id: 3, name: 'Firmawan'))),
+        held('000002-Meja 12', const Cart(queueNumber: '000002', orderLabel: 'Meja 12')),
+        held('Rombongan', const Cart(queueNumber: '000003')),
+      ];
+      expect([for (final order in orders) if (HeldOrderStore.matches(order, 'meja 1')) order.name], ['000001-Meja 01-Firmawan', '000002-Meja 12']);
+      expect([for (final order in orders) if (HeldOrderStore.matches(order, 'FIRMA')) order.name], ['000001-Meja 01-Firmawan']);
+      expect([for (final order in orders) if (HeldOrderStore.matches(order, '000003')) order.name], ['Rombongan'], reason: 'Nomor pesanan dicari walau namanya diganti.');
+      expect(matchingTables(['Meja 01', 'Meja 12', 'Teras 1'], ' 12 '), ['Meja 12']);
+      expect(matchingTables(['Meja 01', 'Teras 1'], ''), ['Meja 01', 'Teras 1']);
 
       final builder = await ReceiptBuilder.create();
       final paid = {
@@ -367,6 +384,32 @@ void main() {
       await tester.runAsync(local.close);
     });
 
+    testWidgets('banyak meja: kotak cari muncul, Enter memilih bila tinggal satu meja', (tester) async {
+      String? picked;
+      final tables = [for (var i = 1; i <= 12; i++) 'Meja ${i.toString().padLeft(2, '0')}'];
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(body: Builder(builder: (context) => TextButton(onPressed: () async => picked = await pickTable(context, tables, null), child: const Text('meja')))),
+      ));
+      await tester.tap(find.text('meja'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('table-search')), findsOneWidget);
+      await tester.enterText(find.byKey(const Key('table-search')), '1');
+      await tester.pump();
+      expect(find.byKey(const Key('table-none')), findsNothing, reason: 'Saat mencari, "Tanpa meja" disembunyikan.');
+      expect(find.byKey(const Key('table-Meja 12')), findsOneWidget);
+      await tester.enterText(find.byKey(const Key('table-search')), '12');
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pumpAndSettle();
+      expect(picked, 'Meja 12');
+
+      await tester.tap(find.text('meja'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('table-none')));
+      await tester.pumpAndSettle();
+      expect(picked, '');
+      await tester.pumpWidget(const SizedBox());
+    });
+
     testWidgets('nomor antrian: sejak barang pertama, sekali per pesanan; tampil di pesanan tersimpan & riwayat; tercetak; dikirim', (tester) async {
       final (local, container, printers) = await pumpApp(tester, prefs: twoPrinters);
       // Barang pertama → antrian 000001, langsung tampil; disimpan dengan nomornya.
@@ -378,7 +421,7 @@ void main() {
       final held = (await tester.runAsync(() => HeldOrderStore(local).all()))!;
       expect(held.single.cart.queueNumber, '000001');
       await tap(tester, find.byKey(const Key('held-orders')));
-      expect(held.single.name, '000001', reason: 'Nama bawaan = nomor pesanan.');
+      expect(held.single.name, '000001-Tanpa meja', reason: 'Nama bawaan = nomor pesanan + meja.');
       expect(tester.widget<Text>(find.byKey(Key('held-details-${held.single.id}'))).data, startsWith('1 barang'), reason: 'Nomor tidak diulang di keterangan.');
       Navigator.of(tester.element(find.byType(HeldOrdersSheet))).pop();
       await flush(tester);
@@ -438,7 +481,7 @@ void main() {
       }
     });
 
-    testWidgets('role tanpa izin ubah harga: harga & diskon terkunci, Diskon nota tidak ada; nama simpan = nomor pesanan', (tester) async {
+    testWidgets('role tanpa izin ubah harga: harga & diskon terkunci, Diskon nota tidak ada; nama simpan = nomor pesanan + meja', (tester) async {
       final (local, container, _) = await pumpApp(tester, menus: {'pos': true, 'printer': true, 'edit_price': false});
       await tap(tester, find.byKey(const Key('product-1')));
       expect(find.byKey(const Key('order-discount')), findsNothing);
@@ -450,7 +493,7 @@ void main() {
       await flush(tester);
 
       await tap(tester, find.byKey(const Key('hold-order')));
-      expect(tester.widget<TextField>(find.byKey(const Key('hold-name'))).controller?.text, container.read(cartProvider).queueNumber);
+      expect(tester.widget<TextField>(find.byKey(const Key('hold-name'))).controller?.text, '${container.read(cartProvider).queueNumber}-Tanpa meja');
       expect(container.read(cartProvider).queueNumber, '000001');
       await tester.pumpWidget(const SizedBox());
       await tester.runAsync(local.close);

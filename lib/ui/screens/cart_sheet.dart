@@ -66,6 +66,10 @@ class _LineEditorState extends ConsumerState<_LineEditor> {
   late final TextEditingController _discount = TextEditingController(text: Money.isPositive(widget.line.discountPercent) ? percentLabel(widget.line.discountPercent) : '');
   late final TextEditingController _note = TextEditingController(text: widget.line.note ?? '');
   late String _unit = widget.line.unit;
+  late final Set<int> _addons = {
+    for (final addon in widget.line.addons)
+      if (addon.productId != null) addon.productId!,
+  };
   bool _priceEdited = false;
   String? _error;
 
@@ -95,11 +99,14 @@ class _LineEditorState extends ConsumerState<_LineEditor> {
       return;
     }
     final levelId = ref.read(cartProvider).levelId;
+    final product = widget.line.product;
+    // Add-on hanya diganti bila barangnya punya pilihan add-on.
+    final addons = product != null && product.hasAddons ? addonsFor(product, _addons) : null;
     ref.read(cartProvider.notifier).update(
           widget.line.key,
           (line) => _priceEdited
-              ? line.copyWith(quantity: quantity, unit: _unit, discountPercent: discount, unitPrice: price, manualPrice: true, note: _note.text)
-              : line.copyWith(quantity: quantity, unit: _unit, discountPercent: discount, note: _note.text, levelId: levelId),
+              ? line.copyWith(quantity: quantity, unit: _unit, discountPercent: discount, unitPrice: price, manualPrice: true, note: _note.text, addons: addons)
+              : line.copyWith(quantity: quantity, unit: _unit, discountPercent: discount, note: _note.text, levelId: levelId, addons: addons),
         );
     Navigator.pop(context);
   }
@@ -161,6 +168,10 @@ class _LineEditorState extends ConsumerState<_LineEditor> {
               ),
             ),
           ]),
+          if (product != null && product.hasAddons) ...[
+            const SizedBox(height: 16),
+            PosAddonChips(product: product, selected: _addons, onToggle: (id) => setState(() => _addons.contains(id) ? _addons.remove(id) : _addons.add(id))),
+          ],
           const SizedBox(height: 12),
           TextField(
             key: const Key('line-note'),

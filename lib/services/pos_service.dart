@@ -133,6 +133,7 @@ class PosService {
               'discount_amount': amounts.discountAmount,
               'line_total': amounts.lineTotal,
               if (line.note != null) 'note': line.note,
+              if (line.addons.isNotEmpty) 'addons': [for (final addon in line.addons) addon.toJson()],
             };
           }(),
         for (final charge in cart.charges)
@@ -310,6 +311,8 @@ class PosService {
               'discount_percent': item['discount_percent'],
               'tax_rate': item['tax_rate'],
               if (item['note'] != null) 'note': item['note'],
+              // Add-on pilihan kasir: server mengurangi stoknya, harga baris tetap.
+              if (item['addons'] is List && (item['addons'] as List).isNotEmpty) 'addons': item['addons'],
               // Biaya tambahan: server (`items.*.charge`) membukukan ke Pendapatan Jasa.
               if (item['charge'] == true) 'charge': true,
             },
@@ -473,22 +476,40 @@ class HeldOrderStore {
 
   final LocalDb local;
 
-  /// Nama bawaan: label meja/antrian, pelanggan, atau "Pesanan HH:mm".
+  /// Nama bawaan. Rumah makan (ada nomor pesanan): nomor, meja (atau
+  /// "Tanpa meja"), lalu nama pelanggan bila ada, mis. "000001-Meja
+  /// 01-Firmawan". Selain itu: meja, pelanggan, atau "Pesanan HH:mm". Sama
+  /// dengan `heldNameFor` kasir web dan `WebPosService::defaultHeldName`.
   static String defaultName(Cart cart, DateTime now) {
-    // Rumah makan: nomor pesanan (antrian) sebagai nama bawaan.
-    final queue = cart.queueNumber;
+    final queue = cleanNote(cart.queueNumber, 10);
+    final label = cleanNote(cart.orderLabel, 40);
+    final customer = cart.customer;
+    final customerName = customer != null && !customer.isWalkIn && customer.name != 'Pelanggan Umum' ? cleanNote(customer.name, 60) : null;
     if (queue != null) {
-      return queue;
+      final name = [queue, label ?? 'Tanpa meja', if (customerName != null) customerName].join('-');
+      return name.length > 60 ? name.substring(0, 60) : name;
     }
-    final label = cart.orderLabel;
     if (label != null) {
       return label;
     }
-    final customer = cart.customer;
-    if (customer != null && !customer.isWalkIn) {
-      return customer.name;
+    if (customerName != null) {
+      return customerName;
     }
     return 'Pesanan ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+  }
+
+  /// Nama buatan otomatis (diawali nomor pesanan): diperbarui saat disimpan
+  /// lagi supaya ikut meja & pelanggan terbaru. Nama ketikan kasir tetap.
+  static bool isAutoName(String name, Cart cart) {
+    final queue = cleanNote(cart.queueNumber, 10);
+    return queue != null && name.startsWith('$queue-');
+  }
+
+  /// Cari pesanan tersimpan: nama, nomor pesanan, meja, atau pelanggan.
+  static bool matches(HeldOrder order, String query) {
+    final words = query.trim().toLowerCase().split(RegExp(r'\s+')).where((word) => word.isNotEmpty);
+    final text = [order.name, order.cart.queueNumber, order.cart.orderLabel, order.cart.customer?.name].whereType<String>().join(' ').toLowerCase();
+    return words.every(text.contains);
   }
 
   /// Simpan (atau perbarui bila [Cart.heldId] sudah ada). Kembalikan id-nya.

@@ -407,7 +407,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('Masuk ke Infois', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700)),
+            Text('Masuk ke Infois POS', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700)),
             const SizedBox(height: 6),
             Text('Pakai akun yang sama dengan website Infois.', key: const Key('app-name'), style: TextStyle(color: mutedText(context))),
             if (session?.goneNotices.isNotEmpty ?? false) ...[const SizedBox(height: 20), const GoneCompanyNotices()],

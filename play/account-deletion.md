@@ -30,7 +30,7 @@ dengan alamat itu. Aplikasi sudah mengizinkan membuka `infois.ai/hapus-akun` (li
 # Hapus akun Infois
 
 Halaman ini menjelaskan cara menghapus akun Infois, baik akun yang dipakai di aplikasi
-Android "Infois POS: Kasir & Asisten AI" maupun di Infois versi web. Aplikasi dan layanan Infois
+Android "Infois POS" maupun di Infois versi web. Aplikasi dan layanan Infois
 dikelola oleh PT. DEVINE AUTADA TECH.
 
 ## Cara menghapus akun

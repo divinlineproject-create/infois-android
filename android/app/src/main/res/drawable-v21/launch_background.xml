@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Layar pembuka (Android 11 ke bawah): latar hijau Infois + logo web versi putih. -->
+<!-- Layar pembuka (Android 11 ke bawah): latar hijau Infois + logo Infois POS di kotak putih. -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:drawable="@color/infois_green" />
     <item>

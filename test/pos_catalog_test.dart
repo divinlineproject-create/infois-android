@@ -531,9 +531,9 @@ void main() {
 
     test('nama aplikasi & versi', () {
       expect(AppConfig.name, 'Infois POS');
-      expect(AppConfig.version, '1.0.7');
+      expect(AppConfig.version, '1.0.8');
       final pubspec = File('pubspec.yaml').readAsStringSync();
-      expect(pubspec, contains('version: 1.0.7+9'), reason: '1.0.7 (hapus semua transaksi) memakai versionCode 9; 8 = AAB 1.0.6.');
+      expect(pubspec, contains('version: 1.0.8+10'), reason: '1.0.8 (add-on, logo Infois POS) memakai versionCode 10; 9 = AAB 1.0.7.');
       expect(File('android/app/src/main/AndroidManifest.xml').readAsStringSync(), contains('android:label="Infois POS"'));
     });
   });

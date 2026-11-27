@@ -313,7 +313,7 @@ void main() {
     testWidgets('tidak ada tombol / dialog server; masuk langsung ke server build-time', (tester) async {
       final bases = await pumpLogin(tester);
 
-      expect(find.text('Masuk ke Infois'), findsOneWidget);
+      expect(find.text('Masuk ke Infois POS'), findsOneWidget);
       expect(find.textContaining('Server'), findsNothing);
       expect(find.textContaining('10.0.2.2'), findsNothing);
       expect(find.textContaining(AppConfig.serverUrl), findsNothing);
@@ -324,7 +324,7 @@ void main() {
       await tester.tap(find.byKey(const Key('login-submit')));
       await settle(tester);
 
-      expect(find.text('Masuk ke Infois'), findsNothing);
+      expect(find.text('Masuk ke Infois POS'), findsNothing);
       expect(bases, isNotEmpty);
       expect(bases.toSet(), {AppConfig.serverUrl});
       await tester.pumpWidget(const SizedBox());

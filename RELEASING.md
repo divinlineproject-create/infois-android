@@ -148,6 +148,17 @@ cetak rekap kasir yang masih dibuka + catatan) dan **catatan Tutup kasir** (diki
 tercetak), nama bawaan Simpan pesanan = nomor pesanan, tulisan LUNAS/BELUM LUNAS di struk tidak lagi blok hitam.
 Menggantikan 1.0.4+6 bila belum diunggah.
 
+**1.0.8+10** (2026-11-28): **add-on barang** (mis. box nasi ayam + pilihan sambal hijau / saus). Katalog
+mengirim `addons` per barang; mengetuk barang ber-add-on memunculkan pilihan add-on (bersama pilihan satuan
+bila ada), juga di lembar barang dan ubah baris. Add-on tidak menambah harga, tampil di keranjang, dikirim per
+baris (`items.*.addons`, server mengurangi stoknya seperti komposisi), dan tercetak di struk (`+ ...`), list
+pesanan dapur, dan teks WhatsApp. Server lama mengabaikannya. **Merek Infois POS** (folder BRAND POS): ikon
+peluncur, layar pembuka Android (tanda POS di kotak putih), layar pembuka aplikasi dan panel Masuk/Kunci
+(logo + tulisan Infois POS, tagline "Transaksi simpel kalau punya asisten keuangan."), judul "Masuk ke
+Infois POS". **Pesanan tersimpan rumah makan** bernama nomor-meja-pelanggan (`000001-Meja 01-Firmawan`,
+tanpa meja `000001-Tanpa meja`; nama ketikan kasir tetap), daftar pesanan tersimpan punya kotak cari bila
+lebih dari 5, dan pilih meja punya kotak cari bila lebih dari 9 meja. Menggantikan 1.0.7+9 bila belum diunggah.
+
 **1.0.7+9** (2026-11-27): owner bisa **Hapus semua transaksi** di web (mulai dari nol). Saat tarik data,
 HP membaca `tenant.transactions_reset_at` dan sekali membuang penjualan, shift, pesanan tersimpan, serta
 antrean penjualan/shift yang lebih lama (server menolaknya); antrean pelanggan baru tetap dikirim. Server

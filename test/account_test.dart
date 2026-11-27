@@ -106,7 +106,7 @@ void main() {
     await settle(tester);
   }
 
-  bool onLogin() => find.text('Masuk ke Infois').evaluate().isNotEmpty;
+  bool onLogin() => find.text('Masuk ke Infois POS').evaluate().isNotEmpty;
 
   group('Keluar', () {
     testWidgets('online: token dicabut, data HP dihapus, kembali ke layar Masuk', (tester) async {

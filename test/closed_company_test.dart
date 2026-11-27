@@ -542,7 +542,7 @@ void main() {
       final storage = (await tester.runAsync(AppStorage.load))!;
       await pumpApp(tester, storage: storage, server: FakeServer((_, __) => {}));
 
-      expect(find.text('Masuk ke Infois'), findsOneWidget);
+      expect(find.text('Masuk ke Infois POS'), findsOneWidget);
       expect(find.byKey(const Key('gone-notice-1')), findsOneWidget);
       expect(find.text('Anda tidak lagi menjadi anggota Warung A'), findsOneWidget);
       await tester.tap(find.byKey(const Key('gone-ack-1')));

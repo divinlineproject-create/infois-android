@@ -109,6 +109,10 @@ class ReceiptBuilder {
         PosColumn(text: clean(detail), width: 8, styles: base),
         PosColumn(text: rupiah(item['line_total'], symbol: false), width: 4, styles: base.copyWith(align: PosAlign.right)),
       ]));
+      final addons = addonsLabel(item['addons'] as List? ?? const []);
+      if (addons != null) {
+        bytes.addAll(generator.text(clean('  + $addons'), styles: base));
+      }
       final note = cleanNote(item['note']?.toString());
       if (note != null) {
         bytes.addAll(generator.text(clean('  * $note'), styles: base));
@@ -294,6 +298,10 @@ class ReceiptBuilder {
         clean('${qty(item['quantity'])}${unit.isEmpty ? '' : ' $unit'}  ${item['description'] ?? ''}'),
         styles: base.copyWith(bold: true, height: PosTextSize.size2),
       ));
+      final addons = addonsLabel(item['addons'] as List? ?? const []);
+      if (addons != null) {
+        bytes.addAll(generator.text(clean('   + $addons'), styles: base.copyWith(bold: true)));
+      }
       final note = cleanNote(item['note']?.toString());
       if (note != null) {
         bytes.addAll(generator.text(clean('   >> $note'), styles: base.copyWith(bold: true)));
@@ -345,6 +353,10 @@ class ReceiptBuilder {
       final discount = Money.normalize(item['discount_percent']);
       out.writeln('  ${qty(item['quantity'])}${unit.isEmpty ? '' : ' $unit'} x ${rupiah(item['unit_price'])}'
           '${Money.isPositive(discount) ? ' (-${percentLabel(discount)}%)' : ''} = ${rupiah(item['line_total'])}');
+      final addons = addonsLabel(item['addons'] as List? ?? const []);
+      if (addons != null) {
+        out.writeln('  + $addons');
+      }
       final note = cleanNote(item['note']?.toString());
       if (note != null) {
         out.writeln('  Catatan: $note');

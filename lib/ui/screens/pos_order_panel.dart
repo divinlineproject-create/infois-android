@@ -482,6 +482,7 @@ class _LineRow extends ConsumerWidget {
                   key: Key('line-price-${line.key}'),
                   style: TextStyle(fontSize: 12.5, color: mutedText(context)),
                 ),
+                if (line.addonsText != null) PosAddonText(line.addonsText!, key: Key('line-addons-${line.key}')),
                 if (line.note != null) PosNoteText(line.note!),
                 const SizedBox(height: 2),
                 Text(rupiah(amounts.lineTotal), style: TextStyle(fontWeight: FontWeight.w700, color: Theme.of(context).colorScheme.primary)),
@@ -610,41 +611,95 @@ Future<(String, String)?> askCharge(BuildContext context) async {
 }
 
 /// Pilih meja dari daftar meja usaha. Kembalikan nama meja, '' untuk
-/// "Tanpa meja", atau null bila ditutup.
+/// "Tanpa meja", atau null bila ditutup. Lebih dari 9 meja: kotak cari
+/// (Enter memilih bila tinggal satu meja).
 Future<String?> pickTable(BuildContext context, List<String> tables, String? current) => showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
       useSafeArea: true,
-      builder: (sheet) => SafeArea(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(sheet).height * 0.8),
-          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      builder: (sheet) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(sheet).viewInsets.bottom),
+        child: _TablePicker(tables: tables, current: current),
+      ),
+    );
+
+/// Meja yang cocok dengan kata cari (semua kata, tanpa beda huruf besar/kecil).
+List<String> matchingTables(List<String> tables, String query) {
+  final words = query.trim().toLowerCase().split(RegExp(r'\s+')).where((word) => word.isNotEmpty).toList();
+  return words.isEmpty ? tables : [for (final table in tables) if (words.every(table.toLowerCase().contains)) table];
+}
+
+class _TablePicker extends StatefulWidget {
+  const _TablePicker({required this.tables, required this.current});
+
+  final List<String> tables;
+  final String? current;
+
+  @override
+  State<_TablePicker> createState() => _TablePickerState();
+}
+
+class _TablePickerState extends State<_TablePicker> {
+  String _query = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final current = widget.current;
+    final searching = _query.trim().isNotEmpty;
+    final tables = matchingTables(widget.tables, _query);
+    return SafeArea(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.8),
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(Space.l, 0, Space.l, Space.s),
+            child: Text('Meja', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
+          ),
+          if (widget.tables.length > 9)
             Padding(
               padding: const EdgeInsets.fromLTRB(Space.l, 0, Space.l, Space.s),
-              child: Text('Meja', style: Theme.of(sheet).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
+              child: TextField(
+                key: const Key('table-search'),
+                textInputAction: TextInputAction.search,
+                decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'Cari meja', isDense: true),
+                onChanged: (value) => setState(() => _query = value),
+                onSubmitted: (value) {
+                  final found = matchingTables(widget.tables, value);
+                  if (found.length == 1) {
+                    Navigator.pop(context, found.single);
+                  }
+                },
+              ),
             ),
-            Flexible(
-              child: ListView(shrinkWrap: true, children: [
+          Flexible(
+            child: ListView(shrinkWrap: true, children: [
+              if (!searching)
                 ListTile(
                   key: const Key('table-none'),
                   leading: Icon(current == null ? Icons.radio_button_checked : Icons.radio_button_unchecked),
                   title: const Text('Tanpa meja'),
-                  onTap: () => Navigator.pop(sheet, ''),
+                  onTap: () => Navigator.pop(context, ''),
                 ),
-                for (final table in tables)
-                  ListTile(
-                    key: Key('table-$table'),
-                    leading: Icon(table == current ? Icons.radio_button_checked : Icons.radio_button_unchecked, color: table == current ? Theme.of(sheet).colorScheme.primary : null),
-                    title: Text(table, style: TextStyle(fontWeight: table == current ? FontWeight.w700 : FontWeight.w500)),
-                    onTap: () => Navigator.pop(sheet, table),
-                  ),
-              ]),
-            ),
-          ]),
-        ),
+              for (final table in tables)
+                ListTile(
+                  key: Key('table-$table'),
+                  leading: Icon(table == current ? Icons.radio_button_checked : Icons.radio_button_unchecked, color: table == current ? Theme.of(context).colorScheme.primary : null),
+                  title: Text(table, style: TextStyle(fontWeight: table == current ? FontWeight.w700 : FontWeight.w500)),
+                  onTap: () => Navigator.pop(context, table),
+                ),
+              if (searching && tables.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.all(Space.l),
+                  child: Text('Meja tidak ditemukan.', textAlign: TextAlign.center, style: TextStyle(color: mutedText(context))),
+                ),
+            ]),
+          ),
+        ]),
       ),
     );
+  }
+}
 
 /// Dialog isian teks satu baris. Kembalikan teks (boleh kosong = hapus) atau
 /// null bila dibatalkan.

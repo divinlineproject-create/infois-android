@@ -115,14 +115,16 @@ void main() {
     await settle(tester);
   }
 
-  testWidgets('layar masuk: panel hijau dengan logo web, tombol Masuk dengan Google', (tester) async {
+  testWidgets('layar masuk: panel hijau dengan logo & tagline Infois POS, tombol Masuk dengan Google', (tester) async {
     final (:server, posts: _, paths: _) = googleServer();
     await pumpLogin(tester, server, FakeGoogleAuth());
 
     final panel = tester.widget<Container>(find.byKey(const Key('auth-brand-panel')));
     expect(panel.color, Brand.green);
-    final logo = tester.widget<Image>(find.byKey(const Key('auth-brand-logo')));
-    expect((logo.image as AssetImage).assetName, 'assets/images/infois-logo-web-on-green.png');
+    expect(find.descendant(of: find.byKey(const Key('auth-brand-logo')), matching: find.text('Infois POS')), findsOneWidget);
+    final mark = tester.widget<Image>(find.byKey(const Key('pos-brand-mark')));
+    expect((mark.image as AssetImage).assetName, 'assets/images/infois-pos-mark.png');
+    expect(find.text('Transaksi simpel kalau punya asisten keuangan.', findRichText: true), findsOneWidget);
     expect(find.text('Masuk dengan Google'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });

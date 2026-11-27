@@ -96,7 +96,7 @@ void main() {
     final storage = await pumpApp(tester, server: server, loggedIn: false);
     await submitLogin(tester);
 
-    expect(find.text('Masuk ke Infois'), findsOneWidget);
+    expect(find.text('Masuk ke Infois POS'), findsOneWidget);
     expect(find.byKey(const Key('access-notice')), findsOneWidget);
     // Kebijakan Google Play: tanpa nama paket, harga, atau tempat membeli.
     expect(find.text(mobileAccessMessage), findsOneWidget);
@@ -186,7 +186,7 @@ void main() {
         : {'_status': 403, 'code': 'akses_hp_tidak_tersedia', 'message': 'PT Kopi Senja masih masa trial. Kelola paket lewat website: dashboard.infois.ai › Langganan.'});
     final storage = await pumpApp(tester, server: server);
 
-    expect(find.text('Masuk ke Infois'), findsOneWidget);
+    expect(find.text('Masuk ke Infois POS'), findsOneWidget);
     expect(find.byKey(const Key('access-notice')), findsOneWidget);
     expect(find.text(mobileAccessMessage), findsOneWidget);
     expect(purchaseTextOnScreen(tester), isEmpty);

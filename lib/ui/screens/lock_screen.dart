@@ -69,7 +69,7 @@ class _LockScreenState extends ConsumerState<LockScreen> {
   Widget build(BuildContext context) {
     final session = ref.watch(sessionProvider).valueOrNull;
     final users = ref.watch(pinUsersProvider);
-    final tenantName = session?.tenant?.name ?? 'Infois';
+    final tenantName = session?.tenant?.name ?? 'Infois POS';
     // Pemilik baru mengaktifkan perangkat dan belum punya PIN: buat dulu.
     final needsPin = ref.read(sessionProvider.notifier).hostNeedsPin;
     return AuthSplitLayout(

@@ -26,7 +26,7 @@ ATURAN PENTING (wajib dipatuhi):
 
 DATA YANG DIPAKAI:
 - Developer: PT. DEVINE AUTADA TECH
-- Nama aplikasi: Infois POS: Kasir & Asisten AI
+- Nama aplikasi: Infois POS
 - Package (sudah tetap di AAB): id.infois.infois
 - Bahasa default: Indonesian – id-ID
 - Jenis: App (bukan Game). Gratis (Free). Tanpa iklan.
@@ -41,7 +41,7 @@ DATA YANG DIPAKAI:
 LANGKAH 1 — Create app (Buat aplikasi)
 =====================================================================
 All apps / Semua aplikasi › Create app / Buat aplikasi:
-- App name: Infois POS: Kasir & Asisten AI
+- App name: Infois POS
 - Default language: Indonesian – id-ID
 - App or game: App
 - Free or paid: Free
@@ -132,7 +132,7 @@ a) Store settings:
    - Contact details: email [ISI], website https://infois.ai. Telepon: kosongkan kecuali saya beri.
 
 b) Main store listing (id-ID):
-   - App name: Infois POS: Kasir & Asisten AI
+   - App name: Infois POS
    - Short description:
      Kasir offline, laporan usaha, dan Asisten AI untuk pengguna Infois di HP.
    - Full description: tempel PERSIS teks di blok "Deskripsi lengkap" yang saya berikan

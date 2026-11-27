@@ -166,6 +166,78 @@ String? cleanNote(String? text, [int max = 200]) {
   return value.length > max ? value.substring(0, max) : value;
 }
 
+/// Add-on terpilih di satu baris (format `SaleAddons` server): barang
+/// add-on, nama, dan qty per 1 satuan dasar barang. Harga baris tetap.
+class LineAddon {
+  const LineAddon({required this.productId, required this.name, this.quantity = '1.000000'});
+
+  factory LineAddon.fromProductAddon(ProductAddon addon) => LineAddon(productId: addon.id, name: addon.name, quantity: addon.quantity);
+
+  /// Null bila data tersimpan tidak valid ([cleanAddons] membuangnya).
+  static LineAddon? tryParse(Object? raw) {
+    if (raw is! Map) {
+      return null;
+    }
+    final name = cleanNote(raw['name']?.toString(), 120);
+    if (name == null) {
+      return null;
+    }
+    final id = raw['product_id'];
+    return LineAddon(
+      productId: id == null ? null : (id is int ? id : int.tryParse(id.toString())),
+      name: name,
+      quantity: Money.normalize(raw['quantity'] ?? '1', 6),
+    );
+  }
+
+  final int? productId;
+  final String name;
+  final String quantity;
+
+  String get key => productId != null ? 'id:$productId' : 'name:${name.toLowerCase()}';
+
+  Map<String, dynamic> toJson() => {'product_id': productId, 'name': name, 'quantity': quantity};
+}
+
+/// Add-on yang dirapikan: data tidak valid dibuang, id/nama ganda cukup
+/// sekali, paling banyak 20 (sama dengan `cleanAddons` kasir web).
+List<LineAddon> cleanAddons(Iterable<Object?> raw) {
+  final out = <LineAddon>[];
+  final seen = <String>{};
+  for (final item in raw) {
+    final addon = item is LineAddon ? item : LineAddon.tryParse(item);
+    if (addon == null || !seen.add(addon.key)) {
+      continue;
+    }
+    out.add(addon);
+    if (out.length >= 20) {
+      break;
+    }
+  }
+  return out;
+}
+
+/// Add-on terpilih ([selectedIds] = id barang add-on) urut seperti di Katalog.
+List<LineAddon> addonsFor(Product product, Iterable<int> selectedIds) {
+  final wanted = selectedIds.toSet();
+  return [
+    for (final addon in product.addons)
+      if (wanted.contains(addon.id)) LineAddon.fromProductAddon(addon),
+  ];
+}
+
+/// "Sambal hijau, Saus tomat" untuk keranjang & struk; null bila kosong.
+String? addonsLabel(Iterable<Object?> addons) {
+  final names = [for (final addon in cleanAddons(addons)) addon.name];
+  return names.isEmpty ? null : names.join(', ');
+}
+
+/// Dua daftar add-on sama (tanpa melihat urutan).
+bool sameAddons(Iterable<Object?> a, Iterable<Object?> b) {
+  String keys(Iterable<Object?> list) => ([for (final addon in cleanAddons(list)) addon.key]..sort()).join('|');
+  return keys(a) == keys(b);
+}
+
 class CartLine {
   const CartLine({
     required this.key,
@@ -178,11 +250,12 @@ class CartLine {
     this.taxRate = '0.00',
     this.manualPrice = false,
     this.note,
+    this.addons = const [],
   });
 
   /// Baris baru dari katalog dengan harga satuan & harga bertingkat
   /// otomatis; [levelId] = level pelanggan di keranjang (harga khusus level).
-  factory CartLine.fromProduct(String key, Product product, {String quantity = '1.000000', String? unit, String? note, int? levelId}) {
+  factory CartLine.fromProduct(String key, Product product, {String quantity = '1.000000', String? unit, String? note, int? levelId, List<LineAddon> addons = const []}) {
     final option = product.optionFor(unit);
     return CartLine(
       key: key,
@@ -193,6 +266,7 @@ class CartLine {
       unitPrice: product.priceFor(option.name, quantity, levelId: levelId),
       taxRate: product.taxRate,
       note: cleanNote(note),
+      addons: cleanAddons(addons),
     );
   }
 
@@ -207,6 +281,7 @@ class CartLine {
         taxRate: Money.normalize(json['tax_rate']),
         manualPrice: json['manual_price'] == true,
         note: cleanNote(json['note']?.toString()),
+        addons: cleanAddons(json['addons'] as List? ?? const []),
       );
 
   final String key;
@@ -224,6 +299,13 @@ class CartLine {
   /// Catatan barang untuk dapur/struk (mis. warna, ukuran, permintaan khusus).
   final String? note;
 
+  /// Add-on terpilih (mis. sambal hijau): tercetak di bawah nama barang,
+  /// stoknya dikurangi server, harga baris tetap.
+  final List<LineAddon> addons;
+
+  /// "Sambal hijau, Saus tomat"; null bila tanpa add-on.
+  String? get addonsText => addonsLabel(addons);
+
   Map<String, dynamic> toJson() => {
         'key': key,
         'product': product?.toJson(),
@@ -235,12 +317,13 @@ class CartLine {
         'tax_rate': taxRate,
         'manual_price': manualPrice,
         'note': note,
+        'addons': [for (final addon in addons) addon.toJson()],
       };
 
-  /// [note]: null = tidak berubah, '' = hapus catatan. Jumlah/satuan yang
-  /// berubah menghitung ulang harga otomatis dengan level pelanggan
-  /// [levelId] (null = tanpa level).
-  CartLine copyWith({String? quantity, String? unit, String? unitPrice, String? discountPercent, bool? manualPrice, String? description, String? note, int? levelId}) {
+  /// [note]: null = tidak berubah, '' = hapus catatan. [addons]: null =
+  /// tidak berubah. Jumlah/satuan yang berubah menghitung ulang harga
+  /// otomatis dengan level pelanggan [levelId] (null = tanpa level).
+  CartLine copyWith({String? quantity, String? unit, String? unitPrice, String? discountPercent, bool? manualPrice, String? description, String? note, int? levelId, List<LineAddon>? addons}) {
     final nextQuantity = quantity == null ? this.quantity : Money.normalize(quantity, 6);
     final nextUnit = unit ?? this.unit;
     final nextManual = manualPrice ?? this.manualPrice;
@@ -259,6 +342,7 @@ class CartLine {
       taxRate: taxRate,
       manualPrice: nextManual,
       note: note == null ? this.note : cleanNote(note),
+      addons: addons == null ? this.addons : cleanAddons(addons),
     );
   }
 
@@ -287,6 +371,7 @@ class CartLine {
       taxRate: taxRate,
       manualPrice: manualPrice,
       note: note,
+      addons: addons,
     );
   }
 

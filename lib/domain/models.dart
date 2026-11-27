@@ -62,6 +62,28 @@ class PriceTier {
       };
 }
 
+/// Add-on barang dari Katalog web (mis. sambal hijau untuk box nasi ayam):
+/// dipilih kasir saat menjual. [quantity] = qty add-on (satuan dasar
+/// add-on) per 1 satuan dasar barang; stoknya dikurangi server, harga
+/// barang tetap.
+class ProductAddon {
+  const ProductAddon({required this.id, required this.name, this.unit = 'unit', this.quantity = '1.000000'});
+
+  factory ProductAddon.fromJson(Map<String, dynamic> json) => ProductAddon(
+        id: _i(json['id'])!,
+        name: _s(json['name']),
+        unit: _s(json['unit'], 'unit'),
+        quantity: Money.normalize(json['quantity'] ?? '1', 6),
+      );
+
+  final int id;
+  final String name;
+  final String unit;
+  final String quantity;
+
+  Map<String, dynamic> toJson() => {'id': id, 'name': name, 'unit': unit, 'quantity': quantity};
+}
+
 /// Asal harga satuan otomatis di kasir.
 enum PriceSource {
   /// Harga satuan biasa (belum ada tingkat yang terpenuhi).
@@ -114,6 +136,7 @@ class Product {
     this.photoVersion,
     this.photoUrl,
     this.photoThumbUrl,
+    this.addons = const [],
   });
 
   factory Product.fromJson(Map<String, dynamic> json) {
@@ -149,6 +172,11 @@ class Product {
         photoVersion: _blank(json['photo_version']),
         photoUrl: photoUrl,
         photoThumbUrl: _blank(json['photo_thumb_url']),
+        // Server/cache lama tanpa `addons`: tanpa add-on.
+        addons: [
+          for (final addon in (json['addons'] as List? ?? const []))
+            if (addon is Map && _i(addon['id']) != null && _s(addon['name']).trim().isNotEmpty) ProductAddon.fromJson(Map<String, dynamic>.from(addon)),
+        ],
       );
   }
 
@@ -193,6 +221,12 @@ class Product {
   final String? photoUrl;
   final String? photoThumbUrl;
 
+  /// Add-on yang bisa dipilih kasir (urut seperti di Katalog web).
+  final List<ProductAddon> addons;
+
+  /// Punya add-on: kasir memilih add-on saat barang diketuk.
+  bool get hasAddons => addons.isNotEmpty;
+
   /// Bahan baku yang dicentang "Tampilkan di POS" di web.
   bool get isRawMaterial => kind == 'raw_material';
 
@@ -221,6 +255,7 @@ class Product {
         'photo_version': photoVersion,
         'photo_url': photoUrl,
         'photo_thumb_url': photoThumbUrl,
+        'addons': [for (final addon in addons) addon.toJson()],
       };
 
   /// Satuan dasar (isi 1) + satuan lain, sama dengan `ProductService::unitOptions()`.

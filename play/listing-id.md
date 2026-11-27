@@ -11,11 +11,11 @@ yang dijejalkan.
 ## Nama aplikasi (maks. 30 karakter)
 
 ```
-Infois POS: Kasir & Asisten AI
+Infois POS
 ```
 
-26 karakter. Nama di HP (ikon peluncur) sudah **Infois POS**; nama toko boleh lebih panjang.
-Alternatif: `Infois POS` (10).
+10 karakter, sama dengan nama di HP (ikon peluncur), layar pembuka, dan logo di folder BRAND POS.
+Tagline (feature graphic & layar awal aplikasi): **Transaksi simpel kalau punya asisten keuangan.**
 
 ## Deskripsi singkat (maks. 80 karakter)
 

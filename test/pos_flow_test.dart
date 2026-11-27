@@ -175,7 +175,7 @@ void main() {
 
     // Kontrak "Tolak total": 403 langganan_tidak_aktif / akses_hp_tidak_tersedia
     // melepas perusahaan dari HP. Satu-satunya perusahaan → layar Masuk + alasan.
-    expect(find.text('Masuk ke Infois'), findsOneWidget);
+    expect(find.text('Masuk ke Infois POS'), findsOneWidget);
     expect(find.byKey(const Key('access-notice')), findsOneWidget);
     expect(find.text(companyInactiveMessage), findsOneWidget);
     expect(find.text('Lihat paket'), findsNothing, reason: 'Kebijakan Google Play: tanpa tautan ke halaman Langganan.');
@@ -203,7 +203,7 @@ void main() {
 
   testWidgets('belum login: tampil layar masuk', (tester) async {
     await pumpApp(tester, loggedIn: false, tenantId: null);
-    expect(find.text('Masuk ke Infois'), findsOneWidget);
+    expect(find.text('Masuk ke Infois POS'), findsOneWidget);
     expect(find.byKey(const Key('login-submit')), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });

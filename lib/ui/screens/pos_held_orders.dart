@@ -41,7 +41,8 @@ Future<bool> askHoldName(BuildContext context, WidgetRef ref) async {
   final cart = ref.read(cartProvider);
   final held = ref.read(heldOrdersProvider).valueOrNull ?? const <HeldOrder>[];
   final current = cart.heldId == null ? null : held.where((order) => order.id == cart.heldId).firstOrNull?.name;
-  final controller = TextEditingController(text: current ?? HeldOrderStore.defaultName(cart, DateTime.now()));
+  // Nama buatan otomatis ikut meja & pelanggan terbaru; nama ketikan kasir tetap.
+  final controller = TextEditingController(text: current != null && !HeldOrderStore.isAutoName(current, cart) ? current : HeldOrderStore.defaultName(cart, DateTime.now()));
   final name = await showDialog<String>(
     context: context,
     builder: (context) => AlertDialog(
@@ -53,7 +54,7 @@ Future<bool> askHoldName(BuildContext context, WidgetRef ref) async {
           autofocus: true,
           maxLength: 60,
           textCapitalization: TextCapitalization.sentences,
-          decoration: const InputDecoration(labelText: 'Nama pesanan', hintText: 'mis. Meja 5 atau Pak Budi', counterText: ''),
+          decoration: const InputDecoration(labelText: 'Nama pesanan', hintText: 'mis. 000001-Meja 5-Pak Budi', counterText: ''),
           onSubmitted: (value) => Navigator.pop(context, value),
         ),
       ]),
@@ -85,9 +86,18 @@ Future<void> showHeldOrders(BuildContext context) => showModalBottomSheet<void>(
       builder: (context) => const FractionallySizedBox(heightFactor: 0.75, child: HeldOrdersSheet()),
     );
 
-/// Daftar pesanan tersimpan: lanjutkan (masuk keranjang) atau hapus.
-class HeldOrdersSheet extends ConsumerWidget {
+/// Daftar pesanan tersimpan: lanjutkan (masuk keranjang) atau hapus. Lebih
+/// dari 5 pesanan (restoran dengan banyak meja): kotak cari nomor, meja, atau
+/// nama pelanggan.
+class HeldOrdersSheet extends ConsumerStatefulWidget {
   const HeldOrdersSheet({super.key});
+
+  @override
+  ConsumerState<HeldOrdersSheet> createState() => _HeldOrdersSheetState();
+}
+
+class _HeldOrdersSheetState extends ConsumerState<HeldOrdersSheet> {
+  String _query = '';
 
   String _time(DateTime value) {
     final local = value.toLocal();
@@ -114,7 +124,7 @@ class HeldOrdersSheet extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final orders = ref.watch(heldOrdersProvider);
     final activeId = ref.watch(cartProvider.select((cart) => cart.heldId));
     final dining = ref.watch(masterDataProvider).valueOrNull?.tenant.posDining ?? true;
@@ -123,16 +133,30 @@ class HeldOrdersSheet extends ConsumerWidget {
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
         child: Text('Pesanan tersimpan', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
       ),
+      if ((orders.valueOrNull?.length ?? 0) > 5)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: TextField(
+            key: const Key('held-search'),
+            textInputAction: TextInputAction.search,
+            decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'Cari nomor, meja, atau nama', isDense: true),
+            onChanged: (value) => setState(() => _query = value),
+          ),
+        ),
       Expanded(
         child: orders.when(
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (error, _) => EmptyState(icon: Icons.error_outline, title: 'Pesanan tersimpan belum bisa dibuka', message: plainError(error, fallback: 'Coba lagi sebentar lagi.')),
-          data: (items) => items.isEmpty
+          data: (all) {
+            final items = [for (final order in all) if (HeldOrderStore.matches(order, _query)) order];
+            return all.isEmpty
               ? EmptyState(
                   icon: Icons.bookmarks_outlined,
                   title: 'Belum ada pesanan tersimpan',
                   message: 'Tekan Simpan di keranjang untuk bayar nanti.',
                 )
+              : items.isEmpty
+              ? const EmptyState(icon: Icons.search_off, title: 'Pesanan tidak ditemukan', message: 'Coba nomor pesanan, nama meja, atau nama pelanggan.')
               : ListView.separated(
                   itemCount: items.length,
                   separatorBuilder: (_, __) => const Divider(height: 1),
@@ -144,11 +168,11 @@ class HeldOrdersSheet extends ConsumerWidget {
                     final queue = dining ? order.cart.queueNumber : null;
                     // Satu baris: jenis pesanan sudah terlihat dari ikonnya.
                     final details = [
-                      if (queue != null && order.name != queue) 'Antrian $queue',
+                      if (queue != null && !order.name.startsWith(queue)) 'Antrian $queue',
                       '${order.itemCount} barang',
-                      // Pelanggan "{nama} · {level}"; nama pesanan = nama pelanggan: levelnya saja.
-                      if (customer != null && order.name != customer.name) customer.nameWithLevel,
-                      if (customer != null && order.name == customer.name && customer.level != null) customer.level!,
+                      // Pelanggan "{nama} · {level}"; nama pesanan sudah memuat nama pelanggan: levelnya saja.
+                      if (customer != null && !customer.isWalkIn && !order.name.contains(customer.name)) customer.nameWithLevel,
+                      if (customer != null && order.name.contains(customer.name) && customer.level != null) customer.level!,
                       _time(order.createdAt),
                     ].join(' · ');
                     return ListTile(
@@ -179,7 +203,8 @@ class HeldOrdersSheet extends ConsumerWidget {
                       },
                     );
                   },
-                ),
+                );
+          },
         ),
       ),
     ]);

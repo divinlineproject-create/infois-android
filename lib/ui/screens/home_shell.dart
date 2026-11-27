@@ -118,7 +118,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
           if (updateBanner)
             MaterialBanner(
               padding: bannerTop,
-              content: const Text('Versi aplikasi ini sudah lama. Perbarui aplikasi Infois supaya data tetap tersimpan dengan benar.'),
+              content: const Text('Versi aplikasi ini sudah lama. Perbarui aplikasi Infois POS supaya data tetap tersimpan dengan benar.'),
               actions: [TextButton(onPressed: () => setState(() => _updateDismissed = true), child: const Text('Nanti'))],
             ),
           // Aplikasi HP dimatikan sementara oleh admin Infois (503

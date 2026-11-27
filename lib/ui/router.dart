@@ -65,8 +65,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       return null;
     },
     routes: [
-      // Layar pembuka: hijau Infois + logo web (sama dengan layar pembuka
-      // Android sebelum Flutter tampil).
+      // Layar pembuka: hijau Infois + tanda Infois POS di kotak putih (sama
+      // dengan layar pembuka Android sebelum Flutter tampil), nama, tagline.
       GoRoute(
         path: '/mulai',
         builder: (context, __) => AnnotatedRegion<SystemUiOverlayStyle>(
@@ -74,7 +74,26 @@ final routerProvider = Provider<GoRouter>((ref) {
           child: Scaffold(
             key: const Key('splash'),
             backgroundColor: Brand.green,
-            body: Center(child: Image.asset(brandLogoOnGreen, width: 200, height: 200 / brandLogoAspect, semanticLabel: AppConfig.name)),
+            body: Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 32),
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  const PosBrandTile(size: 120),
+                  const SizedBox(height: 24),
+                  Text(AppConfig.name, style: const TextStyle(color: Colors.white, fontSize: 30, fontWeight: FontWeight.w700, letterSpacing: -0.3)),
+                  const SizedBox(height: 8),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 300),
+                    child: PosTaglineText(
+                      posTagline,
+                      key: const Key('splash-tagline'),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.white.withValues(alpha: 0.95), fontSize: 17, height: 1.4, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ]),
+              ),
+            ),
           ),
         ),
       ),
