@@ -156,6 +156,14 @@ class PosOrderPanel extends ConsumerWidget {
                 for (final line in cart.lines) _LineRow(line: line, amounts: cart.amountsFor(line, pricesIncludeTax: inclusive), levelId: cart.levelId),
                 const SizedBox(height: Space.s),
                 _OptionGroup(children: [
+                  // Fitur rumah makan dikunci paket: tetap tampil bergembok.
+                  if (!dining && master?.tenant.locked('pos_dining') != null)
+                    _OptionTile(
+                      key: const Key('order-label-locked'),
+                      icon: Icons.lock_outline,
+                      title: 'Meja & nomor pesanan',
+                      onTap: () => showLockedFeature(context, master!.tenant.locked('pos_dining')!),
+                    ),
                   if (dining)
                     _OptionTile(
                       key: const Key('order-label'),

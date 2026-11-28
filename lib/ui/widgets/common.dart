@@ -6,6 +6,7 @@ import '../../core/format.dart';
 import '../../data/api_client.dart';
 import '../../data/app_storage.dart' show ServerMigrationPending;
 import '../../data/local_db.dart';
+import '../../domain/models.dart' show LockedFeature;
 import '../../services/pos_service.dart';
 import '../../state/sync_controller.dart';
 import '../theme.dart';
@@ -209,3 +210,16 @@ class _LazyTabState extends State<LazyTab> {
     return _child ?? const SizedBox.shrink();
   }
 }
+
+/// Fitur dikunci paket langganan: "Fitur tidak tersedia pada paket ini" +
+/// paket yang membukanya (diatur pemilik lewat web).
+Future<void> showLockedFeature(BuildContext context, LockedFeature feature) => showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        key: const Key('locked-feature-dialog'),
+        icon: const Icon(Icons.lock_outline),
+        title: Text(feature.label),
+        content: Text('Fitur tidak tersedia pada paket ini. ${feature.message}'),
+        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Tutup'))],
+      ),
+    );

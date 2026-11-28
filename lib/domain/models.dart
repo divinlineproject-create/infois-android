@@ -532,6 +532,19 @@ class ShiftCashTransfers {
   Map<String, dynamic> toJson() => {'float': float?.toJson(), 'deposit': deposit?.toJson(), 'note': note};
 }
 
+/// Fitur kasir yang dikunci paket langganan (`tenant.locked_features`):
+/// tetap tampil bergembok, diketuk menampilkan [message].
+class LockedFeature {
+  const LockedFeature({required this.label, required this.message});
+
+  factory LockedFeature.fromJson(Map<String, dynamic> json) => LockedFeature(label: _s(json['label']), message: _s(json['message']));
+
+  final String label;
+  final String message;
+
+  Map<String, dynamic> toJson() => {'label': label, 'message': message};
+}
+
 class TenantSettings {
   const TenantSettings({
     required this.id,
@@ -545,6 +558,7 @@ class TenantSettings {
     this.qrisEnabled = false,
     this.qrisPrintOnBill = false,
     this.posTables = const [],
+    this.lockedFeatures = const {},
   });
 
   factory TenantSettings.fromJson(Map<String, dynamic> json) => TenantSettings(
@@ -565,6 +579,12 @@ class TenantSettings {
           for (final table in json['pos_tables'] is List ? json['pos_tables'] as List : const [])
             if ((table?.toString().trim() ?? '').isNotEmpty) table.toString().trim(),
         ],
+        // Server lama tanpa `locked_features`: tidak ada yang dikunci.
+        lockedFeatures: {
+          if (json['locked_features'] is Map)
+            for (final entry in (json['locked_features'] as Map).entries)
+              if (entry.value is Map) entry.key.toString(): LockedFeature.fromJson(Map<String, dynamic>.from(entry.value as Map)),
+        },
       );
 
   final int id;
@@ -589,6 +609,11 @@ class TenantSettings {
   /// isian meja bebas.
   final List<String> posTables;
 
+  /// Fitur kasir yang dikunci paket (`pos_dining`, `pos_qris`, `pos_ai_input`).
+  final Map<String, LockedFeature> lockedFeatures;
+
+  LockedFeature? locked(String key) => lockedFeatures[key];
+
   Map<String, dynamic> toJson() => {
         'id': id,
         'name': name,
@@ -600,6 +625,7 @@ class TenantSettings {
         'pos_dining': posDining,
         'qris': {'enabled': qrisEnabled, 'print_on_bill': qrisPrintOnBill},
         'pos_tables': posTables,
+        'locked_features': {for (final entry in lockedFeatures.entries) entry.key: entry.value.toJson()},
       };
 }
 

@@ -95,6 +95,11 @@ class _PayScreenState extends ConsumerState<PayScreen> {
   String _total() => ref.read(cartProvider).totals(pricesIncludeTax: ref.read(masterDataProvider).valueOrNull?.tenant.pricesIncludeTax ?? false).total;
 
   void _setMode(PayMode mode) {
+    final lockedQris = ref.read(masterDataProvider).valueOrNull?.tenant.locked('pos_qris');
+    if (mode == PayMode.qris && lockedQris != null && !(ref.read(masterDataProvider).valueOrNull?.tenant.qrisEnabled ?? false)) {
+      showLockedFeature(context, lockedQris);
+      return;
+    }
     if (_mode == PayMode.qris && mode != PayMode.qris) {
       _cancelQris();
     }
@@ -440,6 +445,8 @@ class _PayScreenState extends ConsumerState<PayScreen> {
             // QRIS dinamis bila dinyalakan perusahaan (online saja). Tetap tampil
             // bila sedang dipilih walau dimatikan lewat sinkron di tengah jalan.
             if (qrisEnabled || _mode == PayMode.qris) (PayMode.qris, 'QRIS', Icons.qr_code),
+            // QRIS dikunci paket: tetap tampil bergembok, diketuk menjelaskan paketnya.
+            if (!qrisEnabled && _mode != PayMode.qris && master?.tenant.locked('pos_qris') != null) (PayMode.qris, 'QRIS', Icons.lock_outline),
           ])
             ButtonSegment(
               value: mode,

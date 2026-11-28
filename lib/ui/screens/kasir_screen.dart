@@ -207,6 +207,8 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
   }
 
   Widget _toolbar(bool twoPane, {bool dense = false}) {
+    // Input AI dikunci paket langganan (tampil bergembok).
+    final lockedAi = ref.watch(masterDataProvider).valueOrNull?.tenant.locked('pos_ai_input');
     final held = ref.watch(heldOrdersProvider).valueOrNull?.length ?? 0;
     final online = ref.watch(syncProvider.select((state) => state.connection == ConnectionStatus.online));
     return Padding(
@@ -230,8 +232,16 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
                   onPressed: _scanWithCamera,
                   icon: Icon(Icons.qr_code_scanner, color: Theme.of(context).colorScheme.primary),
                 ),
+                // Input AI dikunci paket: tombol bergembok.
+                if (lockedAi != null)
+                  IconButton(
+                    key: const Key('ai-input-locked'),
+                    tooltip: 'Input AI tidak tersedia pada paket ini',
+                    onPressed: () => showLockedFeature(context, lockedAi),
+                    icon: Icon(Icons.lock_outline, color: mutedText(context)),
+                  )
                 // Input AI butuh internet: tombol disembunyikan saat offline.
-                if (online)
+                else if (online)
                   IconButton(
                     key: const Key('ai-input-button'),
                     tooltip: 'Input AI: ketik, ucapkan, atau foto pesanan',

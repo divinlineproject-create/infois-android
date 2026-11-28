@@ -148,6 +148,11 @@ cetak rekap kasir yang masih dibuka + catatan) dan **catatan Tutup kasir** (diki
 tercetak), nama bawaan Simpan pesanan = nomor pesanan, tulisan LUNAS/BELUM LUNAS di struk tidak lagi blok hitam.
 Menggantikan 1.0.4+6 bila belum diunggah.
 
+**1.0.9+11** (2026-11-28): **fitur dikunci paket** (server 2026-11-28, `tenant.locked_features`): fitur
+rumah makan, QRIS, dan Input AI yang tidak termasuk paket tampil bergembok dan diketuk menjelaskan "Fitur
+tidak tersedia pada paket ini" + paket yang membukanya (aplikasi lama: disembunyikan). Berisi semua isi
+1.0.8+10; menggantikan 1.0.8+10 bila belum diunggah.
+
 **1.0.8+10** (2026-11-28): **add-on barang** (mis. box nasi ayam + pilihan sambal hijau / saus). Katalog
 mengirim `addons` per barang; mengetuk barang ber-add-on memunculkan pilihan add-on (bersama pilihan satuan
 bila ada), juga di lembar barang dan ubah baris. Add-on tidak menambah harga, tampil di keranjang, dikirim per
@@ -157,7 +162,9 @@ peluncur, layar pembuka Android (tanda POS di kotak putih), layar pembuka aplika
 (logo + tulisan Infois POS, tagline "Transaksi simpel kalau punya asisten keuangan."), judul "Masuk ke
 Infois POS". **Pesanan tersimpan rumah makan** bernama nomor-meja-pelanggan (`000001-Meja 01-Firmawan`,
 tanpa meja `000001-Tanpa meja`; nama ketikan kasir tetap), daftar pesanan tersimpan punya kotak cari bila
-lebih dari 5, dan pilih meja punya kotak cari bila lebih dari 9 meja. Menggantikan 1.0.7+9 bila belum diunggah.
+lebih dari 5, dan pilih meja punya kotak cari bila lebih dari 9 meja. **Fitur dikunci paket** (server
+2026-11-28, `tenant.locked_features`): fitur rumah makan, QRIS, dan Input AI yang tidak termasuk paket
+Menggantikan 1.0.7+9 bila belum diunggah.
 
 **1.0.7+9** (2026-11-27): owner bisa **Hapus semua transaksi** di web (mulai dari nol). Saat tarik data,
 HP membaca `tenant.transactions_reset_at` dan sekali membuang penjualan, shift, pesanan tersimpan, serta
